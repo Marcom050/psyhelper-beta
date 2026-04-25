@@ -64,6 +64,8 @@ def save_user_data(username):
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "show_mindfulness" not in st.session_state:
+    st.session_state.show_mindfulness = False
 
 if not st.session_state.logged_in:
     st.title("🧠 PsyHelper - Accesso")
