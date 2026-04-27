@@ -62,6 +62,38 @@ def save_user_data(username):
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
 
+# ====================== FUNZIONE DI RISPOSTA ======================
+def get_response(user_input):
+    profile = st.session_state.profile
+    nome = profile.get("nome") or ""
+    profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
+
+    system_prompt = f"""Sei PsyHelper, un assistente pratico, empatico e concreto.
+Nome utente: {nome}
+Profilo: {profile_text}
+Rispondi in modo diretto, utile e naturale. Dai consigli pratici e fai al massimo una domanda mirata."""
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{input}"),
+    ])
+    
+    chain = prompt | llm
+    chain_with_history = RunnableWithMessageHistory(
+        chain,
+        lambda x: ChatMessageHistory(),
+        input_messages_key="input",
+        history_messages_key="history"
+    )
+    
+    response = chain_with_history.invoke(
+        {"input": user_input},
+        config={"configurable": {"session_id": "psyhelper_user"}}
+    )
+    return response.content
+
+# ====================== LOGIN / REGISTRAZIONE ======================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "show_mindfulness" not in st.session_state:
@@ -99,6 +131,7 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
+# ====================== APP PRINCIPALE ======================
 st.title("🧠 PsyHelper")
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.username}, sono qui per aiutarti</p>", unsafe_allow_html=True)
 
