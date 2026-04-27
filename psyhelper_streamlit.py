@@ -123,7 +123,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ====================== ONBOARDING / MODIFICA PROFILO ======================
-if not st.session_state.profile or st.button("✏️ Modifica Profilo"):
+if not st.session_state.profile or st.session_state.get("edit_profile", False):
     st.title("Modifica il tuo Profilo")
     with st.form("onboarding"):
         col1, col2 = st.columns(2)
@@ -156,6 +156,7 @@ if not st.session_state.profile or st.button("✏️ Modifica Profilo"):
                 "cosa_funziona": cosa_funziona
             }
             save_user_data(st.session_state.username)
+            st.session_state.edit_profile = False
             st.success("Profilo aggiornato!")
             st.rerun()
 
@@ -188,7 +189,8 @@ with col2:
         st.rerun()
 with col3:
     if st.button("✏️ Modifica Profilo"):
-        st.rerun()  # Riavvia per mostrare il form di modifica
+        st.session_state.edit_profile = True
+        st.rerun()
 with col4:
     if st.button("🚪 Logout"):
         st.session_state.logged_in = False
