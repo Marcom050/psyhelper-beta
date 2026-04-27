@@ -62,16 +62,24 @@ def save_user_data(username):
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
 
-# ====================== FUNZIONE DI RISPOSTA ======================
+# ====================== PROMPT CBT AVANZATO ======================
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
     profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
 
-    system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
+    system_prompt = f"""Sei PsyHelper, un assistente altamente specializzato in Terapia Cognitivo-Comportamentale (CBT).
+
 Nome utente: {nome}
 Profilo: {profile_text}
-Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecniche CBT in modo mirato."""
+
+Regole importanti:
+- L'utente può scegliere liberamente il tema della sessione (anche solo un'esperienza della giornata che vuole comprendere).
+- Una volta scelto il tema, usa un approccio CBT strutturato: identifica emozioni precise, pensieri automatici, trigger, evidenze a favore/contro, reframing e piccoli passi concreti.
+- Sii estremamente mirato sulla situazione personale dell'utente.
+- Se l'utente vuole cambiare argomento o parlare di più cose insieme, seguilo senza problemi.
+- Mantieni un tono professionale, empatico e diretto.
+- Evita risposte generiche. Sii concreto e utile."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -80,8 +88,17 @@ Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecni
     ])
     
     chain = prompt | llm
-    chain_with_history = RunnableWithMessageHistory(chain, lambda x: ChatMessageHistory(), input_messages_key="input", history_messages_key="history")
-    response = chain_with_history.invoke({"input": user_input}, config={"configurable": {"session_id": "psyhelper_user"}})
+    chain_with_history = RunnableWithMessageHistory(
+        chain,
+        lambda x: ChatMessageHistory(),
+        input_messages_key="input",
+        history_messages_key="history"
+    )
+    
+    response = chain_with_history.invoke(
+        {"input": user_input},
+        config={"configurable": {"session_id": "psyhelper_user"}}
+    )
     return response.content
 
 # ====================== LOGIN ======================
@@ -122,44 +139,6 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING / MODIFICA PROFILO ======================
-if not st.session_state.profile or st.session_state.get("edit_profile", False):
-    st.title("Modifica il tuo Profilo")
-    with st.form("onboarding"):
-        col1, col2 = st.columns(2)
-        with col1:
-            nome = st.text_input("Nome", value=st.session_state.profile.get("nome", ""))
-            età = st.number_input("Età", 14, 90, value=st.session_state.profile.get("età", 30))
-            umore = st.selectbox("Umore attuale", ["Sereno", "Ansioso", "Triste", "Irritabile", "Altro"], 
-                               index=["Sereno", "Ansioso", "Triste", "Irritabile", "Altro"].index(st.session_state.profile.get("umore", "Ansioso")))
-            intensità = st.slider("Intensità malessere (1-10)", 1, 10, value=st.session_state.profile.get("intensità", 5))
-        with col2:
-            stress = st.slider("Livello stress (1-10)", 1, 10, value=st.session_state.profile.get("stress", 5))
-            sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"], 
-                               index=["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"].index(st.session_state.profile.get("sonno", "Buono")))
-            motivazione = st.slider("Motivazione (1-10)", 1, 10, value=st.session_state.profile.get("motivazione", 7))
-        pensieri = st.text_area("Pensieri ricorrenti", value=st.session_state.profile.get("pensieri", ""))
-        obiettivi = st.text_area("Obiettivi di benessere", value=st.session_state.profile.get("obiettivi", ""))
-        cosa_funziona = st.text_area("Cosa ti aiuta quando stai male", value=st.session_state.profile.get("cosa_funziona", ""))
-        
-        if st.form_submit_button("Salva Profilo 💜", use_container_width=True):
-            st.session_state.profile = {
-                "nome": nome or "Utente",
-                "età": età,
-                "umore": umore,
-                "intensità": intensità,
-                "stress": stress,
-                "sonno": sonno,
-                "motivazione": motivazione,
-                "pensieri": pensieri,
-                "obiettivi": obiettivi,
-                "cosa_funziona": cosa_funziona
-            }
-            save_user_data(st.session_state.username)
-            st.session_state.edit_profile = False
-            st.success("Profilo aggiornato!")
-            st.rerun()
-
 # ====================== APP PRINCIPALE ======================
 st.title("🧠 PsyHelper")
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}, sessione attiva</p>", unsafe_allow_html=True)
@@ -168,7 +147,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if user_input := st.chat_input("Descrivi cosa stai provando..."):
+if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza vuoi approfondire..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
     with st.chat_message("assistant"):
