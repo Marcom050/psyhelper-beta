@@ -6,17 +6,18 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 import os
 import pickle
 import hashlib
+from datetime import datetime
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 14px; border-radius: 10px; text-align: center; margin-bottom: 20px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA<br>Stiamo testando l’app. Il tuo feedback è prezioso!</div>', unsafe_allow_html=True)
+st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 14px; border-radius: 10px; text-align: center; margin-bottom: 20px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA<br>Supporto psicologico strutturato e privato</div>', unsafe_allow_html=True)
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
     st.error("⚠️ API Key non configurata!")
     st.stop()
 
-llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.55, api_key=GROQ_API_KEY)
+llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.50, api_key=GROQ_API_KEY)
 
 USERS_DIR = os.path.expanduser("~/psyhelper_data/users")
 os.makedirs(USERS_DIR, exist_ok=True)
@@ -62,16 +63,27 @@ def save_user_data(username):
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
 
-# ====================== FUNZIONE DI RISPOSTA ======================
+# ====================== PROMPT CBT MOLTO FOCALIZZATO ======================
 def get_response(user_input):
     profile = st.session_state.profile
     nome = profile.get("nome") or ""
     profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
 
-    system_prompt = f"""Sei PsyHelper, un assistente pratico, empatico e concreto.
+    system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale (CBT). 
+Il tuo obiettivo è aiutare l'utente a lavorare profondamente sui suoi stati mentali.
+
 Nome utente: {nome}
-Profilo: {profile_text}
-Rispondi in modo diretto, utile e naturale. Dai consigli pratici e fai al massimo una domanda mirata."""
+Profilo utente: {profile_text}
+
+Regole strette:
+- Sii estremamente focalizzato sugli stati mentali dell'utente (emozioni precise, pensieri automatici, trigger, comportamenti).
+- Usa tecniche CBT: identifica pensieri automatici, evidenze a favore/contro, reframing, esperimenti comportamentali.
+- Rispondi in modo mirato, professionale e utile. Evita frasi generiche.
+- Se l'utente vuole approfondire una situazione specifica, seguilo senza deviare.
+- Mantieni un tono empatico ma diretto.
+- Fai massimo 1-2 domande molto precise per approfondire lo stato mentale.
+
+Rispondi sempre concentrandoti sul benessere mentale dell'utente."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -133,7 +145,7 @@ if not st.session_state.logged_in:
 
 # ====================== APP PRINCIPALE ======================
 st.title("🧠 PsyHelper")
-st.markdown(f"<p class='subtitle'>Ciao {st.session_state.username}, sono qui per aiutarti</p>", unsafe_allow_html=True)
+st.markdown(f"<p class='subtitle'>Ciao {st.session_state.username}, sessione attiva</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -154,7 +166,7 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("🧘 Mindfulness"): st.session_state.show_mindfulness = not st.session_state.show_mindfulness
 with col2:
-    if st.button("🔄 Nuova conversazione"):
+    if st.button("🔄 Nuova sessione"):
         st.session_state.messages = []
         save_user_data(st.session_state.username)
         st.rerun()
