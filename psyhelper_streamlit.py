@@ -62,22 +62,16 @@ def save_user_data(username):
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
 
-# ====================== FUNZIONE DI RISPOSTA CBT FOCALIZZATA ======================
+# ====================== FUNZIONE DI RISPOSTA ======================
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
     profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
 
     system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
-
 Nome utente: {nome}
 Profilo: {profile_text}
-
-Obiettivo: Aiutare l'utente a lavorare sui suoi stati mentali in modo profondo e concreto.
-- Focalizzati su emozioni, pensieri automatici, trigger e comportamenti.
-- Usa tecniche CBT (identificazione pensieri, evidenze, reframing, piccoli esperimenti).
-- Sii mirato, professionale e utile.
-- Rispondi in modo naturale ma preciso."""
+Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecniche CBT in modo mirato."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -86,20 +80,11 @@ Obiettivo: Aiutare l'utente a lavorare sui suoi stati mentali in modo profondo e
     ])
     
     chain = prompt | llm
-    chain_with_history = RunnableWithMessageHistory(
-        chain,
-        lambda x: ChatMessageHistory(),
-        input_messages_key="input",
-        history_messages_key="history"
-    )
-    
-    response = chain_with_history.invoke(
-        {"input": user_input},
-        config={"configurable": {"session_id": "psyhelper_user"}}
-    )
+    chain_with_history = RunnableWithMessageHistory(chain, lambda x: ChatMessageHistory(), input_messages_key="input", history_messages_key="history")
+    response = chain_with_history.invoke({"input": user_input}, config={"configurable": {"session_id": "psyhelper_user"}})
     return response.content
 
-# ====================== LOGIN / REGISTRAZIONE ======================
+# ====================== LOGIN ======================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "show_mindfulness" not in st.session_state:
@@ -137,23 +122,27 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING (solo se il profilo è vuoto) ======================
-if not st.session_state.profile:
-    st.title("🧠 Benvenuto in PsyHelper")
-    st.markdown("**Prima di iniziare, dimmi qualcosa di te**")
+# ====================== ONBOARDING / MODIFICA PROFILO ======================
+if not st.session_state.profile or st.button("✏️ Modifica Profilo"):
+    st.title("Modifica il tuo Profilo")
     with st.form("onboarding"):
-        nome = st.text_input("Come ti chiami?")
         col1, col2 = st.columns(2)
         with col1:
-            età = st.number_input("Età", 14, 90, 30)
-            umore = st.selectbox("Umore attuale", ["Sereno", "Ansioso", "Triste", "Irritabile", "Altro"])
-            intensità = st.slider("Intensità del malessere (1-10)", 1, 10, 5)
+            nome = st.text_input("Nome", value=st.session_state.profile.get("nome", ""))
+            età = st.number_input("Età", 14, 90, value=st.session_state.profile.get("età", 30))
+            umore = st.selectbox("Umore attuale", ["Sereno", "Ansioso", "Triste", "Irritabile", "Altro"], 
+                               index=["Sereno", "Ansioso", "Triste", "Irritabile", "Altro"].index(st.session_state.profile.get("umore", "Ansioso")))
+            intensità = st.slider("Intensità malessere (1-10)", 1, 10, value=st.session_state.profile.get("intensità", 5))
         with col2:
-            stress = st.slider("Livello di stress (1-10)", 1, 10, 5)
-            sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"])
-        pensieri = st.text_area("Quali pensieri ti occupano di più ultimamente?")
-        obiettivi = st.text_area("Cosa vorresti migliorare nel tuo benessere mentale?")
-        if st.form_submit_button("Inizia il percorso 💜", use_container_width=True):
+            stress = st.slider("Livello stress (1-10)", 1, 10, value=st.session_state.profile.get("stress", 5))
+            sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"], 
+                               index=["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"].index(st.session_state.profile.get("sonno", "Buono")))
+            motivazione = st.slider("Motivazione (1-10)", 1, 10, value=st.session_state.profile.get("motivazione", 7))
+        pensieri = st.text_area("Pensieri ricorrenti", value=st.session_state.profile.get("pensieri", ""))
+        obiettivi = st.text_area("Obiettivi di benessere", value=st.session_state.profile.get("obiettivi", ""))
+        cosa_funziona = st.text_area("Cosa ti aiuta quando stai male", value=st.session_state.profile.get("cosa_funziona", ""))
+        
+        if st.form_submit_button("Salva Profilo 💜", use_container_width=True):
             st.session_state.profile = {
                 "nome": nome or "Utente",
                 "età": età,
@@ -161,10 +150,13 @@ if not st.session_state.profile:
                 "intensità": intensità,
                 "stress": stress,
                 "sonno": sonno,
+                "motivazione": motivazione,
                 "pensieri": pensieri,
-                "obiettivi": obiettivi
+                "obiettivi": obiettivi,
+                "cosa_funziona": cosa_funziona
             }
             save_user_data(st.session_state.username)
+            st.success("Profilo aggiornato!")
             st.rerun()
 
 # ====================== APP PRINCIPALE ======================
@@ -186,7 +178,7 @@ if user_input := st.chat_input("Descrivi cosa stai provando..."):
     save_user_data(st.session_state.username)
 
 st.divider()
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     if st.button("🧘 Mindfulness"): st.session_state.show_mindfulness = not st.session_state.show_mindfulness
 with col2:
@@ -195,6 +187,9 @@ with col2:
         save_user_data(st.session_state.username)
         st.rerun()
 with col3:
+    if st.button("✏️ Modifica Profilo"):
+        st.rerun()  # Riavvia per mostrare il form di modifica
+with col4:
     if st.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.session_state.username = None
