@@ -6,7 +6,6 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 import os
 import pickle
 import hashlib
-from datetime import datetime
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
@@ -63,27 +62,22 @@ def save_user_data(username):
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
 
-# ====================== PROMPT CBT MOLTO FOCALIZZATO ======================
+# ====================== FUNZIONE DI RISPOSTA CBT FOCALIZZATA ======================
 def get_response(user_input):
-    profile = st.session_state.profile
+    profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
     profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
 
-    system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale (CBT). 
-Il tuo obiettivo è aiutare l'utente a lavorare profondamente sui suoi stati mentali.
+    system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
 
 Nome utente: {nome}
-Profilo utente: {profile_text}
+Profilo: {profile_text}
 
-Regole strette:
-- Sii estremamente focalizzato sugli stati mentali dell'utente (emozioni precise, pensieri automatici, trigger, comportamenti).
-- Usa tecniche CBT: identifica pensieri automatici, evidenze a favore/contro, reframing, esperimenti comportamentali.
-- Rispondi in modo mirato, professionale e utile. Evita frasi generiche.
-- Se l'utente vuole approfondire una situazione specifica, seguilo senza deviare.
-- Mantieni un tono empatico ma diretto.
-- Fai massimo 1-2 domande molto precise per approfondire lo stato mentale.
-
-Rispondi sempre concentrandoti sul benessere mentale dell'utente."""
+Obiettivo: Aiutare l'utente a lavorare sui suoi stati mentali in modo profondo e concreto.
+- Focalizzati su emozioni, pensieri automatici, trigger e comportamenti.
+- Usa tecniche CBT (identificazione pensieri, evidenze, reframing, piccoli esperimenti).
+- Sii mirato, professionale e utile.
+- Rispondi in modo naturale ma preciso."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -143,15 +137,45 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
+# ====================== ONBOARDING (solo se il profilo è vuoto) ======================
+if not st.session_state.profile:
+    st.title("🧠 Benvenuto in PsyHelper")
+    st.markdown("**Prima di iniziare, dimmi qualcosa di te**")
+    with st.form("onboarding"):
+        nome = st.text_input("Come ti chiami?")
+        col1, col2 = st.columns(2)
+        with col1:
+            età = st.number_input("Età", 14, 90, 30)
+            umore = st.selectbox("Umore attuale", ["Sereno", "Ansioso", "Triste", "Irritabile", "Altro"])
+            intensità = st.slider("Intensità del malessere (1-10)", 1, 10, 5)
+        with col2:
+            stress = st.slider("Livello di stress (1-10)", 1, 10, 5)
+            sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"])
+        pensieri = st.text_area("Quali pensieri ti occupano di più ultimamente?")
+        obiettivi = st.text_area("Cosa vorresti migliorare nel tuo benessere mentale?")
+        if st.form_submit_button("Inizia il percorso 💜", use_container_width=True):
+            st.session_state.profile = {
+                "nome": nome or "Utente",
+                "età": età,
+                "umore": umore,
+                "intensità": intensità,
+                "stress": stress,
+                "sonno": sonno,
+                "pensieri": pensieri,
+                "obiettivi": obiettivi
+            }
+            save_user_data(st.session_state.username)
+            st.rerun()
+
 # ====================== APP PRINCIPALE ======================
 st.title("🧠 PsyHelper")
-st.markdown(f"<p class='subtitle'>Ciao {st.session_state.username}, sessione attiva</p>", unsafe_allow_html=True)
+st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}, sessione attiva</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if user_input := st.chat_input("Scrivi qui cosa stai provando..."):
+if user_input := st.chat_input("Descrivi cosa stai provando..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
     with st.chat_message("assistant"):
