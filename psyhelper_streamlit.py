@@ -131,9 +131,11 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING ======================
+# ====================== TITOLO ======================
+st.title("🧠 PsyHelper")
+
+# ====================== ONBOARDING (sotto il titolo) ======================
 if not st.session_state.profile:
-    st.title("🧠 PsyHelper")
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
     with st.form("onboarding"):
@@ -186,7 +188,6 @@ if len(st.session_state.mood_history) >= 2:
     st.plotly_chart(fig, use_container_width=True)
 
 # ====================== APP PRINCIPALE ======================
-st.title("🧠 PsyHelper")
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
