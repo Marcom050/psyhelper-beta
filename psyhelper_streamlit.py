@@ -187,7 +187,7 @@ if len(st.session_state.mood_history) >= 2:
     fig.update_layout(yaxis_range=[0, 10])
     st.plotly_chart(fig, use_container_width=True)
 
-# ====================== CHAT (dopo onboarding) ======================
+# ====================== CHAT (solo dopo onboarding) ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
