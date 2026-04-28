@@ -131,7 +131,7 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING (dopo login) ======================
+# ====================== ONBOARDING (dopo login, prima della chat) ======================
 st.title("🧠 PsyHelper")
 
 if not st.session_state.profile:
@@ -165,28 +165,7 @@ if not st.session_state.profile:
             save_user_data(st.session_state.username)
             st.rerun()
 
-# ====================== MOOD TRACKER ======================
-if "mood_history" not in st.session_state:
-    st.session_state.mood_history = []
-
-if st.button("Valuta il tuo benessere mentale di oggi"):
-    mood_score = st.slider("Come valuti il tuo benessere mentale oggi? (1 = molto basso, 10 = ottimo)", 1, 10, 5)
-    if st.button("Salva valutazione"):
-        today = datetime.now().strftime("%Y-%m-%d")
-        st.session_state.mood_history.append({"data": today, "mood": mood_score})
-        save_user_data(st.session_state.username)
-        st.success(f"Valutazione salvata: {mood_score}/10")
-        st.rerun()
-
-if len(st.session_state.mood_history) >= 2:
-    st.subheader("Andamento del tuo benessere mentale")
-    df = pd.DataFrame(st.session_state.mood_history)
-    df["data"] = pd.to_datetime(df["data"])
-    fig = px.line(df, x="data", y="mood", markers=True, title="Andamento del Mood nel tempo")
-    fig.update_layout(yaxis_range=[0, 10])
-    st.plotly_chart(fig, use_container_width=True)
-
-# ====================== APP PRINCIPALE (chat) ======================
+# ====================== APP PRINCIPALE (chat) - SOLO SE ONBOARDING FATTO ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
