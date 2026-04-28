@@ -6,9 +6,6 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 import os
 import pickle
 import hashlib
-from datetime import datetime
-import pandas as pd
-import plotly.express as px
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
@@ -131,7 +128,7 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING (dopo login, prima della chat) ======================
+# ====================== ONBOARDING (dopo login) ======================
 st.title("🧠 PsyHelper")
 
 if not st.session_state.profile:
@@ -163,9 +160,10 @@ if not st.session_state.profile:
                 "motivazione": motivazione
             }
             save_user_data(st.session_state.username)
+            st.success("Profilo salvato! Ora puoi iniziare a chattare.")
             st.rerun()
 
-# ====================== APP PRINCIPALE (chat) - SOLO SE ONBOARDING FATTO ======================
+# ====================== CHAT (solo dopo onboarding) ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
