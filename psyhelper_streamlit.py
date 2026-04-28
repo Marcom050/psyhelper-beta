@@ -166,7 +166,7 @@ if not st.session_state.profile:
             save_user_data(st.session_state.username)
             st.rerun()
 
-# ====================== MOOD TRACKER ======================
+# ====================== MOOD TRACKER (sotto l'onboarding) ======================
 if "mood_history" not in st.session_state:
     st.session_state.mood_history = []
 
