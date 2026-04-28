@@ -9,7 +9,8 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 14px; border-radius: 10px; text-align: center; margin-bottom: 20px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA<br>Supporto psicologico strutturato e privato</div>', unsafe_allow_html=True)
+# ====================== BANNER BETA ======================
+st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 25px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA</div>', unsafe_allow_html=True)
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
@@ -62,7 +63,7 @@ def save_user_data(username):
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
 
-# ====================== FUNZIONE DI RISPOSTA CBT ======================
+# ====================== FUNZIONE DI RISPOSTA ======================
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
@@ -71,10 +72,7 @@ def get_response(user_input):
     system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
 Nome utente: {nome}
 Profilo: {profile_text}
-
-Rispondi in modo mirato e concreto sugli stati mentali dell'utente (emozioni, pensieri automatici, trigger, comportamenti).
-Usa tecniche CBT quando appropriato.
-Sii diretto, empatico e utile."""
+Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecniche CBT in modo mirato e concreto."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -94,7 +92,7 @@ if "show_mindfulness" not in st.session_state:
     st.session_state.show_mindfulness = False
 
 if not st.session_state.logged_in:
-    st.title("🧠 PsyHelper - Accesso")
+    st.title("🧠 PsyHelper")
     tab1, tab2 = st.tabs(["Login", "Registrati"])
     with tab1:
         with st.form("login"):
@@ -125,10 +123,10 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING (solo la prima volta) ======================
+# ====================== ONBOARDING (sotto il titolo) ======================
 if not st.session_state.profile:
-    st.title("🧠 Benvenuto in PsyHelper")
-    st.write("Prima di iniziare, aiutami a conoscerti meglio.")
+    st.title("🧠 PsyHelper")
+    st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
     with st.form("onboarding"):
         col1, col2 = st.columns(2)
@@ -140,7 +138,7 @@ if not st.session_state.profile:
         with col2:
             stress = st.slider("Livello di stress (1-10)", 1, 10, 5)
             sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"])
-            motivazione = st.slider("Motivazione a lavorare su questo (1-10)", 1, 10, 7)
+            motivazione = st.slider("Motivazione (1-10)", 1, 10, 7)
         pensieri = st.text_area("Quali pensieri ti occupano di più ultimamente?")
         obiettivi = st.text_area("Cosa vorresti migliorare nel tuo benessere mentale?")
         if st.form_submit_button("Inizia il percorso 💜", use_container_width=True):
@@ -156,12 +154,11 @@ if not st.session_state.profile:
                 "motivazione": motivazione
             }
             save_user_data(st.session_state.username)
-            st.success("Profilo salvato! Ora puoi iniziare.")
             st.rerun()
 
 # ====================== APP PRINCIPALE ======================
 st.title("🧠 PsyHelper")
-st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}, sessione attiva</p>", unsafe_allow_html=True)
+st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -178,25 +175,27 @@ if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza v
     save_user_data(st.session_state.username)
 
 st.divider()
+
+# Tasti senza emoji, più professionali
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    if st.button("🧘 Mindfulness"): st.session_state.show_mindfulness = not st.session_state.show_mindfulness
+    if st.button("Mindfulness"): st.session_state.show_mindfulness = not st.session_state.show_mindfulness
 with col2:
-    if st.button("🔄 Nuova sessione"):
+    if st.button("Nuova sessione"):
         st.session_state.messages = []
         save_user_data(st.session_state.username)
         st.rerun()
 with col3:
-    if st.button("✏️ Modifica Profilo"):
+    if st.button("Modifica Profilo"):
         st.session_state.edit_profile = True
         st.rerun()
 with col4:
-    if st.button("🚪 Logout"):
+    if st.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.username = None
         st.rerun()
 
 if st.session_state.show_mindfulness:
-    st.subheader("🧘 Esercizi di Mindfulness")
+    st.subheader("Esercizi di Mindfulness")
     st.markdown('<div class="mindfulness-box"><strong>Respirazione 4-7-8</strong><br>Calma ansia velocemente</div>', unsafe_allow_html=True)
     st.markdown('<div class="mindfulness-box"><strong>Grounding 5-4-3-2-1</strong><br>Riporta la mente al presente</div>', unsafe_allow_html=True)
