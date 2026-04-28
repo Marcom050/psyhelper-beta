@@ -131,11 +131,12 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== TITOLO + ONBOARDING + MOOD TRACKER ======================
+# ====================== ONBOARDING (dopo login) ======================
 st.title("🧠 PsyHelper")
 
 if not st.session_state.profile:
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
+    
     with st.form("onboarding"):
         col1, col2 = st.columns(2)
         with col1:
@@ -164,7 +165,7 @@ if not st.session_state.profile:
             save_user_data(st.session_state.username)
             st.rerun()
 
-# Mood Tracker
+# ====================== MOOD TRACKER ======================
 if "mood_history" not in st.session_state:
     st.session_state.mood_history = []
 
@@ -185,7 +186,7 @@ if len(st.session_state.mood_history) >= 2:
     fig.update_layout(yaxis_range=[0, 10])
     st.plotly_chart(fig, use_container_width=True)
 
-# ====================== APP PRINCIPALE ======================
+# ====================== APP PRINCIPALE (chat) ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
