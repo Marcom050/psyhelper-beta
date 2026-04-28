@@ -72,7 +72,6 @@ def save_user_data(username):
     with open(f"{user_dir}/mood_history.pkl", "wb") as f:
         pickle.dump(st.session_state.mood_history, f)
 
-# ====================== FUNZIONE DI RISPOSTA ======================
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
@@ -178,7 +177,6 @@ if st.button("Valuta il tuo benessere mentale di oggi"):
         st.success(f"Valutazione salvata: {mood_score}/10")
         st.rerun()
 
-# Mostra grafico se ci sono almeno 2 valutazioni
 if len(st.session_state.mood_history) >= 2:
     st.subheader("Andamento del tuo benessere mentale")
     df = pd.DataFrame(st.session_state.mood_history)
