@@ -36,8 +36,6 @@ def create_user(username, password):
         pickle.dump({}, f)
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump([], f)
-    with open(f"{user_dir}/mood_history.pkl", "wb") as f:
-        pickle.dump([], f)
 
 def verify_password(username, password):
     try:
@@ -53,12 +51,9 @@ def load_user_data(username):
             st.session_state.profile = pickle.load(f)
         with open(f"{user_dir}/messages.pkl", "rb") as f:
             st.session_state.messages = pickle.load(f)
-        with open(f"{user_dir}/mood_history.pkl", "rb") as f:
-            st.session_state.mood_history = pickle.load(f)
     except:
         st.session_state.profile = {}
         st.session_state.messages = []
-        st.session_state.mood_history = []
 
 def save_user_data(username):
     user_dir = f"{USERS_DIR}/{username}"
@@ -66,28 +61,24 @@ def save_user_data(username):
         pickle.dump(st.session_state.profile, f)
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
-    with open(f"{user_dir}/mood_history.pkl", "wb") as f:
-        pickle.dump(st.session_state.mood_history, f)
 
-# ====================== PROMPT RIVISTO (pulito e focalizzato) ======================
+# ====================== PROMPT (migliorato per sessioni guidate) ======================
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
     profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
 
-    system_prompt = f"""Sei PsyHelper, un assistente esperto in Terapia Cognitivo-Comportamentale.
+    system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
 
 Nome utente: {nome}
-Informazioni di base: {profile_text}
+Profilo: {profile_text}
 
-Regole:
-- Rispondi sempre in modo diretto, utile e concreto.
-- Focalizzati esclusivamente su quello che l'utente ti dice in questo messaggio.
-- Aiuta l'utente a esplorare i suoi stati mentali (emozioni, pensieri automatici, trigger, schemi di comportamento).
-- Usa tecniche CBT in modo naturale: identifica pensieri, valuta evidenze, proponi reframing o piccoli passi pratici.
-- Non usare mai frasi ripetitive come "mi dispiace", "capisco che ti senti così", "è normale", ecc.
-- Sii empatico ma professionale e orientato al miglioramento.
-- Se l'utente vuole approfondire, seguilo. Se vuole cambiare argomento, seguilo senza problemi."""
+Il tuo compito è guidare sessioni di miglioramento del benessere mentale in modo strutturato ma flessibile.
+- Focalizzati su quello che l'utente ti dice nel messaggio attuale.
+- Usa un approccio CBT chiaro: identifica emozioni, pensieri automatici, trigger, schemi di comportamento.
+- Proponi riflessioni, reframing o piccoli passi concreti quando utile.
+- Sii diretto, utile e professionale. Evita frasi vuote o ripetitive.
+- Se l'utente vuole approfondire o cambiare argomento, seguilo senza problemi."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -138,9 +129,13 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
+# ====================== DISCLAIMER + TITOLO ======================
+st.title("🧠 PsyHelper")
+
+st.caption("⚠️ Disclaimer: PsyHelper è uno strumento di supporto e non sostituisce una terapia professionale. In caso di difficoltà gravi consulta un professionista della salute mentale.")
+
 # ====================== ONBOARDING ======================
 if not st.session_state.profile:
-    st.title("🧠 PsyHelper")
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
     with st.form("onboarding"):
