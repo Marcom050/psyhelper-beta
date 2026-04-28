@@ -6,9 +6,6 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 import os
 import pickle
 import hashlib
-from datetime import datetime
-import pandas as pd
-import plotly.express as px
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
@@ -19,7 +16,7 @@ if not GROQ_API_KEY:
     st.error("⚠️ API Key non configurata!")
     st.stop()
 
-llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.50, api_key=GROQ_API_KEY)
+llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.48, api_key=GROQ_API_KEY)
 
 USERS_DIR = os.path.expanduser("~/psyhelper_data/users")
 os.makedirs(USERS_DIR, exist_ok=True)
@@ -72,15 +69,25 @@ def save_user_data(username):
     with open(f"{user_dir}/mood_history.pkl", "wb") as f:
         pickle.dump(st.session_state.mood_history, f)
 
+# ====================== PROMPT RIVISTO (pulito e focalizzato) ======================
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
     profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
 
-    system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
+    system_prompt = f"""Sei PsyHelper, un assistente esperto in Terapia Cognitivo-Comportamentale.
+
 Nome utente: {nome}
-Profilo: {profile_text}
-Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecniche CBT in modo mirato e concreto."""
+Informazioni di base: {profile_text}
+
+Regole:
+- Rispondi sempre in modo diretto, utile e concreto.
+- Focalizzati esclusivamente su quello che l'utente ti dice in questo messaggio.
+- Aiuta l'utente a esplorare i suoi stati mentali (emozioni, pensieri automatici, trigger, schemi di comportamento).
+- Usa tecniche CBT in modo naturale: identifica pensieri, valuta evidenze, proponi reframing o piccoli passi pratici.
+- Non usare mai frasi ripetitive come "mi dispiace", "capisco che ti senti così", "è normale", ecc.
+- Sii empatico ma professionale e orientato al miglioramento.
+- Se l'utente vuole approfondire, seguilo. Se vuole cambiare argomento, seguilo senza problemi."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -131,11 +138,9 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== TITOLO ======================
-st.title("🧠 PsyHelper")
-
 # ====================== ONBOARDING ======================
 if not st.session_state.profile:
+    st.title("🧠 PsyHelper")
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
     with st.form("onboarding"):
@@ -166,10 +171,6 @@ if not st.session_state.profile:
             save_user_data(st.session_state.username)
             st.rerun()
 
-# ====================== MOOD TRACKER (assieme agli altri tasti) ======================
-if "mood_history" not in st.session_state:
-    st.session_state.mood_history = []
-
 # ====================== CHAT ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
@@ -188,9 +189,7 @@ if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza v
     save_user_data(st.session_state.username)
 
 st.divider()
-
-# Tasti (Mood Tracker assieme agli altri)
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     if st.button("Mindfulness"): st.session_state.show_mindfulness = not st.session_state.show_mindfulness
 with col2:
@@ -203,27 +202,10 @@ with col3:
         st.session_state.edit_profile = True
         st.rerun()
 with col4:
-    if st.button("Mood Tracker"):
-        mood_score = st.slider("Come valuti il tuo benessere mentale oggi? (1-10)", 1, 10, 5, key="mood_slider")
-        if st.button("Salva Mood"):
-            today = datetime.now().strftime("%Y-%m-%d")
-            st.session_state.mood_history.append({"data": today, "mood": mood_score})
-            save_user_data(st.session_state.username)
-            st.success(f"Mood salvato: {mood_score}/10")
-            st.rerun()
-with col5:
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.username = None
         st.rerun()
-
-if len(st.session_state.mood_history) >= 2:
-    st.subheader("Andamento del tuo benessere mentale")
-    df = pd.DataFrame(st.session_state.mood_history)
-    df["data"] = pd.to_datetime(df["data"])
-    fig = px.line(df, x="data", y="mood", markers=True, title="Andamento del Mood")
-    fig.update_layout(yaxis_range=[0, 10], height=300)
-    st.plotly_chart(fig, use_container_width=True)
 
 if st.session_state.show_mindfulness:
     st.subheader("Esercizi di Mindfulness")
