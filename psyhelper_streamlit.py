@@ -6,6 +6,9 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 import os
 import pickle
 import hashlib
+from datetime import datetime
+import pandas as pd
+import plotly.express as px
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
@@ -128,9 +131,10 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING (dopo login) ======================
+# ====================== TITOLO ======================
 st.title("🧠 PsyHelper")
 
+# ====================== ONBOARDING (subito sotto il titolo) ======================
 if not st.session_state.profile:
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
@@ -160,10 +164,30 @@ if not st.session_state.profile:
                 "motivazione": motivazione
             }
             save_user_data(st.session_state.username)
-            st.success("Profilo salvato! Ora puoi iniziare a chattare.")
             st.rerun()
 
-# ====================== CHAT (solo dopo onboarding) ======================
+# ====================== MOOD TRACKER ======================
+if "mood_history" not in st.session_state:
+    st.session_state.mood_history = []
+
+if st.button("Valuta il tuo benessere mentale di oggi"):
+    mood_score = st.slider("Come valuti il tuo benessere mentale oggi? (1 = molto basso, 10 = ottimo)", 1, 10, 5)
+    if st.button("Salva valutazione"):
+        today = datetime.now().strftime("%Y-%m-%d")
+        st.session_state.mood_history.append({"data": today, "mood": mood_score})
+        save_user_data(st.session_state.username)
+        st.success(f"Valutazione salvata: {mood_score}/10")
+        st.rerun()
+
+if len(st.session_state.mood_history) >= 2:
+    st.subheader("Andamento del tuo benessere mentale")
+    df = pd.DataFrame(st.session_state.mood_history)
+    df["data"] = pd.to_datetime(df["data"])
+    fig = px.line(df, x="data", y="mood", markers=True, title="Andamento del Mood nel tempo")
+    fig.update_layout(yaxis_range=[0, 10])
+    st.plotly_chart(fig, use_container_width=True)
+
+# ====================== CHAT (dopo onboarding) ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
