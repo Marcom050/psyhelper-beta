@@ -6,8 +6,14 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 import os
 import pickle
 import hashlib
+from datetime import datetime
+import pandas as pd
+import plotly.express as px
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
+
+# Forza apertura dall'alto
+st.markdown('<div id="top-of-page"></div>', unsafe_allow_html=True)
 
 st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 14px; border-radius: 10px; text-align: center; margin-bottom: 25px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA<br>Supporto psicologico strutturato e privato</div>', unsafe_allow_html=True)
 
@@ -16,7 +22,7 @@ if not GROQ_API_KEY:
     st.error("⚠️ API Key non configurata!")
     st.stop()
 
-llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.48, api_key=GROQ_API_KEY)
+llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.50, api_key=GROQ_API_KEY)
 
 USERS_DIR = os.path.expanduser("~/psyhelper_data/users")
 os.makedirs(USERS_DIR, exist_ok=True)
@@ -36,6 +42,8 @@ def create_user(username, password):
         pickle.dump({}, f)
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump([], f)
+    with open(f"{user_dir}/mood_history.pkl", "wb") as f:
+        pickle.dump([], f)
 
 def verify_password(username, password):
     try:
@@ -51,9 +59,12 @@ def load_user_data(username):
             st.session_state.profile = pickle.load(f)
         with open(f"{user_dir}/messages.pkl", "rb") as f:
             st.session_state.messages = pickle.load(f)
+        with open(f"{user_dir}/mood_history.pkl", "rb") as f:
+            st.session_state.mood_history = pickle.load(f)
     except:
         st.session_state.profile = {}
         st.session_state.messages = []
+        st.session_state.mood_history = []
 
 def save_user_data(username):
     user_dir = f"{USERS_DIR}/{username}"
@@ -61,24 +72,18 @@ def save_user_data(username):
         pickle.dump(st.session_state.profile, f)
     with open(f"{user_dir}/messages.pkl", "wb") as f:
         pickle.dump(st.session_state.messages, f)
+    with open(f"{user_dir}/mood_history.pkl", "wb") as f:
+        pickle.dump(st.session_state.mood_history, f)
 
-# ====================== PROMPT (migliorato per sessioni guidate) ======================
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     nome = profile.get("nome") or ""
     profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
 
     system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
-
 Nome utente: {nome}
 Profilo: {profile_text}
-
-Il tuo compito è guidare sessioni di miglioramento del benessere mentale in modo strutturato ma flessibile.
-- Focalizzati su quello che l'utente ti dice nel messaggio attuale.
-- Usa un approccio CBT chiaro: identifica emozioni, pensieri automatici, trigger, schemi di comportamento.
-- Proponi riflessioni, reframing o piccoli passi concreti quando utile.
-- Sii diretto, utile e professionale. Evita frasi vuote o ripetitive.
-- Se l'utente vuole approfondire o cambiare argomento, seguilo senza problemi."""
+Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecniche CBT in modo mirato e concreto."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -129,9 +134,10 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== DISCLAIMER + TITOLO ======================
+# ====================== TITOLO ======================
 st.title("🧠 PsyHelper")
 
+# Disclaimer
 st.caption("⚠️ Disclaimer: PsyHelper è uno strumento di supporto e non sostituisce una terapia professionale. In caso di difficoltà gravi consulta un professionista della salute mentale.")
 
 # ====================== ONBOARDING ======================
@@ -165,6 +171,27 @@ if not st.session_state.profile:
             }
             save_user_data(st.session_state.username)
             st.rerun()
+
+# ====================== MOOD TRACKER ======================
+if "mood_history" not in st.session_state:
+    st.session_state.mood_history = []
+
+if st.button("Valuta il tuo benessere mentale di oggi"):
+    mood_score = st.slider("Come valuti il tuo benessere mentale oggi? (1 = molto basso, 10 = ottimo)", 1, 10, 5)
+    if st.button("Salva valutazione"):
+        today = datetime.now().strftime("%Y-%m-%d")
+        st.session_state.mood_history.append({"data": today, "mood": mood_score})
+        save_user_data(st.session_state.username)
+        st.success(f"Valutazione salvata: {mood_score}/10")
+        st.rerun()
+
+if len(st.session_state.mood_history) >= 2:
+    st.subheader("Andamento del tuo benessere mentale")
+    df = pd.DataFrame(st.session_state.mood_history)
+    df["data"] = pd.to_datetime(df["data"])
+    fig = px.line(df, x="data", y="mood", markers=True, title="Andamento del Mood nel tempo")
+    fig.update_layout(yaxis_range=[0, 10])
+    st.plotly_chart(fig, use_container_width=True)
 
 # ====================== CHAT ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
