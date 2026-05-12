@@ -9,7 +9,16 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 14px; border-radius: 10px; text-align: center; margin-bottom: 30px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA<br>Supporto psicologico strutturato e privato</div>', unsafe_allow_html=True)
+st.title("🧠 PsyHelper")
+
+# DISCLAIMER PRIMA DEL LOGIN
+st.markdown("""
+<div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 25px;">
+    <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
+    In caso di difficoltà gravi consulta un professionista della salute mentale.<br><br>
+    <strong>Privacy:</strong> Tutte le tue conversazioni sono private e salvate solo sul tuo account.
+</div>
+""", unsafe_allow_html=True)
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
@@ -86,9 +95,10 @@ Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecni
 # ====================== LOGIN ======================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "show_mindfulness" not in st.session_state:
+    st.session_state.show_mindfulness = False
 
 if not st.session_state.logged_in:
-    st.title("🧠 PsyHelper")
     tab1, tab2 = st.tabs(["Login", "Registrati"])
     with tab1:
         with st.form("login"):
@@ -118,15 +128,6 @@ if not st.session_state.logged_in:
                     create_user(new_username, new_password)
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
-
-# ====================== DISCLAIMER + PRIVACY ======================
-st.caption("""
-⚠️ PsyHelper è uno strumento di supporto psicologico e **non sostituisce** una terapia professionale. 
-In caso di difficoltà gravi consulta un professionista. 
-Tutte le conversazioni sono private e salvate solo sul tuo account.
-""")
-
-st.title("🧠 PsyHelper")
 
 # ====================== ONBOARDING ======================
 if not st.session_state.profile:
