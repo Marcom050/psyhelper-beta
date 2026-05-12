@@ -10,11 +10,12 @@ import hashlib
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
 # ====================== FORZA APERTURA DALL'ALTO ======================
-st.markdown('<div id="top" style="height:0;"></div>', unsafe_allow_html=True)
+st.markdown('<div id="top-anchor"></div>', unsafe_allow_html=True)
+st.markdown('<script>document.getElementById("top-anchor").scrollIntoView({behavior: "instant"});</script>', unsafe_allow_html=True)
 
 st.title("🧠 PsyHelper")
 
-# Disclaimer (subito sotto il titolo)
+# Disclaimer subito visibile
 st.markdown("""
 <div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 30px;">
     <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
@@ -141,7 +142,7 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING ======================
+# ====================== RESTO DELL'APP ======================
 if not st.session_state.profile:
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
@@ -173,14 +174,14 @@ if not st.session_state.profile:
             save_user_data(st.session_state.username)
             st.rerun()
 
-# ====================== CHAT ======================
+# Chat
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza vuoi approfondire..."):
+if user_input := st.chat_input("Descrivi cosa stai provando..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
     with st.chat_message("assistant"):
