@@ -9,9 +9,22 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-# ====================== GOOGLE ANALYTICS 4 (Versione migliorata) ======================
+# ====================== FORZA APERTURA DALL'ALTO ======================
+st.markdown('<div id="top" style="height:0;"></div>', unsafe_allow_html=True)
+
+st.title("🧠 PsyHelper")
+
+# Disclaimer (subito sotto il titolo)
 st.markdown("""
-<!-- Google tag (gtag.js) -->
+<div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 30px;">
+    <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
+    In caso di difficoltà gravi consulta un professionista della salute mentale.<br><br>
+    <strong>Privacy:</strong> Tutte le tue conversazioni sono private e salvate solo sul tuo account.
+</div>
+""", unsafe_allow_html=True)
+
+# Google Analytics
+st.markdown("""
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-KWR24JLV0Y"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -19,18 +32,6 @@ st.markdown("""
   gtag('js', new Date());
   gtag('config', 'G-KWR24JLV0Y');
 </script>
-""", unsafe_allow_html=True)
-# ===================================================================================
-
-st.title("🧠 PsyHelper")
-
-# Disclaimer
-st.markdown("""
-<div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 25px;">
-    <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
-    In caso di difficoltà gravi consulta un professionista della salute mentale.<br><br>
-    <strong>Privacy:</strong> Tutte le tue conversazioni sono private e salvate solo sul tuo account.
-</div>
 """, unsafe_allow_html=True)
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
