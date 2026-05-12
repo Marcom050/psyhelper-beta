@@ -9,7 +9,9 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-# ====================== INIZIO PAGINA - TITOLO PRIMO ======================
+# =============================================
+# TITOLO E DISCLAIMER - INIZIO PAGINA
+# =============================================
 st.title("🧠 PsyHelper")
 
 st.markdown("""
@@ -138,7 +140,7 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING E CHAT ======================
+# ====================== ONBOARDING ======================
 if not st.session_state.profile:
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
@@ -170,7 +172,7 @@ if not st.session_state.profile:
             save_user_data(st.session_state.username)
             st.rerun()
 
-# Chat
+# ====================== CHAT ======================
 st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
 for msg in st.session_state.messages:
