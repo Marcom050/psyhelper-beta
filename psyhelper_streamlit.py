@@ -9,9 +9,24 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
+# ====================== GOOGLE ANALYTICS 4 ======================
+GA_MEASUREMENT_ID = "G-KWR24JLV0Y"
+
+ga_script = f"""
+<script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){{dataLayer.push(arguments);}}
+  gtag('js', new Date());
+  gtag('config', '{GA_MEASUREMENT_ID}');
+</script>
+"""
+st.components.v1.html(ga_script, height=0, width=0)
+# ============================================================
+
 st.title("🧠 PsyHelper")
 
-# DISCLAIMER PRIMA DEL LOGIN
+# Disclaimer
 st.markdown("""
 <div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 25px;">
     <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
@@ -95,8 +110,6 @@ Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecni
 # ====================== LOGIN ======================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "show_mindfulness" not in st.session_state:
-    st.session_state.show_mindfulness = False
 
 if not st.session_state.logged_in:
     tab1, tab2 = st.tabs(["Login", "Registrati"])
