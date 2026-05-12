@@ -9,10 +9,7 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-# Forza l'apertura dall'alto
-st.markdown("<h1 style='text-align: center; margin-top: 10px;'>🧠 PsyHelper</h1>", unsafe_allow_html=True)
-
-st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 12px; border-radius: 8px; text-align: center; margin: 20px 0; font-weight: 600;">🔬 VERSIONE BETA - Feedback benvenuto</div>', unsafe_allow_html=True)
+st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 14px; border-radius: 10px; text-align: center; margin-bottom: 30px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA<br>Supporto psicologico strutturato e privato</div>', unsafe_allow_html=True)
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
@@ -89,8 +86,6 @@ Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecni
 # ====================== LOGIN ======================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "show_mindfulness" not in st.session_state:
-    st.session_state.show_mindfulness = False
 
 if not st.session_state.logged_in:
     st.title("🧠 PsyHelper")
@@ -124,7 +119,10 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== ONBOARDING (subito dopo il titolo) ======================
+# ====================== TITOLO ======================
+st.title("🧠 PsyHelper")
+
+# ====================== ONBOARDING ======================
 if not st.session_state.profile:
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
     
@@ -157,43 +155,35 @@ if not st.session_state.profile:
             st.rerun()
 
 # ====================== CHAT ======================
-if st.session_state.profile:
-    st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
+st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza vuoi approfondire..."):
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"): st.markdown(user_input)
-        with st.chat_message("assistant"):
-            with st.spinner("Sto pensando..."):
-                reply = get_response(user_input)
-                st.markdown(reply)
-                st.session_state.messages.append({"role": "assistant", "content": reply})
+if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza vuoi approfondire..."):
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"): st.markdown(user_input)
+    with st.chat_message("assistant"):
+        with st.spinner("Sto pensando..."):
+            reply = get_response(user_input)
+            st.markdown(reply)
+            st.session_state.messages.append({"role": "assistant", "content": reply})
+    save_user_data(st.session_state.username)
+
+st.divider()
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("Nuova sessione"):
+        st.session_state.messages = []
         save_user_data(st.session_state.username)
-
-    st.divider()
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        if st.button("Mindfulness"): st.session_state.show_mindfulness = not st.session_state.show_mindfulness
-    with col2:
-        if st.button("Nuova sessione"):
-            st.session_state.messages = []
-            save_user_data(st.session_state.username)
-            st.rerun()
-    with col3:
-        if st.button("Modifica Profilo"):
-            st.session_state.edit_profile = True
-            st.rerun()
-    with col4:
-        if st.button("Logout"):
-            st.session_state.logged_in = False
-            st.session_state.username = None
-            st.rerun()
-
-    if st.session_state.show_mindfulness:
-        st.subheader("Esercizi di Mindfulness")
-        st.markdown('<div class="mindfulness-box"><strong>Respirazione 4-7-8</strong><br>Calma ansia velocemente</div>', unsafe_allow_html=True)
-        st.markdown('<div class="mindfulness-box"><strong>Grounding 5-4-3-2-1</strong><br>Riporta la mente al presente</div>', unsafe_allow_html=True)
+        st.rerun()
+with col2:
+    if st.button("Modifica Profilo"):
+        st.session_state.edit_profile = True
+        st.rerun()
+with col3:
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.username = None
+        st.rerun()
