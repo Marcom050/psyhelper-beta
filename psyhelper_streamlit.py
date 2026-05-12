@@ -9,20 +9,18 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-# ====================== GOOGLE ANALYTICS 4 ======================
-GA_MEASUREMENT_ID = "G-KWR24JLV0Y"
-
-ga_script = f"""
-<script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>
+# ====================== GOOGLE ANALYTICS 4 (Versione migliorata) ======================
+st.markdown("""
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KWR24JLV0Y"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
-  function gtag(){{dataLayer.push(arguments);}}
+  function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', '{GA_MEASUREMENT_ID}');
+  gtag('config', 'G-KWR24JLV0Y');
 </script>
-"""
-st.components.v1.html(ga_script, height=0, width=0)
-# ============================================================
+""", unsafe_allow_html=True)
+# ===================================================================================
 
 st.title("🧠 PsyHelper")
 
