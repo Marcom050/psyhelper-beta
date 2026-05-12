@@ -119,11 +119,14 @@ if not st.session_state.logged_in:
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
 
-# ====================== TITOLO ======================
-st.title("🧠 PsyHelper")
+# ====================== DISCLAIMER + PRIVACY ======================
+st.caption("""
+⚠️ PsyHelper è uno strumento di supporto psicologico e **non sostituisce** una terapia professionale. 
+In caso di difficoltà gravi consulta un professionista. 
+Tutte le conversazioni sono private e salvate solo sul tuo account.
+""")
 
-# Disclaimer
-st.caption("⚠️ Disclaimer: PsyHelper è uno strumento di supporto e non sostituisce una terapia professionale. In caso di difficoltà gravi consulta un professionista della salute mentale. Tutte le conversazioni sono private.")
+st.title("🧠 PsyHelper")
 
 # ====================== ONBOARDING ======================
 if not st.session_state.profile:
