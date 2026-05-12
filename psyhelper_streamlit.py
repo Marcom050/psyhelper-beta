@@ -9,19 +9,7 @@ import hashlib
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
-# ====================== TITOLO ======================
-st.title("🧠 PsyHelper")
-
-# ====================== DISCLAIMER + PRIVACY (subito sotto il titolo) ======================
-st.markdown("""
-<div style="background-color: #1f2937; padding: 18px; border-radius: 12px; border: 1px solid #4f46e5; margin-bottom: 25px;">
-    <strong>⚠️ Disclaimer Importante</strong><br><br>
-    PsyHelper è uno strumento di supporto psicologico e non sostituisce una terapia professionale.<br>
-    In caso di sofferenza intensa, pensieri suicidari o difficoltà gravi, contatta immediatamente un professionista della salute mentale o un servizio di emergenza.<br><br>
-    <strong>Privacy:</strong> Tutte le tue conversazioni e i tuoi dati sono privati. 
-    Non vengono condivisi con nessuno e vengono salvati solo sul tuo account personale.
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div style="background: linear-gradient(90deg, #4338ca, #6366f1); color: white; padding: 14px; border-radius: 10px; text-align: center; margin-bottom: 30px; font-weight: 600;">🔬 PsyHelper - VERSIONE BETA<br>Supporto psicologico strutturato e privato</div>', unsafe_allow_html=True)
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
@@ -98,10 +86,9 @@ Focalizzati su emozioni, pensieri automatici, trigger e comportamenti. Usa tecni
 # ====================== LOGIN ======================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "show_mindfulness" not in st.session_state:
-    st.session_state.show_mindfulness = False
 
 if not st.session_state.logged_in:
+    st.title("🧠 PsyHelper")
     tab1, tab2 = st.tabs(["Login", "Registrati"])
     with tab1:
         with st.form("login"):
@@ -131,6 +118,12 @@ if not st.session_state.logged_in:
                     create_user(new_username, new_password)
                     st.success("Registrazione completata! Ora effettua il login.")
     st.stop()
+
+# ====================== TITOLO ======================
+st.title("🧠 PsyHelper")
+
+# Disclaimer
+st.caption("⚠️ Disclaimer: PsyHelper è uno strumento di supporto e non sostituisce una terapia professionale. In caso di difficoltà gravi consulta un professionista della salute mentale. Tutte le conversazioni sono private.")
 
 # ====================== ONBOARDING ======================
 if not st.session_state.profile:
@@ -182,25 +175,18 @@ if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza v
     save_user_data(st.session_state.username)
 
 st.divider()
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("Mindfulness"): st.session_state.show_mindfulness = not st.session_state.show_mindfulness
-with col2:
     if st.button("Nuova sessione"):
         st.session_state.messages = []
         save_user_data(st.session_state.username)
         st.rerun()
-with col3:
+with col2:
     if st.button("Modifica Profilo"):
         st.session_state.edit_profile = True
         st.rerun()
-with col4:
+with col3:
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.username = None
         st.rerun()
-
-if st.session_state.show_mindfulness:
-    st.subheader("Esercizi di Mindfulness")
-    st.markdown('<div class="mindfulness-box"><strong>Respirazione 4-7-8</strong><br>Calma ansia velocemente</div>', unsafe_allow_html=True)
-    st.markdown('<div class="mindfulness-box"><strong>Grounding 5-4-3-2-1</strong><br>Riporta la mente al presente</div>', unsafe_allow_html=True)
