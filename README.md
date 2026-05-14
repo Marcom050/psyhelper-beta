@@ -24,7 +24,6 @@ Applicazione Streamlit per supporto CBT con chat, diario, monitoraggio ansia/str
 
 ## Compliance e distribuzione commerciale
 
-- Il modello abbonamento professionista/clienti è documentato in `docs/SUBSCRIPTION_MODEL.md`.
 - Le dipendenze Python sono bloccate con versioni esatte in `requirements.txt` per rendere riproducibili installazione e revisione licenze.
 - La licenza del codice applicativo è dichiarata in `LICENSE`; le dipendenze terze restano soggette alle rispettive licenze.
 - L'inventario delle dipendenze e dei relativi metadati licenza è in `THIRD_PARTY_NOTICES.md`.
