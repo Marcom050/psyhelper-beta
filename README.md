@@ -22,6 +22,7 @@ Applicazione Streamlit per supporto CBT con chat, diario, monitoraggio ansia/str
    streamlit run psyhelper_streamlit.py
    ```
 
+==== main
 ## Compliance e distribuzione commerciale
 
 - Le dipendenze Python sono bloccate con versioni esatte in `requirements.txt` per rendere riproducibili installazione e revisione licenze.
