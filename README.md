@@ -22,11 +22,9 @@ Applicazione Streamlit per supporto CBT con chat, diario, monitoraggio ansia/str
    streamlit run psyhelper_streamlit.py
    ```
 
-
-
 ## Modello abbonamento professionisti/clienti
 
-PsyHelper usa un modello multi-account pensato per studi e psicologi:
+Questa sezione è parte della configurazione commerciale del progetto e va mantenuta insieme alla sezione compliance seguente. PsyHelper usa un modello multi-account pensato per studi e psicologi:
 
 1. Lo psicologo crea un account professionista e mantiene un solo abbonamento mensile.
 2. Dalla dashboard professionista può creare account cliente separati e illimitati.
