@@ -22,24 +22,9 @@ Applicazione Streamlit per supporto CBT con chat, diario, monitoraggio ansia/str
    streamlit run psyhelper_streamlit.py
    ```
 
-## Modello abbonamento professionisti/clienti
-
-Questa sezione è parte della configurazione commerciale del progetto e va mantenuta insieme alla sezione compliance seguente. PsyHelper usa un modello multi-account pensato per studi e psicologi:
-
-1. Lo psicologo crea un account professionista e mantiene un solo abbonamento mensile.
-2. Dalla dashboard professionista può creare account cliente separati e illimitati.
-3. Ogni cliente accede con credenziali proprie e compila chat, diario, monitoraggio, esercizi e resoconto nel proprio spazio dati.
-4. L'accesso dei clienti è valido solo se l'abbonamento dello psicologo collegato è attivo.
-
-Per collegare il pagamento reale in produzione:
-
-- imposta `SUBSCRIPTION_CHECKOUT_URL` nei secrets per mostrare il link di attivazione/rinnovo;
-- aggiorna `subscription_status` dell'account professionista tramite webhook del provider pagamenti, ad esempio Stripe;
-- gli stati considerati attivi sono configurabili con `ACTIVE_SUBSCRIPTION_STATUSES` e di default sono `active,trialing`;
-- `NEW_THERAPIST_SUBSCRIPTION_STATUS` controlla lo stato assegnato ai nuovi professionisti e di default è `trialing` per consentire test/prova.
-
 ## Compliance e distribuzione commerciale
 
+- Il modello abbonamento professionista/clienti è documentato in `docs/SUBSCRIPTION_MODEL.md`.
 - Le dipendenze Python sono bloccate con versioni esatte in `requirements.txt` per rendere riproducibili installazione e revisione licenze.
 - La licenza del codice applicativo è dichiarata in `LICENSE`; le dipendenze terze restano soggette alle rispettive licenze.
 - L'inventario delle dipendenze e dei relativi metadati licenza è in `THIRD_PARTY_NOTICES.md`.
