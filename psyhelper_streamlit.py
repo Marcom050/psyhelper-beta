@@ -1,6 +1,7 @@
 import hashlib
 import os
 import pickle
+import re
 from datetime import date, datetime
 
 import pandas as pd
@@ -142,26 +143,90 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 
+def normalize_username(username):
+    normalized = username.strip().lower().replace(" ", "_")
+    return re.sub(r"[^a-z0-9_-]", "", normalized)
+
+
+def user_dir(username):
+    return os.path.join(USERS_DIR, normalize_username(username))
+
+
 def user_exists(username):
-    return os.path.exists(f"{USERS_DIR}/{username}")
+    return os.path.isdir(user_dir(username))
 
 
-def create_user(username, password):
-    user_dir = f"{USERS_DIR}/{username}"
-    os.makedirs(user_dir, exist_ok=True)
-    with open(f"{user_dir}/password.txt", "w") as f:
+def default_user_metadata(role="client", therapist_username=None, subscription_status="inactive"):
+    return {
+        "role": role,
+        "therapist_username": normalize_username(therapist_username) if therapist_username else None,
+        "subscription_status": subscription_status,
+        "created_at": datetime.utcnow().isoformat(timespec="seconds"),
+    }
+
+
+def load_user_metadata(username):
+    if not user_exists(username):
+        return default_user_metadata(role="therapist", subscription_status="inactive")
+
+    metadata_path = os.path.join(user_dir(username), "metadata.pkl")
+    try:
+        with open(metadata_path, "rb") as f:
+            metadata = pickle.load(f)
+    except Exception:
+        # Compatibilità con account creati prima del modello psicologo/cliente:
+        # li trattiamo come professionisti attivi per non bloccare gli utenti esistenti.
+        metadata = default_user_metadata(role="therapist", subscription_status="active")
+
+    metadata.setdefault("role", "client")
+    metadata.setdefault("therapist_username", None)
+    metadata.setdefault("subscription_status", "inactive")
+    metadata.setdefault("created_at", datetime.utcnow().isoformat(timespec="seconds"))
+    return metadata
+
+
+def save_user_metadata(username, metadata):
+    os.makedirs(user_dir(username), exist_ok=True)
+    with open(os.path.join(user_dir(username), "metadata.pkl"), "wb") as f:
+        pickle.dump(metadata, f)
+
+
+def create_user(username, password, role="client", therapist_username=None, subscription_status="inactive", profile=None):
+    username = normalize_username(username)
+    account_dir = user_dir(username)
+    os.makedirs(account_dir, exist_ok=True)
+    with open(os.path.join(account_dir, "password.txt"), "w") as f:
         f.write(hash_password(password))
-    with open(f"{user_dir}/profile.pkl", "wb") as f:
-        pickle.dump({}, f)
-    with open(f"{user_dir}/messages.pkl", "wb") as f:
+    with open(os.path.join(account_dir, "profile.pkl"), "wb") as f:
+        pickle.dump(profile or {}, f)
+    with open(os.path.join(account_dir, "messages.pkl"), "wb") as f:
         pickle.dump([], f)
-    with open(f"{user_dir}/wellness.pkl", "wb") as f:
-        pickle.dump({"mood_entries": [], "mindfulness_log": []}, f)
+    with open(os.path.join(account_dir, "wellness.pkl"), "wb") as f:
+        pickle.dump(default_wellness_data(), f)
+    save_user_metadata(
+        username,
+        default_user_metadata(
+            role=role,
+            therapist_username=therapist_username,
+            subscription_status=subscription_status,
+        ),
+    )
+
+
+def create_client_account(therapist_username, client_username, password, display_name):
+    create_user(
+        client_username,
+        password,
+        role="client",
+        therapist_username=therapist_username,
+        subscription_status="covered_by_therapist",
+        profile={"nome": display_name or normalize_username(client_username), "onboarding_completed": False},
+    )
 
 
 def verify_password(username, password):
     try:
-        with open(f"{USERS_DIR}/{username}/password.txt", "r") as f:
+        with open(os.path.join(user_dir(username), "password.txt"), "r") as f:
             return f.read() == hash_password(password)
     except Exception:
         return False
@@ -172,18 +237,19 @@ def default_wellness_data():
 
 
 def load_user_data(username):
-    user_dir = f"{USERS_DIR}/{username}"
+    account_dir = user_dir(username)
+    st.session_state.user_metadata = load_user_metadata(username)
     try:
-        with open(f"{user_dir}/profile.pkl", "rb") as f:
+        with open(os.path.join(account_dir, "profile.pkl"), "rb") as f:
             st.session_state.profile = pickle.load(f)
-        with open(f"{user_dir}/messages.pkl", "rb") as f:
+        with open(os.path.join(account_dir, "messages.pkl"), "rb") as f:
             st.session_state.messages = pickle.load(f)
     except Exception:
         st.session_state.profile = {}
         st.session_state.messages = []
 
     try:
-        with open(f"{user_dir}/wellness.pkl", "rb") as f:
+        with open(os.path.join(account_dir, "wellness.pkl"), "rb") as f:
             st.session_state.wellness = pickle.load(f)
     except Exception:
         st.session_state.wellness = default_wellness_data()
@@ -195,13 +261,48 @@ def load_user_data(username):
 
 
 def save_user_data(username):
-    user_dir = f"{USERS_DIR}/{username}"
-    with open(f"{user_dir}/profile.pkl", "wb") as f:
+    account_dir = user_dir(username)
+    with open(os.path.join(account_dir, "profile.pkl"), "wb") as f:
         pickle.dump(st.session_state.profile, f)
-    with open(f"{user_dir}/messages.pkl", "wb") as f:
+    with open(os.path.join(account_dir, "messages.pkl"), "wb") as f:
         pickle.dump(st.session_state.messages, f)
-    with open(f"{user_dir}/wellness.pkl", "wb") as f:
+    with open(os.path.join(account_dir, "wellness.pkl"), "wb") as f:
         pickle.dump(st.session_state.get("wellness", default_wellness_data()), f)
+
+
+def active_subscription_statuses():
+    configured_statuses = st.secrets.get("ACTIVE_SUBSCRIPTION_STATUSES", "active,trialing")
+    return {status.strip().lower() for status in configured_statuses.split(",") if status.strip()}
+
+
+def is_subscription_active_for(username):
+    metadata = load_user_metadata(username)
+    if metadata.get("role") == "client":
+        therapist_username = metadata.get("therapist_username")
+        return bool(therapist_username and is_subscription_active_for(therapist_username))
+    return metadata.get("subscription_status", "inactive").lower() in active_subscription_statuses()
+
+
+def client_accounts_for(therapist_username):
+    clients = []
+    therapist_username = normalize_username(therapist_username)
+    for account_name in sorted(os.listdir(USERS_DIR)):
+        if not user_exists(account_name):
+            continue
+        metadata = load_user_metadata(account_name)
+        if metadata.get("role") == "client" and metadata.get("therapist_username") == therapist_username:
+            profile_path = os.path.join(user_dir(account_name), "profile.pkl")
+            try:
+                with open(profile_path, "rb") as f:
+                    profile = pickle.load(f)
+            except Exception:
+                profile = {}
+            clients.append({
+                "username": account_name,
+                "nome": profile.get("nome", account_name),
+                "creato_il": metadata.get("created_at", ""),
+            })
+    return clients
 
 
 def get_response(user_input):
@@ -420,40 +521,147 @@ def show_report_tab():
         st.dataframe(scope_df.sort_values("data", ascending=False), use_container_width=True)
 
 
+def show_subscription_required(account_label, therapist_username=None):
+    st.warning(
+        "Per usare PsyHelper serve un abbonamento professionale attivo. "
+        "Gli account cliente sono coperti dall'abbonamento dello psicologo che li ha creati."
+    )
+    if therapist_username:
+        st.info(f"Questo account cliente è collegato allo psicologo: `{therapist_username}`.")
+
+    checkout_url = st.secrets.get("SUBSCRIPTION_CHECKOUT_URL", "")
+    if checkout_url:
+        st.link_button("Attiva o rinnova abbonamento", checkout_url, use_container_width=True)
+    else:
+        st.caption(
+            "In produzione collega qui Stripe Checkout/Customer Portal impostando "
+            "`SUBSCRIPTION_CHECKOUT_URL` nei secrets e aggiornando `subscription_status` via webhook."
+        )
+    st.caption(f"Account: {account_label}")
+
+
+def show_therapist_dashboard():
+    username = st.session_state.username
+    metadata = st.session_state.get("user_metadata", load_user_metadata(username))
+    subscription_status = metadata.get("subscription_status", "inactive")
+    subscription_active = is_subscription_active_for(username)
+
+    st.header("👩‍⚕️ Dashboard professionista")
+    st.write(
+        "Con questo modello lo psicologo paga un solo abbonamento mensile e può creare "
+        "account cliente separati. Ogni cliente accede con credenziali proprie e i suoi dati "
+        "restano nel suo spazio dedicato."
+    )
+
+    col1, col2 = st.columns(2)
+    col1.metric("Abbonamento", "Attivo" if subscription_active else "Non attivo")
+    col2.metric("Stato", subscription_status)
+
+    if not subscription_active:
+        show_subscription_required(username)
+        return
+
+    st.subheader("Crea account cliente")
+    with st.form("create_client_account"):
+        client_name = st.text_input("Nome cliente", placeholder="Es. Cliente Rossi")
+        client_username = st.text_input("Username cliente", placeholder="cliente_rossi")
+        client_password = st.text_input("Password temporanea", type="password")
+        confirm_client_password = st.text_input("Conferma password temporanea", type="password")
+        if st.form_submit_button("Crea cliente", use_container_width=True):
+            normalized_client_username = normalize_username(client_username)
+            if not client_name.strip():
+                st.error("Inserisci il nome del cliente.")
+            elif len(normalized_client_username) < 3:
+                st.error("Lo username cliente deve avere almeno 3 caratteri.")
+            elif user_exists(normalized_client_username):
+                st.error("Username cliente già esistente.")
+            elif len(client_password) < 8:
+                st.error("La password temporanea deve avere almeno 8 caratteri.")
+            elif client_password != confirm_client_password:
+                st.error("Le password non coincidono.")
+            else:
+                create_client_account(username, normalized_client_username, client_password, client_name.strip())
+                st.success(
+                    f"Account cliente `{normalized_client_username}` creato. "
+                    "Consegna le credenziali al cliente e chiedigli di cambiarle appena disponibile la funzione cambio password."
+                )
+
+    st.subheader("Clienti collegati")
+    clients = client_accounts_for(username)
+    if clients:
+        st.dataframe(pd.DataFrame(clients), use_container_width=True, hide_index=True)
+    else:
+        st.info("Non hai ancora creato account cliente.")
+
+
+def logout_button():
+    if st.button("Logout", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.username = None
+        st.session_state.user_metadata = {}
+        st.session_state.profile = {}
+        st.session_state.messages = []
+        st.session_state.wellness = default_wellness_data()
+        st.session_state.scroll_to_top = True
+        st.rerun()
+
+
 # ====================== LOGIN ======================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    tab1, tab2 = st.tabs(["Login", "Registrati"])
+    tab1, tab2 = st.tabs(["Login", "Registrati come psicologo"])
     with tab1:
+        st.caption("I clienti non si registrano da soli: ricevono l'account dal proprio psicologo abbonato.")
         with st.form("login"):
             username = st.text_input("Nome utente")
             password = st.text_input("Password", type="password")
             if st.form_submit_button("Accedi", use_container_width=True):
-                if user_exists(username) and verify_password(username, password):
+                normalized_username = normalize_username(username)
+                if user_exists(normalized_username) and verify_password(normalized_username, password):
                     st.session_state.logged_in = True
-                    st.session_state.username = username
+                    st.session_state.username = normalized_username
                     st.session_state.scroll_to_top = True
-                    load_user_data(username)
+                    load_user_data(normalized_username)
                     st.rerun()
                 else:
                     st.error("Nome utente o password errati")
     with tab2:
-        with st.form("signup"):
-            new_username = st.text_input("Scegli un nome utente")
+        st.info(
+            "Crea l'account professionista. L'abbonamento mensile è collegato a questo account; "
+            "da qui potrai creare tutti gli account cliente necessari."
+        )
+        with st.form("therapist_signup"):
+            professional_name = st.text_input("Nome professionista o studio")
+            new_username = st.text_input("Scegli un nome utente professionista")
             new_password = st.text_input("Scegli una password", type="password")
             confirm_password = st.text_input("Conferma password", type="password")
-            if st.form_submit_button("Registrati", use_container_width=True):
-                if new_password != confirm_password:
+            if st.form_submit_button("Crea account professionista", use_container_width=True):
+                normalized_username = normalize_username(new_username)
+                initial_status = st.secrets.get("NEW_THERAPIST_SUBSCRIPTION_STATUS", "trialing")
+                if not professional_name.strip():
+                    st.error("Inserisci il nome del professionista o dello studio.")
+                elif new_password != confirm_password:
                     st.error("Le password non coincidono")
-                elif user_exists(new_username):
+                elif user_exists(normalized_username):
                     st.error("Nome utente già esistente")
-                elif len(new_username) < 3:
+                elif len(normalized_username) < 3:
                     st.error("Il nome utente deve avere almeno 3 caratteri")
+                elif len(new_password) < 8:
+                    st.error("La password deve avere almeno 8 caratteri")
                 else:
-                    create_user(new_username, new_password)
-                    st.success("Registrazione completata! Ora effettua il login.")
+                    create_user(
+                        normalized_username,
+                        new_password,
+                        role="therapist",
+                        subscription_status=initial_status,
+                        profile={"nome": professional_name.strip(), "account_type": "therapist"},
+                    )
+                    st.success(
+                        "Account professionista creato. Ora effettua il login; "
+                        "in produzione lo stato abbonamento sarà aggiornato dal sistema pagamenti."
+                    )
     st.stop()
 
 if st.session_state.pop("scroll_to_top", False):
@@ -462,19 +670,35 @@ if st.session_state.pop("scroll_to_top", False):
 st.session_state.setdefault("profile", {})
 st.session_state.setdefault("messages", [])
 st.session_state.setdefault("wellness", default_wellness_data())
+st.session_state.setdefault("user_metadata", load_user_metadata(st.session_state.username))
 if not isinstance(st.session_state.wellness, dict):
     st.session_state.wellness = default_wellness_data()
 st.session_state.wellness.setdefault("mood_entries", [])
 st.session_state.wellness.setdefault("mindfulness_log", [])
 
+current_metadata = st.session_state.get("user_metadata", {})
+current_role = current_metadata.get("role", "client")
+
+if current_role == "therapist":
+    show_therapist_dashboard()
+    st.divider()
+    logout_button()
+    st.stop()
+
+if not is_subscription_active_for(st.session_state.username):
+    show_subscription_required(st.session_state.username, current_metadata.get("therapist_username"))
+    st.divider()
+    logout_button()
+    st.stop()
+
 # ====================== ONBOARDING ======================
-if not st.session_state.profile:
+if not st.session_state.profile.get("onboarding_completed", False):
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
 
     with st.form("onboarding"):
         col1, col2 = st.columns(2)
         with col1:
-            nome = st.text_input("Come ti chiami?")
+            nome = st.text_input("Come ti chiami?", value=st.session_state.profile.get("nome", ""))
             età = st.number_input("Età", 14, 90, 30)
             umore = st.selectbox("Umore attuale", MOOD_OPTIONS)
             intensità = st.slider("Intensità del malessere (1-10)", 1, 10, 5)
@@ -495,6 +719,7 @@ if not st.session_state.profile:
                 "pensieri": pensieri,
                 "obiettivi": obiettivi,
                 "motivazione": motivazione,
+                "onboarding_completed": True,
             }
             st.session_state.scroll_to_top = True
             save_user_data(st.session_state.username)
@@ -529,5 +754,9 @@ with col3:
     if st.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.username = None
+        st.session_state.user_metadata = {}
+        st.session_state.profile = {}
+        st.session_state.messages = []
+        st.session_state.wellness = default_wellness_data()
         st.session_state.scroll_to_top = True
         st.rerun()
