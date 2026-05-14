@@ -22,6 +22,15 @@ Applicazione Streamlit per supporto CBT con chat, diario, monitoraggio ansia/str
    streamlit run psyhelper_streamlit.py
    ```
 
+
+## Compliance e distribuzione commerciale
+
+- Le dipendenze Python sono bloccate con versioni esatte in `requirements.txt` per rendere riproducibili installazione e revisione licenze.
+- La licenza del codice applicativo è dichiarata in `LICENSE`; le dipendenze terze restano soggette alle rispettive licenze.
+- L'inventario delle dipendenze e dei relativi metadati licenza è in `THIRD_PARTY_NOTICES.md`.
+- Google Analytics è disattivato di default e viene caricato solo dopo consenso esplicito dell'utente dalla sidebar dell'app.
+- Il prompt di sistema include una policy per evitare la riproduzione estesa di testi protetti da copyright non forniti dall'utente.
+
 ## Deploy su Streamlit Cloud
 
 Se Streamlit Cloud mostra un errore simile a:

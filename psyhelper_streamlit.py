@@ -13,6 +13,46 @@ from langchain_groq import ChatGroq
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
 
+ANALYTICS_ID = "G-KWR24JLV0Y"
+COPYRIGHT_POLICY = """
+Policy copyright: non riprodurre o continuare testi protetti da copyright non forniti dall'utente, inclusi brani di libri, articoli, canzoni, manuali o materiali formativi.
+Se l'utente chiede contenuti protetti estesi, rifiuta brevemente la riproduzione e offri invece riassunti, spiegazioni, parafrasi brevi, analisi o indicazioni originali.
+Se l'utente fornisce personalmente un breve estratto, puoi commentarlo o trasformarlo limitando le citazioni testuali allo stretto necessario.
+"""
+
+
+def render_analytics_banner():
+    st.sidebar.markdown("### Privacy e analytics")
+    st.sidebar.caption(
+        "Google Analytics resta disattivato finché non dai consenso. "
+        "Se attivato, vengono raccolte metriche d'uso aggregate; non inserire dati sensibili nei campi liberi se non necessario."
+    )
+    consent = st.sidebar.checkbox(
+        "Acconsento all'uso di Google Analytics",
+        value=st.session_state.get("analytics_consent", False),
+        key="analytics_consent_checkbox",
+    )
+    st.session_state.analytics_consent = consent
+
+    if not consent:
+        st.sidebar.info("Analytics disattivato: nessuno script Google Analytics viene caricato.")
+        return
+
+    st.sidebar.success("Analytics attivato per questa sessione.")
+    st.markdown(
+        f"""
+<script async src="https://www.googletagmanager.com/gtag/js?id={ANALYTICS_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){{dataLayer.push(arguments);}}
+  gtag('js', new Date());
+  gtag('config', '{ANALYTICS_ID}', {{ 'anonymize_ip': true }});
+</script>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 # =============================================
 # TITOLO E DISCLAIMER - INIZIO PAGINA
 # =============================================
@@ -26,16 +66,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Google Analytics
-st.markdown("""
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-KWR24JLV0Y"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-KWR24JLV0Y');
-</script>
-""", unsafe_allow_html=True)
+render_analytics_banner()
 
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
@@ -192,7 +223,8 @@ Nome utente: {nome}
 Profilo: {profile_text}
 Schede recenti di monitoraggio: {recent_text}
 Focalizzati su emozioni, pensieri automatici, trigger, sensazioni corporee e comportamenti. Usa tecniche CBT in modo mirato, concreto e non giudicante.
-Non formulare diagnosi e non sostituirti a uno psicologo/psicoterapeuta. In caso di rischio immediato invita a contattare servizi di emergenza o una persona fidata."""
+Non formulare diagnosi e non sostituirti a uno psicologo/psicoterapeuta. In caso di rischio immediato invita a contattare servizi di emergenza o una persona fidata.
+{COPYRIGHT_POLICY}"""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
