@@ -1,6 +1,16 @@
 # PsyHelper Streamlit
 
-Applicazione Streamlit per supporto CBT con chat, diario, monitoraggio ansia/stress, esercizi mindfulness e resoconto esportabile.
+Applicazione Streamlit per workflow terapeutico CBT: dashboard professionista, account cliente, chat guidata, diario clinico, homework CBT assegnabili, insight automatici, alert non diagnostici, timeline terapeutica, note private e recap pre-seduta.
+
+## Funzionalità principali
+
+- **Dashboard terapeuta intelligente** con overview pazienti, stato emotivo recente, aderenza homework, alert e insight clinicamente leggibili.
+- **Homework CBT strutturati** assegnabili dal terapeuta: ABC model, thought record, ristrutturazione cognitiva, esposizione graduale, monitoraggio evitamento, behavioral activation, schede emozioni e trigger.
+- **Insight automatici non diagnostici** su pattern ricorrenti come trigger lavoro, pensieri catastrofici, evitamento, temi sociali e peggioramenti recenti.
+- **Timeline terapeutica condivisa** con diario, homework assegnati/completati ed eventi clinici aggiunti dal professionista.
+- **Recap pre-seduta** esportabile con andamento degli ultimi 14 giorni e compliance homework.
+- **Note private terapeuta** separate dallo spazio visibile al paziente.
+- **Chat CBT guidata** mantenuta come supporto a journaling, reflection, grounding e homework.
 
 ## Avvio locale
 
@@ -22,7 +32,6 @@ Applicazione Streamlit per supporto CBT con chat, diario, monitoraggio ansia/str
    streamlit run psyhelper_streamlit.py
    ```
 
-==== main
 ## Compliance e distribuzione commerciale
 
 - Le dipendenze Python sono bloccate con versioni esatte in `requirements.txt` per rendere riproducibili installazione e revisione licenze.
