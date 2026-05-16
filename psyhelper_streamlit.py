@@ -93,46 +93,37 @@ SENSATION_OPTIONS = [
 CBT_HOMEWORK_TEMPLATES = {
     "ABC model": {
         "obiettivo": "Collegare situazione, pensieri/convinzioni e conseguenze emotive/comportamentali.",
-        "campi": ["A - Evento attivante", "B - Pensieri/convinzioni", "C - Emozioni e comportamenti", "Ipotesi alternativa", "Prossimo passo"],
-        "domande": ["Che cosa è successo?", "Che cosa ti è passato per la mente?", "Che effetto ha avuto su emozioni o comportamento?"]
+        "campi": ["A - Evento attivante", "B - Pensieri/convinzioni", "C - Emozioni e comportamenti", "Ipotesi alternativa", "Prossimo passo"]
     },
     "Thought record": {
         "obiettivo": "Raccogliere prove a favore/contro un pensiero automatico e formulare una risposta bilanciata.",
-        "campi": ["Situazione", "Emozione 0-10", "Pensiero automatico", "Prove a favore", "Prove contro", "Pensiero alternativo", "Emozione dopo 0-10"],
-        "domande": ["Quale pensiero automatico hai notato?", "Quali elementi lo confermano o lo mettono in dubbio?", "Quale risposta più equilibrata puoi provare?"]
+        "campi": ["Situazione", "Emozione 0-10", "Pensiero automatico", "Prove a favore", "Prove contro", "Pensiero alternativo", "Emozione dopo 0-10"]
     },
     "Ristrutturazione cognitiva": {
         "obiettivo": "Individuare distorsioni cognitive e costruire una valutazione più utile e realistica.",
-        "campi": ["Pensiero target", "Distorsione possibile", "Domanda socratica", "Risposta più equilibrata", "Azione coerente"],
-        "domande": ["Quale pensiero vuoi rivedere?", "Quale modo alternativo di leggerlo può essere più utile?", "Quale piccola azione coerente puoi fare?"]
+        "campi": ["Pensiero target", "Distorsione possibile", "Domanda socratica", "Risposta più equilibrata", "Azione coerente"]
     },
     "Esposizione graduale": {
         "obiettivo": "Pianificare piccoli passi di esposizione monitorando ansia prevista, ansia reale ed evitamento.",
-        "campi": ["Situazione temuta", "Step di esposizione", "Ansia prevista 0-10", "Ansia massima reale 0-10", "Cosa ho imparato", "Evitamenti/safety behavior"],
-        "domande": ["Quale passo di esposizione hai provato?", "Com'è andata durante e dopo?", "Che cosa hai imparato?"]
+        "campi": ["Situazione temuta", "Step di esposizione", "Ansia prevista 0-10", "Ansia massima reale 0-10", "Cosa ho imparato", "Evitamenti/safety behavior"]
     },
     "Monitoraggio evitamento": {
         "obiettivo": "Rendere visibili situazioni evitate, costo dell'evitamento e alternative praticabili.",
-        "campi": ["Situazione evitata", "Emozione associata", "Cosa ho evitato", "Costo a breve/lungo termine", "Micro-azione alternativa"],
-        "domande": ["Quale situazione hai evitato o avresti voluto evitare?", "Che costo ha avuto l'evitamento?", "Quale micro-azione alternativa puoi provare?"]
+        "campi": ["Situazione evitata", "Emozione associata", "Cosa ho evitato", "Costo a breve/lungo termine", "Micro-azione alternativa"]
     },
     "Behavioral activation": {
         "obiettivo": "Programmare attività coerenti con valori, piacere o padronanza e monitorarne l'effetto.",
-        "campi": ["Attività programmata", "Valore collegato", "Difficoltà prevista 0-10", "Piacere/padronanza dopo 0-10", "Ostacoli", "Prossimo passo"],
-        "domande": ["Quale attività hai programmato o svolto?", "Che effetto ha avuto su umore, energia o senso di efficacia?", "Qual è il prossimo piccolo passo?"]
+        "campi": ["Attività programmata", "Valore collegato", "Difficoltà prevista 0-10", "Piacere/padronanza dopo 0-10", "Ostacoli", "Prossimo passo"]
     },
     "Scheda emozioni": {
         "obiettivo": "Descrivere emozioni, intensità, bisogni e strategie di regolazione utili.",
-        "campi": ["Emozione", "Intensità 0-10", "Segnali corporei", "Bisogno", "Strategia utile", "Esito"],
-        "domande": ["Quale emozione hai notato?", "Quale bisogno segnalava?", "Che cosa ti ha aiutato o potrebbe aiutarti?"]
+        "campi": ["Emozione", "Intensità 0-10", "Segnali corporei", "Bisogno", "Strategia utile", "Esito"]
     },
     "Scheda trigger": {
         "obiettivo": "Mappare trigger ricorrenti, contesto e risposta comportamentale.",
-        "campi": ["Trigger", "Contesto", "Pensieri emersi", "Emozioni", "Comportamento", "Risposta alternativa"],
-        "domande": ["Quale trigger hai notato?", "In quale contesto è comparso?", "Quale risposta alternativa puoi provare?"]
+        "campi": ["Trigger", "Contesto", "Pensieri emersi", "Emozioni", "Comportamento", "Risposta alternativa"]
     },
 }
-
 
 HIGH_RISK_KEYWORDS = [
     "suicidio", "suicid", "farla finita", "non voglio vivere", "uccidermi", "autolesion", "tagliarmi",
@@ -445,8 +436,18 @@ def homework_questions_for(template_name, assignment=None):
     custom_questions = [question for question in custom_questions if question]
     if custom_questions:
         return custom_questions
-    template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
-    return template.get("domande") or template.get("campi", ["Scrivi qui la tua risposta"])
+
+    guided_questions = {
+        "ABC model": ["Che cosa è successo?", "Che cosa ti è passato per la mente?", "Che effetto ha avuto su emozioni o comportamento?"],
+        "Thought record": ["Quale pensiero automatico hai notato?", "Quali elementi lo confermano o lo mettono in dubbio?", "Quale risposta più equilibrata puoi provare?"],
+        "Ristrutturazione cognitiva": ["Quale pensiero vuoi rivedere?", "Quale modo alternativo di leggerlo può essere più utile?", "Quale piccola azione coerente puoi fare?"],
+        "Esposizione graduale": ["Quale passo di esposizione hai provato?", "Com'è andata durante e dopo?", "Che cosa hai imparato?"],
+        "Monitoraggio evitamento": ["Quale situazione hai evitato o avresti voluto evitare?", "Che costo ha avuto l'evitamento?", "Quale micro-azione alternativa puoi provare?"],
+        "Behavioral activation": ["Quale attività hai programmato o svolto?", "Che effetto ha avuto su umore, energia o senso di efficacia?", "Qual è il prossimo piccolo passo?"],
+        "Scheda emozioni": ["Quale emozione hai notato?", "Quale bisogno segnalava?", "Che cosa ti ha aiutato o potrebbe aiutarti?"],
+        "Scheda trigger": ["Quale trigger hai notato?", "In quale contesto è comparso?", "Quale risposta alternativa puoi provare?"],
+    }
+    return guided_questions.get(template_name, ["Scrivi qui la tua risposta"])
 
 
 def homework_answer_items(answers):
