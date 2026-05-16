@@ -11,6 +11,7 @@ Applicazione Streamlit per workflow terapeutico CBT: dashboard professionista, a
 - **Recap pre-seduta** esportabile con andamento degli ultimi 14 giorni e compliance homework.
 - **Note private terapeuta** separate dallo spazio visibile al paziente.
 - **Chat CBT guidata** mantenuta come supporto a journaling, reflection, grounding e homework.
+- **Modalità beta controllata**: scarico di responsabilità obbligatorio prima dell'uso, prova psicologo di 7 giorni, email professionale obbligatoria e vincolo di un solo account psicologo per email.
 
 ## Avvio locale
 

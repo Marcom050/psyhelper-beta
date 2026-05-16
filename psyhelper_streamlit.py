@@ -2,7 +2,7 @@ import hashlib
 import os
 import pickle
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import plotly.express as px
@@ -19,6 +19,14 @@ COPYRIGHT_POLICY = """
 Policy copyright: non riprodurre o continuare testi protetti da copyright non forniti dall'utente, inclusi brani di libri, articoli, canzoni, manuali o materiali formativi.
 Se l'utente chiede contenuti protetti estesi, rifiuta brevemente la riproduzione e offri invece riassunti, spiegazioni, parafrasi brevi, analisi o indicazioni originali.
 Se l'utente fornisce personalmente un breve estratto, puoi commentarlo o trasformarlo limitando le citazioni testuali allo stretto necessario.
+"""
+
+BETA_TRIAL_DAYS = 7
+BETA_DISCLAIMER_TEXT = """
+Questa è una versione di prova di PsyHelper, concessa esclusivamente per finalità di beta test.
+Non deve essere usata con clienti reali, non deve trattare dati personali, sanitari, clinici o comunque riferibili a clienti/pazienti reali e non sostituisce strumenti professionali validati o obblighi deontologici, legali e privacy.
+
+Questa applicazione è protetta dalla normativa sul diritto d’autore ai sensi della Legge sul diritto d'autore e successive modifiche. Tutti i diritti sono riservati. È vietata la riproduzione, distribuzione, modifica, pubblicazione, comunicazione o condivisione totale o parziale dell’applicazione e dei suoi contenuti senza preventiva autorizzazione del titolare dei diritti, salvo i casi consentiti dalla legge.
 """
 
 
@@ -58,6 +66,20 @@ def render_analytics_banner():
 # TITOLO E DISCLAIMER - INIZIO PAGINA
 # =============================================
 st.title("🧠 PsyHelper")
+
+if not st.session_state.get("beta_disclaimer_accepted", False):
+    st.warning("Prima di usare o creare un account devi accettare le condizioni della versione di prova.")
+    st.markdown("### Scarico di responsabilità e diritto d'autore")
+    st.info(BETA_DISCLAIMER_TEXT)
+    accepted = st.checkbox(
+        "Ho letto e accetto: userò PsyHelper solo per beta test, senza clienti reali e senza dati di clienti/pazienti reali.",
+        key="beta_disclaimer_acceptance_checkbox",
+    )
+    if st.button("Accetta e continua", use_container_width=True, disabled=not accepted):
+        st.session_state.beta_disclaimer_accepted = True
+        st.session_state.beta_disclaimer_accepted_at = datetime.utcnow().isoformat(timespec="seconds")
+        st.rerun()
+    st.stop()
 
 st.markdown("""
 <div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 30px;">
@@ -148,6 +170,61 @@ def normalize_username(username):
     return re.sub(r"[^a-z0-9_-]", "", normalized)
 
 
+def normalize_email(email):
+    return email.strip().lower()
+
+
+def is_valid_email(email):
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalize_email(email)))
+
+
+def parse_iso_datetime(value):
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def trial_expires_at(created_at):
+    created_datetime = parse_iso_datetime(created_at) or datetime.utcnow()
+    return created_datetime + timedelta(days=BETA_TRIAL_DAYS)
+
+
+def trial_days_remaining(created_at):
+    remaining = trial_expires_at(created_at) - datetime.utcnow()
+    return max(0, remaining.days + (1 if remaining.seconds or remaining.microseconds else 0))
+
+
+def is_trial_expired(metadata):
+    if metadata.get("role") != "therapist":
+        return False
+    if metadata.get("subscription_status", "inactive").lower() != "trialing":
+        return False
+    return datetime.utcnow() >= trial_expires_at(metadata.get("created_at"))
+
+
+def therapist_email_exists(email):
+    normalized_email = normalize_email(email)
+    if not normalized_email or not os.path.isdir(USERS_DIR):
+        return False
+    for account_name in os.listdir(USERS_DIR):
+        if not user_exists(account_name):
+            continue
+        metadata = load_user_metadata(account_name)
+        if metadata.get("role") != "therapist":
+            continue
+        account_email = normalize_email(metadata.get("email", ""))
+        if not account_email:
+            try:
+                with open(os.path.join(user_dir(account_name), "profile.pkl"), "rb") as f:
+                    account_email = normalize_email(pickle.load(f).get("email", ""))
+            except Exception:
+                account_email = ""
+        if account_email == normalized_email:
+            return True
+    return False
+
+
 def user_dir(username):
     return os.path.join(USERS_DIR, normalize_username(username))
 
@@ -156,12 +233,14 @@ def user_exists(username):
     return os.path.isdir(user_dir(username))
 
 
-def default_user_metadata(role="client", therapist_username=None, subscription_status="inactive"):
+def default_user_metadata(role="client", therapist_username=None, subscription_status="inactive", email=None):
     return {
         "role": role,
         "therapist_username": normalize_username(therapist_username) if therapist_username else None,
         "subscription_status": subscription_status,
+        "email": normalize_email(email) if email else "",
         "created_at": datetime.utcnow().isoformat(timespec="seconds"),
+        "beta_disclaimer_accepted_at": None,
     }
 
 
@@ -181,7 +260,9 @@ def load_user_metadata(username):
     metadata.setdefault("role", "client")
     metadata.setdefault("therapist_username", None)
     metadata.setdefault("subscription_status", "inactive")
+    metadata.setdefault("email", "")
     metadata.setdefault("created_at", datetime.utcnow().isoformat(timespec="seconds"))
+    metadata.setdefault("beta_disclaimer_accepted_at", None)
     return metadata
 
 
@@ -191,7 +272,7 @@ def save_user_metadata(username, metadata):
         pickle.dump(metadata, f)
 
 
-def create_user(username, password, role="client", therapist_username=None, subscription_status="inactive", profile=None):
+def create_user(username, password, role="client", therapist_username=None, subscription_status="inactive", profile=None, email=None, beta_disclaimer_accepted_at=None):
     username = normalize_username(username)
     account_dir = user_dir(username)
     os.makedirs(account_dir, exist_ok=True)
@@ -203,14 +284,15 @@ def create_user(username, password, role="client", therapist_username=None, subs
         pickle.dump([], f)
     with open(os.path.join(account_dir, "wellness.pkl"), "wb") as f:
         pickle.dump(default_wellness_data(), f)
-    save_user_metadata(
-        username,
-        default_user_metadata(
-            role=role,
-            therapist_username=therapist_username,
-            subscription_status=subscription_status,
-        ),
+    metadata = default_user_metadata(
+        role=role,
+        therapist_username=therapist_username,
+        subscription_status=subscription_status,
+        email=email,
     )
+    if beta_disclaimer_accepted_at:
+        metadata["beta_disclaimer_accepted_at"] = beta_disclaimer_accepted_at
+    save_user_metadata(username, metadata)
 
 
 def create_client_account(therapist_username, client_username, password, display_name):
@@ -294,7 +376,11 @@ def is_subscription_active_for(username):
     if metadata.get("role") == "client":
         therapist_username = metadata.get("therapist_username")
         return bool(therapist_username and is_subscription_active_for(therapist_username))
-    return metadata.get("subscription_status", "inactive").lower() in active_subscription_statuses()
+
+    subscription_status = metadata.get("subscription_status", "inactive").lower()
+    if subscription_status == "trialing":
+        return not is_trial_expired(metadata)
+    return subscription_status in active_subscription_statuses()
 
 
 def client_accounts_for(therapist_username):
@@ -838,10 +924,18 @@ def show_report_tab():
 
 
 def show_subscription_required(account_label, therapist_username=None):
-    st.warning(
-        "Per usare PsyHelper serve un abbonamento professionale attivo. "
-        "Gli account cliente sono coperti dall'abbonamento dello psicologo che li ha creati."
-    )
+    metadata = load_user_metadata(therapist_username or account_label)
+    if is_trial_expired(metadata):
+        st.error(
+            "Il periodo di prova gratuito di 7 giorni è scaduto: l'account è bloccato "
+            "e non può usare PsyHelper finché non viene riattivato dal titolare del servizio."
+        )
+        st.caption(f"Scadenza prova: {trial_expires_at(metadata.get('created_at')).strftime('%d/%m/%Y %H:%M UTC')}")
+    else:
+        st.warning(
+            "Per usare PsyHelper serve un abbonamento professionale attivo o una prova beta valida. "
+            "Gli account cliente sono coperti dallo stato dello psicologo che li ha creati."
+        )
     if therapist_username:
         st.info(f"Questo account cliente è collegato allo psicologo: `{therapist_username}`.")
 
@@ -865,9 +959,13 @@ def show_therapist_dashboard():
     st.header("👩‍⚕️ Dashboard terapeuta intelligente")
     st.caption("Focus clinico: overview pazienti, insight automatici, aderenza, alert e organizzazione del materiale per la seduta.")
 
-    col1, col2 = st.columns(2)
-    col1.metric("Abbonamento", "Attivo" if subscription_active else "Non attivo")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Accesso", "Attivo" if subscription_active else "Bloccato")
     col2.metric("Stato", subscription_status)
+    if subscription_status.lower() == "trialing":
+        col3.metric("Giorni prova rimasti", trial_days_remaining(metadata.get("created_at")))
+    else:
+        col3.metric("Account", metadata.get("email") or username)
 
     if not subscription_active:
         show_subscription_required(username)
@@ -1097,19 +1195,25 @@ if not st.session_state.logged_in:
                     st.error("Nome utente o password errati")
     with tab2:
         st.info(
-            "Crea l'account professionista. L'abbonamento mensile è collegato a questo account; "
-            "da qui potrai creare tutti gli account cliente necessari."
+            f"Crea l'account professionista per una prova beta di {BETA_TRIAL_DAYS} giorni. "
+            "Ogni email può creare un solo account psicologo e l'app non deve essere usata con clienti reali."
         )
         with st.form("therapist_signup"):
             professional_name = st.text_input("Nome professionista o studio")
+            professional_email = st.text_input("Email professionale obbligatoria")
             new_username = st.text_input("Scegli un nome utente professionista")
             new_password = st.text_input("Scegli una password", type="password")
             confirm_password = st.text_input("Conferma password", type="password")
             if st.form_submit_button("Crea account professionista", use_container_width=True):
                 normalized_username = normalize_username(new_username)
-                initial_status = st.secrets.get("NEW_THERAPIST_SUBSCRIPTION_STATUS", "trialing")
+                initial_status = "trialing"
+                normalized_email = normalize_email(professional_email)
                 if not professional_name.strip():
                     st.error("Inserisci il nome del professionista o dello studio.")
+                elif not is_valid_email(normalized_email):
+                    st.error("Inserisci un indirizzo email valido per l'account psicologo.")
+                elif therapist_email_exists(normalized_email):
+                    st.error("Esiste già un account psicologo associato a questa email.")
                 elif new_password != confirm_password:
                     st.error("Le password non coincidono")
                 elif user_exists(normalized_username):
@@ -1124,11 +1228,15 @@ if not st.session_state.logged_in:
                         new_password,
                         role="therapist",
                         subscription_status=initial_status,
-                        profile={"nome": professional_name.strip(), "account_type": "therapist"},
+                        profile={"nome": professional_name.strip(), "email": normalized_email, "account_type": "therapist"},
+                        email=normalized_email,
+                        beta_disclaimer_accepted_at=st.session_state.get(
+                            "beta_disclaimer_accepted_at", datetime.utcnow().isoformat(timespec="seconds")
+                        ),
                     )
                     st.success(
-                        "Account professionista creato. Ora effettua il login; "
-                        "in produzione lo stato abbonamento sarà aggiornato dal sistema pagamenti."
+                        f"Account professionista creato. La prova beta dura {BETA_TRIAL_DAYS} giorni dalla creazione; "
+                        "ora effettua il login."
                     )
     st.stop()
 
