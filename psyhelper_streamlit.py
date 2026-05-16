@@ -26,6 +26,8 @@ BETA_DISCLAIMER_TEXT = """
 Questa è una versione di prova di PsyHelper, concessa esclusivamente per finalità di beta test.
 Non deve essere usata con clienti reali, non deve trattare dati personali, sanitari, clinici o comunque riferibili a clienti/pazienti reali e non sostituisce strumenti professionali validati o obblighi deontologici, legali e privacy.
 
+L'autore declina ogni tipo di responsabilità per qualsiasi uso improprio dell'applicazione, dei suoi contenuti o delle indicazioni generate.
+
 Questa applicazione è protetta dalla normativa sul diritto d’autore ai sensi della Legge sul diritto d'autore e successive modifiche. Tutti i diritti sono riservati. È vietata la riproduzione, distribuzione, modifica, pubblicazione, comunicazione o condivisione totale o parziale dell’applicazione e dei suoi contenuti senza preventiva autorizzazione del titolare dei diritti, salvo i casi consentiti dalla legge.
 """
 
@@ -72,7 +74,7 @@ if not st.session_state.get("beta_disclaimer_accepted", False):
     st.markdown("### Scarico di responsabilità e diritto d'autore")
     st.info(BETA_DISCLAIMER_TEXT)
     accepted = st.checkbox(
-        "Ho letto e accetto: userò PsyHelper solo per beta test, senza clienti reali e senza dati di clienti/pazienti reali.",
+        "Ho letto e accetto: userò PsyHelper solo per beta test, senza clienti reali, senza dati di clienti/pazienti reali e assumendomi la responsabilità di non farne uso improprio.",
         key="beta_disclaimer_acceptance_checkbox",
     )
     if st.button("Accetta e continua", use_container_width=True, disabled=not accepted):
