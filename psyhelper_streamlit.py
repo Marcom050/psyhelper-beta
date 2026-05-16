@@ -93,37 +93,46 @@ SENSATION_OPTIONS = [
 CBT_HOMEWORK_TEMPLATES = {
     "ABC model": {
         "obiettivo": "Collegare situazione, pensieri/convinzioni e conseguenze emotive/comportamentali.",
-        "campi": ["A - Evento attivante", "B - Pensieri/convinzioni", "C - Emozioni e comportamenti", "Ipotesi alternativa", "Prossimo passo"]
+        "campi": ["A - Evento attivante", "B - Pensieri/convinzioni", "C - Emozioni e comportamenti", "Ipotesi alternativa", "Prossimo passo"],
+        "domande": ["Che cosa è successo?", "Che cosa ti è passato per la mente?", "Che effetto ha avuto su emozioni o comportamento?"]
     },
     "Thought record": {
         "obiettivo": "Raccogliere prove a favore/contro un pensiero automatico e formulare una risposta bilanciata.",
-        "campi": ["Situazione", "Emozione 0-10", "Pensiero automatico", "Prove a favore", "Prove contro", "Pensiero alternativo", "Emozione dopo 0-10"]
+        "campi": ["Situazione", "Emozione 0-10", "Pensiero automatico", "Prove a favore", "Prove contro", "Pensiero alternativo", "Emozione dopo 0-10"],
+        "domande": ["Quale pensiero automatico hai notato?", "Quali elementi lo confermano o lo mettono in dubbio?", "Quale risposta più equilibrata puoi provare?"]
     },
     "Ristrutturazione cognitiva": {
         "obiettivo": "Individuare distorsioni cognitive e costruire una valutazione più utile e realistica.",
-        "campi": ["Pensiero target", "Distorsione possibile", "Domanda socratica", "Risposta più equilibrata", "Azione coerente"]
+        "campi": ["Pensiero target", "Distorsione possibile", "Domanda socratica", "Risposta più equilibrata", "Azione coerente"],
+        "domande": ["Quale pensiero vuoi rivedere?", "Quale modo alternativo di leggerlo può essere più utile?", "Quale piccola azione coerente puoi fare?"]
     },
     "Esposizione graduale": {
         "obiettivo": "Pianificare piccoli passi di esposizione monitorando ansia prevista, ansia reale ed evitamento.",
-        "campi": ["Situazione temuta", "Step di esposizione", "Ansia prevista 0-10", "Ansia massima reale 0-10", "Cosa ho imparato", "Evitamenti/safety behavior"]
+        "campi": ["Situazione temuta", "Step di esposizione", "Ansia prevista 0-10", "Ansia massima reale 0-10", "Cosa ho imparato", "Evitamenti/safety behavior"],
+        "domande": ["Quale passo di esposizione hai provato?", "Com'è andata durante e dopo?", "Che cosa hai imparato?"]
     },
     "Monitoraggio evitamento": {
         "obiettivo": "Rendere visibili situazioni evitate, costo dell'evitamento e alternative praticabili.",
-        "campi": ["Situazione evitata", "Emozione associata", "Cosa ho evitato", "Costo a breve/lungo termine", "Micro-azione alternativa"]
+        "campi": ["Situazione evitata", "Emozione associata", "Cosa ho evitato", "Costo a breve/lungo termine", "Micro-azione alternativa"],
+        "domande": ["Quale situazione hai evitato o avresti voluto evitare?", "Che costo ha avuto l'evitamento?", "Quale micro-azione alternativa puoi provare?"]
     },
     "Behavioral activation": {
         "obiettivo": "Programmare attività coerenti con valori, piacere o padronanza e monitorarne l'effetto.",
-        "campi": ["Attività programmata", "Valore collegato", "Difficoltà prevista 0-10", "Piacere/padronanza dopo 0-10", "Ostacoli", "Prossimo passo"]
+        "campi": ["Attività programmata", "Valore collegato", "Difficoltà prevista 0-10", "Piacere/padronanza dopo 0-10", "Ostacoli", "Prossimo passo"],
+        "domande": ["Quale attività hai programmato o svolto?", "Che effetto ha avuto su umore, energia o senso di efficacia?", "Qual è il prossimo piccolo passo?"]
     },
     "Scheda emozioni": {
         "obiettivo": "Descrivere emozioni, intensità, bisogni e strategie di regolazione utili.",
-        "campi": ["Emozione", "Intensità 0-10", "Segnali corporei", "Bisogno", "Strategia utile", "Esito"]
+        "campi": ["Emozione", "Intensità 0-10", "Segnali corporei", "Bisogno", "Strategia utile", "Esito"],
+        "domande": ["Quale emozione hai notato?", "Quale bisogno segnalava?", "Che cosa ti ha aiutato o potrebbe aiutarti?"]
     },
     "Scheda trigger": {
         "obiettivo": "Mappare trigger ricorrenti, contesto e risposta comportamentale.",
-        "campi": ["Trigger", "Contesto", "Pensieri emersi", "Emozioni", "Comportamento", "Risposta alternativa"]
+        "campi": ["Trigger", "Contesto", "Pensieri emersi", "Emozioni", "Comportamento", "Risposta alternativa"],
+        "domande": ["Quale trigger hai notato?", "In quale contesto è comparso?", "Quale risposta alternativa puoi provare?"]
     },
 }
+
 
 HIGH_RISK_KEYWORDS = [
     "suicidio", "suicid", "farla finita", "non voglio vivere", "uccidermi", "autolesion", "tagliarmi",
@@ -426,6 +435,61 @@ def most_common_values(series, limit=3):
     return pd.Series(values).value_counts().head(limit) if values else pd.Series(dtype="int64")
 
 
+def clean_text(value):
+    return str(value or "").strip()
+
+
+def homework_questions_for(template_name, assignment=None):
+    assignment = assignment or {}
+    custom_questions = [clean_text(question) for question in assignment.get("questions", [])]
+    custom_questions = [question for question in custom_questions if question]
+    if custom_questions:
+        return custom_questions
+    template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
+    return template.get("domande") or template.get("campi", ["Scrivi qui la tua risposta"])
+
+
+def homework_answer_items(answers):
+    if isinstance(answers, dict):
+        return [(clean_text(question), clean_text(answer)) for question, answer in answers.items() if clean_text(answer)]
+    if isinstance(answers, list):
+        return [(f"Risposta {index}", clean_text(answer)) for index, answer in enumerate(answers, start=1) if clean_text(answer)]
+    answer = clean_text(answers)
+    return [("Risposta", answer)] if answer else []
+
+
+def homework_readable_summary(submission):
+    summary = clean_text(submission.get("summary"))
+    answer_items = homework_answer_items(submission.get("answers", {}))
+    if summary:
+        return summary
+    if answer_items:
+        return " · ".join(answer for _, answer in answer_items[:2])
+    return "Nessuna risposta inserita."
+
+
+def render_homework_answers(submission):
+    answer_items = homework_answer_items(submission.get("answers", {}))
+    if not answer_items:
+        st.info("Nessuna risposta inserita.")
+        return
+    for question, answer in answer_items:
+        st.markdown(f"**{question}**")
+        st.write(answer)
+
+
+def homework_assignment_rows(assignments, completed_ids):
+    rows = []
+    for assignment in assignments:
+        rows.append({
+            "homework": assignment.get("template", "Homework"),
+            "scadenza": assignment.get("due_date", "—"),
+            "stato": "Completato" if assignment.get("id") in completed_ids or assignment.get("status") == "completato" else "Da completare",
+            "istruzioni": clean_text(assignment.get("instructions")) or "—",
+        })
+    return rows
+
+
 def text_blob_from_entries(entries):
     fields = ["trigger", "pensiero_automatico", "comportamento", "risposta_alternativa", "nota_professionista", "bisogno"]
     return " ".join(str(entry.get(field, "")) for entry in entries for field in fields).lower()
@@ -655,8 +719,7 @@ def show_monitoring_tab():
 
 
 def show_homework_tab():
-    st.subheader("📚 Homework CBT strutturati")
-    st.caption("Esercizi assegnabili dal terapeuta e template pronti per trasformare il diario libero in materiale clinico organizzato.")
+    st.subheader("📚 Homework")
     ensure_wellness_schema(st.session_state.wellness)
 
     assignments = st.session_state.wellness["homework_assignments"]
@@ -667,40 +730,56 @@ def show_homework_tab():
     if open_assignments:
         st.markdown("### Compiti assegnati dal terapeuta")
         selected_assignment = st.selectbox(
-            "Seleziona un homework da compilare",
+            "Seleziona il compito da completare",
             open_assignments,
             format_func=lambda item: f"{item.get('template', 'Homework')} · scadenza {item.get('due_date', 'non indicata')}",
         )
-        template = CBT_HOMEWORK_TEMPLATES.get(selected_assignment.get("template"), {})
-        st.info(template.get("obiettivo", selected_assignment.get("instructions", "")))
-        st.caption(selected_assignment.get("instructions", ""))
+        template_name = selected_assignment.get("template")
+        questions = homework_questions_for(template_name, selected_assignment)
+        st.caption(f"Scadenza: {selected_assignment.get('due_date', 'non indicata')}")
+        if clean_text(selected_assignment.get("instructions")):
+            st.info(selected_assignment.get("instructions"))
         with st.form("assigned_homework_submission"):
             answers = {}
-            for field in template.get("campi", []):
-                answers[field] = st.text_area(field, key=f"assigned_{selected_assignment.get('id')}_{field}")
-            summary = st.text_area("Sintesi per il terapeuta", placeholder="Cosa è stato utile, difficile o da discutere in seduta?")
-            if st.form_submit_button("Invia homework completato", use_container_width=True):
+            for index, question in enumerate(questions, start=1):
+                answers[question] = st.text_area(
+                    question,
+                    key=f"assigned_{selected_assignment.get('id')}_{index}",
+                    height=140 if len(questions) == 1 else 100,
+                    placeholder="Rispondi qui.",
+                )
+            summary = st.text_area(
+                "Nota facoltativa",
+                placeholder="Aggiungi qualcosa da discutere in seduta, se serve.",
+                height=90,
+            )
+            if st.form_submit_button("Invia al terapeuta", use_container_width=True):
                 submissions.append({
                     "assignment_id": selected_assignment.get("id"),
-                    "template": selected_assignment.get("template"),
+                    "template": template_name,
                     "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
                     "answers": answers,
                     "summary": summary,
                 })
                 save_user_data(st.session_state.username)
-                st.success("Homework inviato. Il terapeuta potrà vederlo nella dashboard.")
+                st.success("Homework inviato.")
                 st.rerun()
     else:
-        st.info("Non ci sono homework assegnati aperti. Puoi comunque compilare un template CBT libero.")
+        st.info("Non ci sono homework assegnati aperti. Se vuoi puoi salvare una nota libera da portare in seduta.")
 
-    st.markdown("### Template libero")
-    selected = st.selectbox("Scegli template CBT", list(CBT_HOMEWORK_TEMPLATES.keys()))
-    template = CBT_HOMEWORK_TEMPLATES[selected]
-    st.markdown(f"**Obiettivo clinico:** {template['obiettivo']}")
+    st.markdown("### Homework libero")
+    selected = st.selectbox("Scegli homework CBT", list(CBT_HOMEWORK_TEMPLATES.keys()))
     with st.form("free_homework_submission"):
-        answers = {field: st.text_area(field, key=f"free_{selected}_{field}") for field in template["campi"]}
-        summary = st.text_area("Sintesi personale", placeholder="Cosa vuoi ricordare o portare in seduta?")
-        if st.form_submit_button("Salva template", use_container_width=True):
+        answers = {}
+        for index, question in enumerate(homework_questions_for(selected), start=1):
+            answers[question] = st.text_area(
+                question,
+                key=f"free_{selected}_{index}",
+                height=140 if len(homework_questions_for(selected)) == 1 else 100,
+                placeholder="Rispondi qui.",
+            )
+        summary = st.text_area("Nota facoltativa", placeholder="Aggiungi qualcosa da discutere in seduta, se serve.", height=90)
+        if st.form_submit_button("Salva nota", use_container_width=True):
             submissions.append({
                 "assignment_id": None,
                 "template": selected,
@@ -709,11 +788,18 @@ def show_homework_tab():
                 "summary": summary,
             })
             save_user_data(st.session_state.username)
-            st.success("Template CBT salvato.")
+            st.success("Homework salvato.")
 
     if submissions:
-        with st.expander("Storico homework compilati"):
-            rows = [{"data": item.get("submitted_at"), "template": item.get("template"), "sintesi": item.get("summary", "")} for item in submissions]
+        with st.expander("Storico homework e note"):
+            rows = [
+                {
+                    "data": item.get("submitted_at"),
+                    "homework": item.get("template"),
+                    "risposte": homework_readable_summary(item),
+                }
+                for item in submissions
+            ]
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
@@ -893,15 +979,28 @@ def show_therapist_dashboard():
     with detail_tabs[2]:
         st.markdown("### Assegna homework CBT")
         with st.form("assign_homework"):
-            template_name = st.selectbox("Template", list(CBT_HOMEWORK_TEMPLATES.keys()))
+            template_name = st.selectbox("Template CBT", list(CBT_HOMEWORK_TEMPLATES.keys()))
+            template = CBT_HOMEWORK_TEMPLATES[template_name]
+            st.caption(template["obiettivo"])
             due_date = st.date_input("Scadenza", value=date.today())
-            instructions = st.text_area("Istruzioni specifiche", placeholder="Es. compilare dopo una situazione sociale evitata o dopo un episodio di ansia.")
+            instructions = st.text_area(
+                "Nota o contesto per il paziente (facoltativo)",
+                placeholder="Es. dopo una situazione sociale, dopo un episodio di ansia, prima della prossima seduta.",
+                height=80,
+            )
+            default_questions = homework_questions_for(template_name)
+            st.markdown("**Domande mostrate al paziente**")
+            question_1 = st.text_area("Domanda principale", value=default_questions[0], height=70)
+            question_2 = st.text_input("Domanda 2", value=default_questions[1] if len(default_questions) > 1 else "")
+            question_3 = st.text_input("Domanda 3", value=default_questions[2] if len(default_questions) > 2 else "")
             if st.form_submit_button("Assegna al paziente", use_container_width=True):
+                questions = [question for question in [clean_text(question_1), clean_text(question_2), clean_text(question_3)] if question]
                 selected_wellness["homework_assignments"].append({
                     "id": f"hw_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
                     "template": template_name,
-                    "objective": CBT_HOMEWORK_TEMPLATES[template_name]["obiettivo"],
+                    "objective": template["obiettivo"],
                     "instructions": instructions,
+                    "questions": questions or homework_questions_for(template_name),
                     "due_date": due_date.isoformat(),
                     "assigned_at": datetime.utcnow().isoformat(timespec="seconds"),
                     "assigned_by": username,
@@ -911,16 +1010,22 @@ def show_therapist_dashboard():
                 st.rerun()
         assignments = selected_wellness.get("homework_assignments", [])
         submissions = selected_wellness.get("homework_submissions", [])
+        completed_ids = {submission.get("assignment_id") for submission in submissions}
         st.markdown("### Andamento e compliance")
         st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
         if assignments:
-            st.dataframe(pd.DataFrame(assignments), use_container_width=True, hide_index=True)
+            st.markdown("#### Homework assegnati")
+            st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
         if submissions:
-            with st.expander("Homework compilati dal paziente"):
-                for submission in submissions:
-                    st.markdown(f"**{submission.get('template')}** · {submission.get('submitted_at')}")
-                    st.write(submission.get("summary") or "Nessuna sintesi.")
-                    st.json(submission.get("answers", {}))
+            st.markdown("#### Risposte del paziente")
+            for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
+                with st.expander(f"{submission.get('template', 'Homework')} · {submission.get('submitted_at', '—')}", expanded=True):
+                    if clean_text(submission.get("summary")):
+                        st.markdown("**Nota per la seduta**")
+                        st.write(submission.get("summary"))
+                    render_homework_answers(submission)
+        else:
+            st.info("Il paziente non ha ancora inviato risposte agli homework.")
 
     with detail_tabs[3]:
         st.markdown("### Timeline terapeutica condivisa")
