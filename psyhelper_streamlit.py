@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_groq import ChatGroq
 
-st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="centered")
+st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 
 ANALYTICS_ID = "G-KWR24JLV0Y"
 COPYRIGHT_POLICY = """
@@ -90,43 +90,50 @@ SENSATION_OPTIONS = [
     "Testa pesante",
     "Calore/freddo",
 ]
-MINDFULNESS_EXERCISES = {
-    "Respiro 4-6": {
-        "durata": "3-5 minuti",
-        "obiettivo": "Ridurre attivazione fisiologica e ansia.",
-        "passi": [
-            "Appoggia i piedi a terra e nota tre punti di contatto con la sedia.",
-            "Inspira dal naso contando fino a 4.",
-            "Espira lentamente contando fino a 6, come se sgonfiassi un palloncino.",
-            "Ripeti per 10 cicli e riporta l'attenzione al respiro ogni volta che la mente vaga.",
-        ],
-        "riflessione": "Quale pensiero automatico si è ammorbidito anche solo dell'1%?",
+CBT_HOMEWORK_TEMPLATES = {
+    "ABC model": {
+        "obiettivo": "Collegare situazione, pensieri/convinzioni e conseguenze emotive/comportamentali.",
+        "campi": ["A - Evento attivante", "B - Pensieri/convinzioni", "C - Emozioni e comportamenti", "Ipotesi alternativa", "Prossimo passo"]
     },
-    "Grounding 5-4-3-2-1": {
-        "durata": "5 minuti",
-        "obiettivo": "Ancorarsi al presente durante stress o rimuginio.",
-        "passi": [
-            "Nomina 5 cose che vedi.",
-            "Nomina 4 sensazioni fisiche che percepisci.",
-            "Nomina 3 suoni che senti.",
-            "Nomina 2 odori o sapori presenti.",
-            "Concludi con 1 azione utile e realistica per i prossimi 10 minuti.",
-        ],
-        "riflessione": "Che differenza noti tra minaccia immaginata e situazione presente?",
+    "Thought record": {
+        "obiettivo": "Raccogliere prove a favore/contro un pensiero automatico e formulare una risposta bilanciata.",
+        "campi": ["Situazione", "Emozione 0-10", "Pensiero automatico", "Prove a favore", "Prove contro", "Pensiero alternativo", "Emozione dopo 0-10"]
     },
-    "Defusione dal pensiero": {
-        "durata": "4 minuti",
-        "obiettivo": "Osservare i pensieri senza trattarli come fatti.",
-        "passi": [
-            "Scrivi o pronuncia un pensiero stressante.",
-            "Aggiungi davanti: 'Sto avendo il pensiero che...'.",
-            "Ripetilo lentamente tre volte e nota cosa cambia nel corpo.",
-            "Chiediti: 'Quale comportamento coerente con i miei valori posso fare ora?'.",
-        ],
-        "riflessione": "Quanto credibile sembra il pensiero da 0 a 100 dopo l'esercizio?",
+    "Ristrutturazione cognitiva": {
+        "obiettivo": "Individuare distorsioni cognitive e costruire una valutazione più utile e realistica.",
+        "campi": ["Pensiero target", "Distorsione possibile", "Domanda socratica", "Risposta più equilibrata", "Azione coerente"]
+    },
+    "Esposizione graduale": {
+        "obiettivo": "Pianificare piccoli passi di esposizione monitorando ansia prevista, ansia reale ed evitamento.",
+        "campi": ["Situazione temuta", "Step di esposizione", "Ansia prevista 0-10", "Ansia massima reale 0-10", "Cosa ho imparato", "Evitamenti/safety behavior"]
+    },
+    "Monitoraggio evitamento": {
+        "obiettivo": "Rendere visibili situazioni evitate, costo dell'evitamento e alternative praticabili.",
+        "campi": ["Situazione evitata", "Emozione associata", "Cosa ho evitato", "Costo a breve/lungo termine", "Micro-azione alternativa"]
+    },
+    "Behavioral activation": {
+        "obiettivo": "Programmare attività coerenti con valori, piacere o padronanza e monitorarne l'effetto.",
+        "campi": ["Attività programmata", "Valore collegato", "Difficoltà prevista 0-10", "Piacere/padronanza dopo 0-10", "Ostacoli", "Prossimo passo"]
+    },
+    "Scheda emozioni": {
+        "obiettivo": "Descrivere emozioni, intensità, bisogni e strategie di regolazione utili.",
+        "campi": ["Emozione", "Intensità 0-10", "Segnali corporei", "Bisogno", "Strategia utile", "Esito"]
+    },
+    "Scheda trigger": {
+        "obiettivo": "Mappare trigger ricorrenti, contesto e risposta comportamentale.",
+        "campi": ["Trigger", "Contesto", "Pensieri emersi", "Emozioni", "Comportamento", "Risposta alternativa"]
     },
 }
 
+HIGH_RISK_KEYWORDS = [
+    "suicidio", "suicid", "farla finita", "non voglio vivere", "uccidermi", "autolesion", "tagliarmi",
+    "morire", "overdose", "impicc", "buttarmi", "sparire per sempre",
+]
+
+AVOIDANCE_KEYWORDS = ["evito", "evitare", "rimando", "non sono uscito", "annullo", "isolamento", "mi isolo", "scappo"]
+CATASTROPHIC_KEYWORDS = ["disastro", "catastrofe", "terribile", "non ce la farò", "andrà malissimo", "rovinerò", "fallirò"]
+SOCIAL_KEYWORDS = ["sociale", "persone", "uscire", "gruppo", "festa", "colleghi", "giudicano", "vergogna"]
+WORK_KEYWORDS = ["lavoro", "capo", "collega", "scadenza", "ufficio", "riunione", "cliente", "turno"]
 
 def scroll_to_top():
     st.html(
@@ -233,7 +240,22 @@ def verify_password(username, password):
 
 
 def default_wellness_data():
-    return {"mood_entries": [], "mindfulness_log": []}
+    return {
+        "mood_entries": [],
+        "homework_assignments": [],
+        "homework_submissions": [],
+        "timeline_events": [],
+    }
+
+
+def ensure_wellness_schema(wellness):
+    wellness.setdefault("mood_entries", [])
+    wellness.setdefault("homework_assignments", [])
+    wellness.setdefault("homework_submissions", [])
+    wellness.setdefault("timeline_events", [])
+    # Migrazione: la vecchia app salvava log mindfulness; non viene più mostrato nel prodotto clinico.
+    wellness.pop("mindfulness_log", None)
+    return wellness
 
 
 def load_user_data(username):
@@ -256,8 +278,7 @@ def load_user_data(username):
 
     if not isinstance(st.session_state.wellness, dict):
         st.session_state.wellness = default_wellness_data()
-    st.session_state.wellness.setdefault("mood_entries", [])
-    st.session_state.wellness.setdefault("mindfulness_log", [])
+    ensure_wellness_schema(st.session_state.wellness)
 
 
 def save_user_data(username):
@@ -267,7 +288,7 @@ def save_user_data(username):
     with open(os.path.join(account_dir, "messages.pkl"), "wb") as f:
         pickle.dump(st.session_state.messages, f)
     with open(os.path.join(account_dir, "wellness.pkl"), "wb") as f:
-        pickle.dump(st.session_state.get("wellness", default_wellness_data()), f)
+        pickle.dump(ensure_wellness_schema(st.session_state.get("wellness", default_wellness_data())), f)
 
 
 def active_subscription_statuses():
@@ -303,6 +324,53 @@ def client_accounts_for(therapist_username):
                 "creato_il": metadata.get("created_at", ""),
             })
     return clients
+
+
+def load_account_bundle(username):
+    account_dir = user_dir(username)
+    try:
+        with open(os.path.join(account_dir, "profile.pkl"), "rb") as f:
+            profile = pickle.load(f)
+    except Exception:
+        profile = {}
+    try:
+        with open(os.path.join(account_dir, "messages.pkl"), "rb") as f:
+            messages = pickle.load(f)
+    except Exception:
+        messages = []
+    try:
+        with open(os.path.join(account_dir, "wellness.pkl"), "rb") as f:
+            wellness = pickle.load(f)
+    except Exception:
+        wellness = default_wellness_data()
+    if not isinstance(wellness, dict):
+        wellness = default_wellness_data()
+    return {"profile": profile, "messages": messages, "wellness": ensure_wellness_schema(wellness)}
+
+
+def save_wellness_for(username, wellness):
+    account_dir = user_dir(username)
+    os.makedirs(account_dir, exist_ok=True)
+    with open(os.path.join(account_dir, "wellness.pkl"), "wb") as f:
+        pickle.dump(ensure_wellness_schema(wellness), f)
+
+
+def therapist_notes_path(therapist_username):
+    return os.path.join(user_dir(therapist_username), "therapist_notes.pkl")
+
+
+def load_therapist_notes(therapist_username):
+    try:
+        with open(therapist_notes_path(therapist_username), "rb") as f:
+            notes = pickle.load(f)
+    except Exception:
+        notes = {}
+    return notes if isinstance(notes, dict) else {}
+
+
+def save_therapist_notes(therapist_username, notes):
+    with open(therapist_notes_path(therapist_username), "wb") as f:
+        pickle.dump(notes, f)
 
 
 def get_response(user_input):
@@ -356,6 +424,134 @@ def most_common_values(series, limit=3):
         elif item:
             values.extend([part.strip() for part in str(item).split(",") if part.strip()])
     return pd.Series(values).value_counts().head(limit) if values else pd.Series(dtype="int64")
+
+
+def text_blob_from_entries(entries):
+    fields = ["trigger", "pensiero_automatico", "comportamento", "risposta_alternativa", "nota_professionista", "bisogno"]
+    return " ".join(str(entry.get(field, "")) for entry in entries for field in fields).lower()
+
+
+def keyword_hits(text, keywords):
+    return sum(1 for keyword in keywords if keyword in text)
+
+
+def clinical_snapshot(wellness, messages=None):
+    entries = ensure_wellness_schema(wellness).get("mood_entries", [])
+    messages = messages or []
+    assignments = wellness.get("homework_assignments", [])
+    submissions = wellness.get("homework_submissions", [])
+    if entries:
+        df = pd.DataFrame(entries)
+        df["data"] = pd.to_datetime(df["data"], errors="coerce")
+        df = df.dropna(subset=["data"]).sort_values("data")
+    else:
+        df = pd.DataFrame()
+
+    now = pd.Timestamp.today().normalize()
+    last_14 = df[df["data"] >= now - pd.Timedelta(days=14)] if not df.empty else pd.DataFrame()
+    prev_14 = df[(df["data"] < now - pd.Timedelta(days=14)) & (df["data"] >= now - pd.Timedelta(days=28))] if not df.empty else pd.DataFrame()
+    scope_df = last_14 if not last_14.empty else df
+
+    insights = []
+    alerts = []
+    if not scope_df.empty:
+        avg_anxiety = scope_df["ansia"].mean()
+        avg_stress = scope_df["stress"].mean()
+        latest = scope_df.iloc[-1]
+        if latest.get("ansia", 0) >= 8 or latest.get("umore_intensita", 0) >= 8:
+            alerts.append("Forte intensità emotiva recente: potenziale area da attenzionare.")
+        if not prev_14.empty and avg_anxiety - prev_14["ansia"].mean() >= 1.5:
+            insights.append("Ansia in aumento rispetto alle 2 settimane precedenti.")
+        monday_df = df[df["data"].dt.weekday == 0]
+        if len(monday_df) >= 2 and monday_df["ansia"].mean() >= df["ansia"].mean() + 1:
+            insights.append("Ansia tendenzialmente più alta il lunedì.")
+        trigger_counts = most_common_values(scope_df.get("trigger", pd.Series(dtype="object")), limit=3)
+        for trigger, count in trigger_counts.items():
+            if count >= 2:
+                insights.append(f"Trigger ricorrente: {trigger} ({count} rilevazioni).")
+        if len(scope_df) <= 1 and len(df) >= 3:
+            alerts.append("Riduzione delle compilazioni recenti: possibile rischio drop-out o calo aderenza.")
+        last_entry_date = df["data"].max() if not df.empty else None
+        if last_entry_date is not None and (now - last_entry_date.normalize()).days >= 7:
+            alerts.append("Nessuna compilazione negli ultimi 7 giorni: verificare engagement.")
+    else:
+        avg_anxiety = avg_stress = 0
+        alerts.append("Nessuna scheda compilata: aderenza non valutabile.")
+
+    text_blob = text_blob_from_entries(entries) + " " + " ".join(str(m.get("content", "")) for m in messages).lower()
+    if keyword_hits(text_blob, HIGH_RISK_KEYWORDS):
+        alerts.append("Parole ad alto rischio rilevate: potenziale area da attenzionare, senza diagnosi automatica.")
+    if keyword_hits(text_blob, CATASTROPHIC_KEYWORDS) >= 2:
+        insights.append("Pensieri catastrofici ricorrenti nel materiale scritto.")
+    if keyword_hits(text_blob, AVOIDANCE_KEYWORDS) >= 2:
+        insights.append("Indicatori di evitamento in aumento o ricorrenti.")
+    if keyword_hits(text_blob, SOCIAL_KEYWORDS) >= 2:
+        insights.append("Temi sociali/interpersonali ricorrenti.")
+    if keyword_hits(text_blob, WORK_KEYWORDS) >= 2:
+        insights.append("Trigger legati al lavoro ricorrenti.")
+
+    completed_ids = {submission.get("assignment_id") for submission in submissions}
+    total_assignments = len(assignments)
+    completed_assignments = len([a for a in assignments if a.get("id") in completed_ids or a.get("status") == "completato"])
+    overdue = []
+    for assignment in assignments:
+        due_date = assignment.get("due_date")
+        if assignment.get("id") in completed_ids:
+            continue
+        if due_date and pd.to_datetime(due_date, errors="coerce") < now:
+            overdue.append(assignment)
+    if overdue:
+        alerts.append(f"{len(overdue)} homework assegnati risultano oltre scadenza.")
+
+    return {
+        "entries_count": len(scope_df),
+        "avg_anxiety": avg_anxiety,
+        "avg_stress": avg_stress,
+        "insights": insights[:6] or ["Servono più dati recenti per generare pattern affidabili."],
+        "alerts": alerts[:6],
+        "homework_total": total_assignments,
+        "homework_completed": completed_assignments,
+        "homework_compliance": (completed_assignments / total_assignments * 100) if total_assignments else 0,
+        "last_activity": df["data"].max().date().isoformat() if not df.empty else "—",
+        "scope_df": scope_df,
+    }
+
+
+def weekly_recap(snapshot):
+    return [
+        f"Schede ultime 2 settimane: {snapshot['entries_count']}",
+        f"Ansia media: {snapshot['avg_anxiety']:.1f}/10",
+        f"Stress medio: {snapshot['avg_stress']:.1f}/10",
+        f"Homework completati: {snapshot['homework_completed']} su {snapshot['homework_total']} ({snapshot['homework_compliance']:.0f}%)",
+        *snapshot["insights"][:4],
+    ]
+
+
+def build_timeline_events(wellness):
+    events = []
+    for entry in wellness.get("mood_entries", []):
+        events.append({
+            "data": entry.get("data", entry.get("creata_il", "")),
+            "tipo": "Diario",
+            "titolo": f"{entry.get('umore', 'Umore')} · ansia {entry.get('ansia', '—')}/10",
+            "dettaglio": entry.get("trigger") or entry.get("pensiero_automatico") or "Scheda CBT compilata",
+        })
+    for assignment in wellness.get("homework_assignments", []):
+        events.append({
+            "data": assignment.get("assigned_at", ""),
+            "tipo": "Homework assegnato",
+            "titolo": assignment.get("template", "Homework"),
+            "dettaglio": assignment.get("instructions", ""),
+        })
+    for submission in wellness.get("homework_submissions", []):
+        events.append({
+            "data": submission.get("submitted_at", ""),
+            "tipo": "Homework completato",
+            "titolo": submission.get("template", "Homework"),
+            "dettaglio": submission.get("summary", ""),
+        })
+    events.extend(wellness.get("timeline_events", []))
+    return sorted(events, key=lambda item: str(item.get("data", "")), reverse=True)
 
 
 def show_chat_tab():
@@ -426,13 +622,21 @@ def show_monitoring_tab():
         st.info("Aggiungi almeno una scheda nel diario per vedere trend e indicatori.")
         return
 
+    snapshot = clinical_snapshot(st.session_state.wellness, st.session_state.messages)
     latest = df.iloc[-1]
     avg_anxiety = df["ansia"].mean()
     avg_stress = df["stress"].mean()
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Ultima ansia", f"{latest['ansia']}/10")
     col2.metric("Media ansia", f"{avg_anxiety:.1f}/10")
     col3.metric("Media stress", f"{avg_stress:.1f}/10")
+    col4.metric("Homework", f"{snapshot['homework_completed']}/{snapshot['homework_total']}")
+
+    with st.expander("Insight automatici da portare in seduta", expanded=True):
+        for insight in snapshot["insights"]:
+            st.write(f"• {insight}")
+        for alert in snapshot["alerts"]:
+            st.warning(f"Potenziale area da attenzionare: {alert}")
 
     chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
     fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
@@ -450,32 +654,67 @@ def show_monitoring_tab():
         st.dataframe(sensation_counts.rename("Frequenza"), use_container_width=True)
 
 
-def show_exercises_tab():
-    st.subheader("🧘 Esercizi mindfulness su base CBT")
-    st.caption("Esercizi brevi per osservare pensieri, emozioni e corpo senza evitare l'esperienza interna.")
-    selected = st.selectbox("Scegli un esercizio", list(MINDFULNESS_EXERCISES.keys()))
-    exercise = MINDFULNESS_EXERCISES[selected]
+def show_homework_tab():
+    st.subheader("📚 Homework CBT strutturati")
+    st.caption("Esercizi assegnabili dal terapeuta e template pronti per trasformare il diario libero in materiale clinico organizzato.")
+    ensure_wellness_schema(st.session_state.wellness)
 
-    st.markdown(f"**Durata:** {exercise['durata']}")
-    st.markdown(f"**Obiettivo CBT:** {exercise['obiettivo']}")
-    for index, step in enumerate(exercise["passi"], start=1):
-        st.write(f"{index}. {step}")
-    st.info(exercise["riflessione"])
+    assignments = st.session_state.wellness["homework_assignments"]
+    submissions = st.session_state.wellness["homework_submissions"]
+    completed_ids = {submission.get("assignment_id") for submission in submissions}
+    open_assignments = [assignment for assignment in assignments if assignment.get("id") not in completed_ids]
 
-    with st.form("mindfulness_log_form"):
-        before = st.slider("Ansia/stress prima (0-10)", 0, 10, 5)
-        after = st.slider("Ansia/stress dopo (0-10)", 0, 10, 3)
-        notes = st.text_area("Cosa hai notato?", placeholder="Pensieri, sensazioni o piccoli cambiamenti osservati.")
-        if st.form_submit_button("Registra esercizio", use_container_width=True):
-            st.session_state.wellness["mindfulness_log"].append({
-                "data": datetime.utcnow().isoformat(timespec="seconds"),
-                "esercizio": selected,
-                "prima": before,
-                "dopo": after,
-                "note": notes,
+    if open_assignments:
+        st.markdown("### Compiti assegnati dal terapeuta")
+        selected_assignment = st.selectbox(
+            "Seleziona un homework da compilare",
+            open_assignments,
+            format_func=lambda item: f"{item.get('template', 'Homework')} · scadenza {item.get('due_date', 'non indicata')}",
+        )
+        template = CBT_HOMEWORK_TEMPLATES.get(selected_assignment.get("template"), {})
+        st.info(template.get("obiettivo", selected_assignment.get("instructions", "")))
+        st.caption(selected_assignment.get("instructions", ""))
+        with st.form("assigned_homework_submission"):
+            answers = {}
+            for field in template.get("campi", []):
+                answers[field] = st.text_area(field, key=f"assigned_{selected_assignment.get('id')}_{field}")
+            summary = st.text_area("Sintesi per il terapeuta", placeholder="Cosa è stato utile, difficile o da discutere in seduta?")
+            if st.form_submit_button("Invia homework completato", use_container_width=True):
+                submissions.append({
+                    "assignment_id": selected_assignment.get("id"),
+                    "template": selected_assignment.get("template"),
+                    "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
+                    "answers": answers,
+                    "summary": summary,
+                })
+                save_user_data(st.session_state.username)
+                st.success("Homework inviato. Il terapeuta potrà vederlo nella dashboard.")
+                st.rerun()
+    else:
+        st.info("Non ci sono homework assegnati aperti. Puoi comunque compilare un template CBT libero.")
+
+    st.markdown("### Template libero")
+    selected = st.selectbox("Scegli template CBT", list(CBT_HOMEWORK_TEMPLATES.keys()))
+    template = CBT_HOMEWORK_TEMPLATES[selected]
+    st.markdown(f"**Obiettivo clinico:** {template['obiettivo']}")
+    with st.form("free_homework_submission"):
+        answers = {field: st.text_area(field, key=f"free_{selected}_{field}") for field in template["campi"]}
+        summary = st.text_area("Sintesi personale", placeholder="Cosa vuoi ricordare o portare in seduta?")
+        if st.form_submit_button("Salva template", use_container_width=True):
+            submissions.append({
+                "assignment_id": None,
+                "template": selected,
+                "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
+                "answers": answers,
+                "summary": summary,
             })
             save_user_data(st.session_state.username)
-            st.success("Esercizio registrato.")
+            st.success("Template CBT salvato.")
+
+    if submissions:
+        with st.expander("Storico homework compilati"):
+            rows = [{"data": item.get("submitted_at"), "template": item.get("template"), "sintesi": item.get("summary", "")} for item in submissions]
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def show_report_tab():
@@ -546,12 +785,8 @@ def show_therapist_dashboard():
     subscription_status = metadata.get("subscription_status", "inactive")
     subscription_active = is_subscription_active_for(username)
 
-    st.header("👩‍⚕️ Dashboard professionista")
-    st.write(
-        "Con questo modello lo psicologo paga un solo abbonamento mensile e può creare "
-        "account cliente separati. Ogni cliente accede con credenziali proprie e i suoi dati "
-        "restano nel suo spazio dedicato."
-    )
+    st.header("👩‍⚕️ Dashboard terapeuta intelligente")
+    st.caption("Focus clinico: overview pazienti, insight automatici, aderenza, alert e organizzazione del materiale per la seduta.")
 
     col1, col2 = st.columns(2)
     col1.metric("Abbonamento", "Attivo" if subscription_active else "Non attivo")
@@ -561,37 +796,176 @@ def show_therapist_dashboard():
         show_subscription_required(username)
         return
 
-    st.subheader("Crea account cliente")
-    with st.form("create_client_account"):
-        client_name = st.text_input("Nome cliente", placeholder="Es. Cliente Rossi")
-        client_username = st.text_input("Username cliente", placeholder="cliente_rossi")
-        client_password = st.text_input("Password temporanea", type="password")
-        confirm_client_password = st.text_input("Conferma password temporanea", type="password")
-        if st.form_submit_button("Crea cliente", use_container_width=True):
-            normalized_client_username = normalize_username(client_username)
-            if not client_name.strip():
-                st.error("Inserisci il nome del cliente.")
-            elif len(normalized_client_username) < 3:
-                st.error("Lo username cliente deve avere almeno 3 caratteri.")
-            elif user_exists(normalized_client_username):
-                st.error("Username cliente già esistente.")
-            elif len(client_password) < 8:
-                st.error("La password temporanea deve avere almeno 8 caratteri.")
-            elif client_password != confirm_client_password:
-                st.error("Le password non coincidono.")
-            else:
-                create_client_account(username, normalized_client_username, client_password, client_name.strip())
-                st.success(
-                    f"Account cliente `{normalized_client_username}` creato. "
-                    "Consegna le credenziali al cliente e chiedigli di cambiarle appena disponibile la funzione cambio password."
-                )
+    with st.expander("➕ Crea account cliente", expanded=False):
+        with st.form("create_client_account"):
+            client_name = st.text_input("Nome cliente", placeholder="Es. Cliente Rossi")
+            client_username = st.text_input("Username cliente", placeholder="cliente_rossi")
+            client_password = st.text_input("Password temporanea", type="password")
+            confirm_client_password = st.text_input("Conferma password temporanea", type="password")
+            if st.form_submit_button("Crea cliente", use_container_width=True):
+                normalized_client_username = normalize_username(client_username)
+                if not client_name.strip():
+                    st.error("Inserisci il nome del cliente.")
+                elif len(normalized_client_username) < 3:
+                    st.error("Lo username cliente deve avere almeno 3 caratteri.")
+                elif user_exists(normalized_client_username):
+                    st.error("Username cliente già esistente.")
+                elif len(client_password) < 8:
+                    st.error("La password temporanea deve avere almeno 8 caratteri.")
+                elif client_password != confirm_client_password:
+                    st.error("Le password non coincidono.")
+                else:
+                    create_client_account(username, normalized_client_username, client_password, client_name.strip())
+                    st.success(f"Account cliente `{normalized_client_username}` creato.")
 
-    st.subheader("Clienti collegati")
     clients = client_accounts_for(username)
-    if clients:
-        st.dataframe(pd.DataFrame(clients), use_container_width=True, hide_index=True)
-    else:
+    if not clients:
         st.info("Non hai ancora creato account cliente.")
+        return
+
+    overview_rows = []
+    bundles = {}
+    for client in clients:
+        bundle = load_account_bundle(client["username"])
+        bundles[client["username"]] = bundle
+        snapshot = clinical_snapshot(bundle["wellness"], bundle["messages"])
+        overview_rows.append({
+            "cliente": client["nome"],
+            "username": client["username"],
+            "ultima attività": snapshot["last_activity"],
+            "ansia media 14g": f"{snapshot['avg_anxiety']:.1f}/10",
+            "stress medio 14g": f"{snapshot['avg_stress']:.1f}/10",
+            "homework": f"{snapshot['homework_completed']}/{snapshot['homework_total']}",
+            "alert": len(snapshot["alerts"]),
+            "insight principale": snapshot["insights"][0],
+        })
+
+    st.subheader("Overview pazienti")
+    st.dataframe(pd.DataFrame(overview_rows), use_container_width=True, hide_index=True)
+
+    selected_username = st.selectbox(
+        "Apri scheda paziente",
+        [client["username"] for client in clients],
+        format_func=lambda item: next((client["nome"] for client in clients if client["username"] == item), item),
+    )
+    selected_bundle = bundles[selected_username]
+    selected_profile = selected_bundle["profile"]
+    selected_wellness = selected_bundle["wellness"]
+    selected_snapshot = clinical_snapshot(selected_wellness, selected_bundle["messages"])
+
+    st.markdown(f"## {selected_profile.get('nome', selected_username)}")
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    kpi1.metric("Ansia media", f"{selected_snapshot['avg_anxiety']:.1f}/10")
+    kpi2.metric("Stress medio", f"{selected_snapshot['avg_stress']:.1f}/10")
+    kpi3.metric("Aderenza homework", f"{selected_snapshot['homework_compliance']:.0f}%")
+    kpi4.metric("Alert aperti", len(selected_snapshot["alerts"]))
+
+    detail_tabs = st.tabs(["🧠 Insight", "📊 Trend", "📚 Homework", "🗓️ Timeline", "🔒 Note private", "📄 Recap seduta"])
+    with detail_tabs[0]:
+        st.markdown("### Insight automatici clinicamente utili")
+        for insight in selected_snapshot["insights"]:
+            st.success(f"• {insight}")
+        st.markdown("### Alert intelligenti")
+        if selected_snapshot["alerts"]:
+            for alert in selected_snapshot["alerts"]:
+                st.warning(f"Potenziale area da attenzionare: {alert}")
+        else:
+            st.info("Nessun alert automatico con i dati attuali.")
+
+    with detail_tabs[1]:
+        df = selected_snapshot["scope_df"]
+        if df.empty:
+            st.info("Nessuna scheda recente.")
+        else:
+            chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
+            fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
+            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
+            st.plotly_chart(fig, use_container_width=True)
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown("**Trigger ricorrenti**")
+                st.dataframe(most_common_values(df["trigger"], limit=5).rename("Frequenza"), use_container_width=True)
+            with col_b:
+                st.markdown("**Pensieri automatici recenti**")
+                recent_thoughts = df["pensiero_automatico"].dropna().tail(5)
+                st.write("\n".join(f"- {thought}" for thought in recent_thoughts if str(thought).strip()) or "Nessun pensiero inserito.")
+
+    with detail_tabs[2]:
+        st.markdown("### Assegna homework CBT")
+        with st.form("assign_homework"):
+            template_name = st.selectbox("Template", list(CBT_HOMEWORK_TEMPLATES.keys()))
+            due_date = st.date_input("Scadenza", value=date.today())
+            instructions = st.text_area("Istruzioni specifiche", placeholder="Es. compilare dopo una situazione sociale evitata o dopo un episodio di ansia.")
+            if st.form_submit_button("Assegna al paziente", use_container_width=True):
+                selected_wellness["homework_assignments"].append({
+                    "id": f"hw_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                    "template": template_name,
+                    "objective": CBT_HOMEWORK_TEMPLATES[template_name]["obiettivo"],
+                    "instructions": instructions,
+                    "due_date": due_date.isoformat(),
+                    "assigned_at": datetime.utcnow().isoformat(timespec="seconds"),
+                    "assigned_by": username,
+                })
+                save_wellness_for(selected_username, selected_wellness)
+                st.success("Homework assegnato.")
+                st.rerun()
+        assignments = selected_wellness.get("homework_assignments", [])
+        submissions = selected_wellness.get("homework_submissions", [])
+        st.markdown("### Andamento e compliance")
+        st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
+        if assignments:
+            st.dataframe(pd.DataFrame(assignments), use_container_width=True, hide_index=True)
+        if submissions:
+            with st.expander("Homework compilati dal paziente"):
+                for submission in submissions:
+                    st.markdown(f"**{submission.get('template')}** · {submission.get('submitted_at')}")
+                    st.write(submission.get("summary") or "Nessuna sintesi.")
+                    st.json(submission.get("answers", {}))
+
+    with detail_tabs[3]:
+        st.markdown("### Timeline terapeutica condivisa")
+        events = build_timeline_events(selected_wellness)
+        if not events:
+            st.info("La timeline si popolerà con diario, homework ed eventi.")
+        for event in events[:30]:
+            st.markdown(f"**{event.get('data', '—')} · {event.get('tipo', 'Evento')}**")
+            st.write(f"{event.get('titolo', '')} — {event.get('dettaglio', '')}")
+        with st.form("manual_timeline_event"):
+            event_title = st.text_input("Aggiungi evento/progresso/ricaduta")
+            event_detail = st.text_area("Dettaglio")
+            if st.form_submit_button("Aggiungi alla timeline", use_container_width=True):
+                selected_wellness["timeline_events"].append({
+                    "data": datetime.utcnow().isoformat(timespec="seconds"),
+                    "tipo": "Evento clinico",
+                    "titolo": event_title,
+                    "dettaglio": event_detail,
+                })
+                save_wellness_for(selected_username, selected_wellness)
+                st.success("Evento aggiunto.")
+                st.rerun()
+
+    with detail_tabs[4]:
+        st.markdown("### Note private terapeuta")
+        st.caption("Queste note restano nello spazio del professionista e non sono mostrate al paziente.")
+        notes = load_therapist_notes(username)
+        note_value = notes.get(selected_username, "")
+        updated_note = st.text_area("Osservazioni cliniche, ipotesi, note seduta", value=note_value, height=260)
+        if st.button("Salva note private", use_container_width=True):
+            notes[selected_username] = updated_note
+            save_therapist_notes(username, notes)
+            st.success("Note private salvate.")
+
+    with detail_tabs[5]:
+        st.markdown("### Riassunto automatico pre-seduta")
+        recap = weekly_recap(selected_snapshot)
+        st.text_area("Ultimi 14 giorni", value="\n".join(f"- {item}" for item in recap), height=260)
+        st.download_button(
+            "Scarica recap .txt",
+            data="\n".join(recap),
+            file_name=f"recap_{selected_username}.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
 
 
 def logout_button():
@@ -673,8 +1047,7 @@ st.session_state.setdefault("wellness", default_wellness_data())
 st.session_state.setdefault("user_metadata", load_user_metadata(st.session_state.username))
 if not isinstance(st.session_state.wellness, dict):
     st.session_state.wellness = default_wellness_data()
-st.session_state.wellness.setdefault("mood_entries", [])
-st.session_state.wellness.setdefault("mindfulness_log", [])
+ensure_wellness_schema(st.session_state.wellness)
 
 current_metadata = st.session_state.get("user_metadata", {})
 current_role = current_metadata.get("role", "client")
@@ -727,15 +1100,15 @@ if not st.session_state.profile.get("onboarding_completed", False):
     st.stop()
 
 # ====================== AREA APP ======================
-app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "📈 Monitoraggio", "🧘 Esercizi", "📋 Resoconto"])
+app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
 with app_tabs[0]:
     show_chat_tab()
 with app_tabs[1]:
     show_diary_tab()
 with app_tabs[2]:
-    show_monitoring_tab()
+    show_homework_tab()
 with app_tabs[3]:
-    show_exercises_tab()
+    show_monitoring_tab()
 with app_tabs[4]:
     show_report_tab()
 
