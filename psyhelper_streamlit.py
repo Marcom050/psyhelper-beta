@@ -115,29 +115,35 @@ SENSATION_OPTIONS = [
     "Calore/freddo",
 ]
 CBT_HOMEWORK_TEMPLATES = {
-    "Risposta libera": {
+    "Check-in qualità di vita": {
+        "obiettivo": "Monitorare nei giorni liberi umore, energia, attività significative e ostacoli con una traccia CBT molto breve.",
+        "campi": ["In 4 punti: qualità della giornata 0-10, attività fatta, pensiero/emozione principale, piccolo passo utile per domani."],
+        "suggerimento": "Ideale come compito ricorrente tra le sedute o nei weekend.",
+    },
+    "Attivazione comportamentale": {
+        "obiettivo": "Collegare attività concrete a piacere, padronanza e benessere percepito.",
+        "campi": ["Scrivi l'attività programmata o svolta, piacere 0-10, senso di efficacia 0-10 e cosa ripetere o semplificare."],
+        "suggerimento": "Utile quando il paziente tende a isolamento, rimando o riduzione delle attività.",
+    },
+    "Diario pensiero-emozione-azione": {
+        "obiettivo": "Rendere visibile il ciclo CBT situazione-pensiero-emozione-comportamento senza schede lunghe.",
+        "campi": ["Descrivi situazione, pensiero automatico, emozione 0-10, azione fatta e risposta alternativa più equilibrata."],
+        "suggerimento": "Utile per ansia, stress e ruminazione nelle giornate non strutturate.",
+    },
+    "Problem solving breve": {
+        "obiettivo": "Trasformare un problema della giornata libera in un prossimo passo pratico e realistico.",
+        "campi": ["Scrivi problema, opzione più semplice, primo passo di massimo 10 minuti e ostacolo da prevenire."],
+        "suggerimento": "Utile quando emergono blocco, evitamento o sovraccarico.",
+    },
+    "Esperimento comportamentale": {
+        "obiettivo": "Testare una previsione ansiosa con una prova piccola e sicura concordata in terapia.",
+        "campi": ["Scrivi previsione, prova fatta, risultato osservato e cosa hai imparato rispetto alla previsione."],
+        "suggerimento": "Utile per verificare credenze e ridurre evitamenti in modo graduale.",
+    },
+    "Nota libera per la seduta": {
         "obiettivo": "Raccogliere in modo semplice ciò che il paziente vuole riportare in seduta.",
-        "campi": ["Scrivi liberamente cosa vuoi ricordare o discutere in seduta."]
-    },
-    "Diario breve": {
-        "obiettivo": "Descrivere un episodio significativo senza compilare una scheda lunga.",
-        "campi": ["Racconta in poche righe cosa è successo, cosa hai notato e cosa vorresti riprendere in seduta."]
-    },
-    "Pensiero difficile": {
-        "obiettivo": "Annotare un pensiero faticoso e una possibile risposta più utile.",
-        "campi": ["Scrivi il pensiero difficile, quanto ti ha pesato e una risposta più utile o gentile se ti viene in mente."]
-    },
-    "Esposizione o prova pratica": {
-        "obiettivo": "Raccontare com'è andato un piccolo passo concordato con il terapeuta.",
-        "campi": ["Descrivi il passo provato, com'è andata e cosa hai imparato."]
-    },
-    "Attività piacevole o utile": {
-        "obiettivo": "Monitorare una piccola attività programmata e il suo effetto.",
-        "campi": ["Scrivi quale attività hai fatto e che effetto ha avuto su umore, energia o stress."]
-    },
-    "Emozioni": {
-        "obiettivo": "Aiutare il paziente a nominare un'emozione e il bisogno collegato.",
-        "campi": ["Scrivi quale emozione hai notato, in quale situazione e di cosa avresti avuto bisogno."]
+        "campi": ["Scrivi liberamente cosa vuoi ricordare o discutere in seduta."],
+        "suggerimento": "Da usare quando serve flessibilità e non un compito strutturato.",
     },
 }
 
@@ -535,14 +541,30 @@ def homework_answer_items(answers):
     return [("Risposta", answer)] if answer else []
 
 
-def homework_readable_summary(submission):
+def homework_readable_summary(submission, max_chars=180):
     summary = clean_text(submission.get("summary"))
     answer_items = homework_answer_items(submission.get("answers", {}))
-    if summary:
-        return summary
-    if answer_items:
-        return " · ".join(answer for _, answer in answer_items[:2])
-    return "Nessuna risposta inserita."
+    readable = summary or (" · ".join(answer for _, answer in answer_items[:2]) if answer_items else "Nessuna risposta inserita.")
+    return readable if len(readable) <= max_chars else f"{readable[:max_chars].rstrip()}…"
+
+
+def homework_template_label(template_name):
+    template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
+    objective = clean_text(template.get("obiettivo"))
+    return f"{template_name} — {objective}" if objective else template_name
+
+
+def assignment_status(assignment, completed_ids):
+    if assignment.get("id") in completed_ids or assignment.get("status") == "completato":
+        return "Completato"
+    due = clean_text(assignment.get("due_date"))
+    if due:
+        try:
+            if date.fromisoformat(due) < date.today():
+                return "Scaduto"
+        except ValueError:
+            pass
+    return "Da completare"
 
 
 def render_homework_answers(submission):
@@ -561,8 +583,8 @@ def homework_assignment_rows(assignments, completed_ids):
         rows.append({
             "homework": assignment.get("template", "Homework"),
             "scadenza": assignment.get("due_date", "—"),
-            "stato": "Completato" if assignment.get("id") in completed_ids or assignment.get("status") == "completato" else "Da completare",
-            "istruzioni": clean_text(assignment.get("instructions")) or "—",
+            "stato": assignment_status(assignment, completed_ids),
+            "consegna": homework_main_prompt(assignment.get("template", "Homework"), assignment),
         })
     return rows
 
@@ -798,8 +820,8 @@ def show_monitoring_tab():
 def show_homework_tab():
     st.subheader("📚 Homework")
     st.caption(
-        "Uno spazio rapido: leggi la consegna, scrivi una risposta unica e inviala. "
-        "Se serve aggiungi solo una nota libera per la seduta."
+        "Compiti CBT rapidi per monitorare la qualità della vita tra le sedute: "
+        "una consegna chiara, una risposta essenziale, invio immediato al terapeuta."
     )
     ensure_wellness_schema(st.session_state.wellness)
 
@@ -813,20 +835,26 @@ def show_homework_tab():
         selected_assignment = st.selectbox(
             "Scegli il compito",
             open_assignments,
-            format_func=lambda item: f"{item.get('template', 'Homework')} · scadenza {item.get('due_date', 'non indicata')}",
+            format_func=lambda item: f"{item.get('template', 'Homework')} · {assignment_status(item, completed_ids).lower()} · scadenza {item.get('due_date', 'non indicata')}",
         )
         template_name = selected_assignment.get("template")
         template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
         prompt = homework_main_prompt(template_name, selected_assignment)
-        st.info(template.get("obiettivo", selected_assignment.get("instructions", "")))
+        info_col, due_col = st.columns([3, 1])
+        with info_col:
+            st.info(template.get("obiettivo", selected_assignment.get("instructions", "")))
+        with due_col:
+            st.metric("Scadenza", selected_assignment.get("due_date", "—"))
+        if clean_text(template.get("suggerimento")):
+            st.caption(template["suggerimento"])
         if clean_text(selected_assignment.get("instructions")):
             st.caption(selected_assignment.get("instructions"))
         with st.form("assigned_homework_submission"):
             answer = st.text_area(
                 prompt,
                 key=f"assigned_{selected_assignment.get('id')}_single_answer",
-                height=180,
-                placeholder="Scrivi in modo semplice. Bastano poche righe utili per la prossima seduta.",
+                height=150,
+                placeholder="Rispondi per punti. Bastano le informazioni essenziali utili alla prossima seduta.",
             )
             if st.form_submit_button("Invia al terapeuta", use_container_width=True):
                 submissions.append({
@@ -834,49 +862,54 @@ def show_homework_tab():
                     "template": template_name,
                     "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
                     "answers": {prompt: answer},
-                    "summary": "",
+                    "summary": homework_readable_summary({"answers": {prompt: answer}}, max_chars=140),
                 })
                 save_user_data(st.session_state.username)
-                st.success("Homework inviato. Il terapeuta vedrà una sintesi chiara delle tue risposte.")
+                st.success("Homework inviato. Il terapeuta vedrà solo la sintesi e la risposta essenziale.")
                 st.rerun()
     else:
-        st.info("Non ci sono homework assegnati aperti. Se vuoi puoi salvare una nota libera da portare in seduta.")
+        st.info("Non ci sono homework assegnati aperti. Puoi comunque salvare un check-in breve da portare in seduta.")
 
-    st.markdown("### Nota libera per la seduta")
-    selected = st.selectbox("Tipo di nota", list(CBT_HOMEWORK_TEMPLATES.keys()))
-    template = CBT_HOMEWORK_TEMPLATES[selected]
-    prompt = homework_main_prompt(selected)
-    st.markdown(f"**A cosa serve:** {template['obiettivo']}")
-    with st.form("free_homework_submission"):
-        answer = st.text_area(
-            prompt,
-            key=f"free_{selected}_single_answer",
-            height=180,
-            placeholder="Scrivi quello che vuoi ricordare o discutere in seduta.",
+    with st.expander("➕ Check-in o nota libera", expanded=not open_assignments):
+        selected = st.selectbox(
+            "Tipo di check-in",
+            list(CBT_HOMEWORK_TEMPLATES.keys()),
+            format_func=homework_template_label,
         )
-        if st.form_submit_button("Salva nota", use_container_width=True):
-            submissions.append({
-                "assignment_id": None,
-                "template": selected,
-                "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
-                "answers": {prompt: answer},
-                "summary": "",
-            })
-            save_user_data(st.session_state.username)
-            st.success("Nota salvata.")
+        template = CBT_HOMEWORK_TEMPLATES[selected]
+        prompt = homework_main_prompt(selected)
+        st.markdown(f"**A cosa serve:** {template['obiettivo']}")
+        if clean_text(template.get("suggerimento")):
+            st.caption(template["suggerimento"])
+        with st.form("free_homework_submission"):
+            answer = st.text_area(
+                prompt,
+                key=f"free_{selected}_single_answer",
+                height=150,
+                placeholder="Scrivi solo i punti richiesti, senza dettagli non necessari.",
+            )
+            if st.form_submit_button("Salva per la seduta", use_container_width=True):
+                submissions.append({
+                    "assignment_id": None,
+                    "template": selected,
+                    "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
+                    "answers": {prompt: answer},
+                    "summary": homework_readable_summary({"answers": {prompt: answer}}, max_chars=140),
+                })
+                save_user_data(st.session_state.username)
+                st.success("Check-in salvato.")
 
     if submissions:
-        with st.expander("Storico homework e note"):
+        with st.expander("Storico essenziale homework e note"):
             rows = [
                 {
                     "data": item.get("submitted_at"),
                     "homework": item.get("template"),
-                    "risposte": homework_readable_summary(item),
+                    "sintesi": homework_readable_summary(item),
                 }
-                for item in submissions
+                for item in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True)
             ]
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
 
 def show_report_tab():
     st.subheader("📋 Resoconto per colloqui psicologici")
@@ -948,6 +981,39 @@ def show_subscription_required(account_label, therapist_username=None):
     st.caption(f"Account: {account_label}")
 
 
+
+
+@st.dialog("➕ Crea nuovo paziente")
+def show_create_patient_dialog(therapist_username):
+    st.caption("Inserisci solo i dati essenziali. Il profilo comparirà subito nell'elenco pazienti.")
+    with st.form("create_client_account_dialog"):
+        client_name = st.text_input("Nome paziente", placeholder="Es. Mario Rossi")
+        client_username = st.text_input("Username paziente", placeholder="mario_rossi")
+        client_password = st.text_input("Password temporanea", type="password")
+        confirm_client_password = st.text_input("Conferma password temporanea", type="password")
+        submitted = st.form_submit_button("Crea paziente", use_container_width=True)
+
+    if not submitted:
+        return
+
+    normalized_client_username = normalize_username(client_username)
+    if not client_name.strip():
+        st.error("Inserisci il nome del paziente.")
+    elif len(normalized_client_username) < 3:
+        st.error("Lo username paziente deve avere almeno 3 caratteri.")
+    elif user_exists(normalized_client_username):
+        st.error("Username paziente già esistente.")
+    elif len(client_password) < 8:
+        st.error("La password temporanea deve avere almeno 8 caratteri.")
+    elif client_password != confirm_client_password:
+        st.error("Le password non coincidono.")
+    else:
+        create_client_account(therapist_username, normalized_client_username, client_password, client_name.strip())
+        st.session_state.selected_patient_username = normalized_client_username
+        st.success(f"Profilo paziente `{normalized_client_username}` creato.")
+        st.rerun()
+
+
 def show_therapist_dashboard():
     username = st.session_state.username
     metadata = st.session_state.get("user_metadata", load_user_metadata(username))
@@ -971,35 +1037,14 @@ def show_therapist_dashboard():
 
     clients = client_accounts_for(username)
 
-    st.markdown("### Crea nuovo profilo paziente")
-    st.caption("Aggiungi da qui un nuovo profilo: comparirà subito nell'elenco pazienti sotto e potrai aprirne la scheda clinica con un click.")
-    with st.expander("➕ Nuovo profilo paziente", expanded=not clients):
-        with st.form("create_client_account"):
-            client_name = st.text_input("Nome paziente", placeholder="Es. Mario Rossi")
-            client_username = st.text_input("Username paziente", placeholder="mario_rossi")
-            client_password = st.text_input("Password temporanea", type="password")
-            confirm_client_password = st.text_input("Conferma password temporanea", type="password")
-            if st.form_submit_button("Crea profilo paziente", use_container_width=True):
-                normalized_client_username = normalize_username(client_username)
-                if not client_name.strip():
-                    st.error("Inserisci il nome del paziente.")
-                elif len(normalized_client_username) < 3:
-                    st.error("Lo username paziente deve avere almeno 3 caratteri.")
-                elif user_exists(normalized_client_username):
-                    st.error("Username paziente già esistente.")
-                elif len(client_password) < 8:
-                    st.error("La password temporanea deve avere almeno 8 caratteri.")
-                elif client_password != confirm_client_password:
-                    st.error("Le password non coincidono.")
-                else:
-                    create_client_account(username, normalized_client_username, client_password, client_name.strip())
-                    st.session_state.selected_patient_username = normalized_client_username
-                    st.success(f"Profilo paziente `{normalized_client_username}` creato.")
-                    st.rerun()
+    create_col, _ = st.columns([1, 4])
+    with create_col:
+        if st.button("➕ Crea nuovo paziente", use_container_width=True):
+            show_create_patient_dialog(username)
 
     clients = client_accounts_for(username)
     if not clients:
-        st.info("Non hai ancora creato profili paziente. Usa il modulo qui sopra per aggiungere il primo profilo.")
+        st.info("Non hai ancora creato profili paziente. Usa il pulsante ➕ Crea nuovo paziente per aggiungere il primo profilo.")
         return
 
     overview_rows = []
@@ -1028,7 +1073,7 @@ def show_therapist_dashboard():
     st.markdown("### Profili paziente")
     st.caption("Clicca un profilo nell'elenco per aprire subito le sue informazioni, gli insight, gli homework e le note private.")
 
-    list_col, detail_col = st.columns([1, 2], gap="large")
+    list_col, detail_col = st.columns([0.8, 2.2], gap="large")
     with list_col:
         st.markdown("#### Elenco profili")
         for client in clients:
@@ -1090,48 +1135,68 @@ def show_therapist_dashboard():
                     st.write("\n".join(f"- {thought}" for thought in recent_thoughts if str(thought).strip()) or "Nessun pensiero inserito.")
 
         with detail_tabs[2]:
-            st.markdown("### Assegna homework rapido")
-            st.caption("Scegli un modello, controlla la consegna unica già pronta e assegna: il paziente compilerà una sola casella di testo.")
-            with st.form("assign_homework"):
-                template_name = st.selectbox("Tipo di homework", list(CBT_HOMEWORK_TEMPLATES.keys()))
-                due_date = st.date_input("Scadenza", value=date.today())
-                st.markdown(f"**Obiettivo:** {CBT_HOMEWORK_TEMPLATES[template_name]['obiettivo']}")
-                prompt = st.text_area(
-                    "Consegna per il paziente",
-                    value=homework_main_prompt(template_name),
-                    height=110,
-                    placeholder="Scrivi una sola consegna chiara: il paziente risponderà in un unico spazio.",
-                )
-                if st.form_submit_button("Assegna al paziente", use_container_width=True):
-                    final_prompt = clean_text(prompt) or homework_main_prompt(template_name)
-                    selected_wellness["homework_assignments"].append({
-                        "id": f"hw_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
-                        "template": template_name,
-                        "objective": CBT_HOMEWORK_TEMPLATES[template_name]["obiettivo"],
-                        "instructions": "",
-                        "questions": [final_prompt],
-                        "due_date": due_date.isoformat(),
-                        "assigned_at": datetime.utcnow().isoformat(timespec="seconds"),
-                        "assigned_by": username,
-                    })
-                    save_wellness_for(selected_username, selected_wellness)
-                    st.success("Homework assegnato con una consegna unica.")
-                    st.rerun()
+            st.markdown("### Homework CBT qualità di vita")
+            st.caption("Assegna un compito essenziale: modello, scadenza e una consegna già pronta. Il controllo mostra subito stato e sintesi.")
             assignments = selected_wellness.get("homework_assignments", [])
             submissions = selected_wellness.get("homework_submissions", [])
             completed_ids = {submission.get("assignment_id") for submission in submissions}
-            st.markdown("### Andamento e compliance")
-            st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
-            if assignments:
-                st.markdown("#### Homework assegnati")
-                st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
+
+            assign_col, monitor_col = st.columns([1, 1])
+            with assign_col:
+                with st.form("assign_homework"):
+                    template_name = st.selectbox(
+                        "Compito CBT",
+                        list(CBT_HOMEWORK_TEMPLATES.keys()),
+                        format_func=homework_template_label,
+                    )
+                    due_date = st.date_input("Scadenza", value=date.today())
+                    template = CBT_HOMEWORK_TEMPLATES[template_name]
+                    st.markdown(f"**Obiettivo:** {template['obiettivo']}")
+                    if clean_text(template.get("suggerimento")):
+                        st.caption(template["suggerimento"])
+                    prompt = st.text_area(
+                        "Consegna essenziale",
+                        value=homework_main_prompt(template_name),
+                        height=95,
+                        placeholder="Mantieni una sola traccia: il paziente risponderà in un unico spazio.",
+                    )
+                    if st.form_submit_button("Assegna", use_container_width=True):
+                        final_prompt = clean_text(prompt) or homework_main_prompt(template_name)
+                        selected_wellness["homework_assignments"].append({
+                            "id": f"hw_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                            "template": template_name,
+                            "objective": template["obiettivo"],
+                            "instructions": clean_text(template.get("suggerimento")),
+                            "questions": [final_prompt],
+                            "due_date": due_date.isoformat(),
+                            "assigned_at": datetime.utcnow().isoformat(timespec="seconds"),
+                            "assigned_by": username,
+                        })
+                        save_wellness_for(selected_username, selected_wellness)
+                        st.success("Homework assegnato.")
+                        st.rerun()
+
+            with monitor_col:
+                st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
+                if assignments:
+                    st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nessun homework assegnato.")
+
             if submissions:
-                st.markdown("#### Risposte del paziente")
-                for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
-                    with st.expander(f"{submission.get('template', 'Homework')} · {submission.get('submitted_at', '—')}", expanded=True):
-                        if clean_text(submission.get("summary")):
-                            st.markdown("**Nota per la seduta**")
-                            st.write(submission.get("summary"))
+                st.markdown("#### Ultime risposte")
+                response_rows = [
+                    {
+                        "data": submission.get("submitted_at", "—"),
+                        "homework": submission.get("template", "Homework"),
+                        "sintesi": homework_readable_summary(submission),
+                    }
+                    for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True)
+                ]
+                st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
+                with st.expander("Apri risposte complete", expanded=False):
+                    for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
+                        st.markdown(f"**{submission.get('template', 'Homework')} · {submission.get('submitted_at', '—')}**")
                         render_homework_answers(submission)
             else:
                 st.info("Il paziente non ha ancora inviato risposte agli homework.")
