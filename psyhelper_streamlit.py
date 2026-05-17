@@ -115,35 +115,35 @@ SENSATION_OPTIONS = [
     "Calore/freddo",
 ]
 CBT_HOMEWORK_TEMPLATES = {
-    "Check-in qualità di vita": {
-        "obiettivo": "Monitorare nei giorni liberi umore, energia, attività significative e ostacoli con una traccia CBT molto breve.",
-        "campi": ["In 4 punti: qualità della giornata 0-10, attività fatta, pensiero/emozione principale, piccolo passo utile per domani."],
-        "suggerimento": "Ideale come compito ricorrente tra le sedute o nei weekend.",
+    "Respiro 3 minuti": {
+        "obiettivo": "Ridurre l'attivazione fisica dell'ansia con una pausa breve e ripetibile.",
+        "campi": ["Fallo una volta. Ansia prima/dopo 0-10 e una parola su com'è andata."],
+        "suggerimento": "Adatto per ansia, tensione e momenti di blocco.",
     },
-    "Attivazione comportamentale": {
-        "obiettivo": "Collegare attività concrete a piacere, padronanza e benessere percepito.",
-        "campi": ["Scrivi l'attività programmata o svolta, piacere 0-10, senso di efficacia 0-10 e cosa ripetere o semplificare."],
-        "suggerimento": "Utile quando il paziente tende a isolamento, rimando o riduzione delle attività.",
+    "Pensiero più realistico": {
+        "obiettivo": "Allenare una risposta più equilibrata a un pensiero ansioso o insicuro.",
+        "campi": ["Scrivi: pensiero difficile + risposta più realistica."],
+        "suggerimento": "Utile per ruminazione, catastrofismo e autocritica.",
     },
-    "Diario pensiero-emozione-azione": {
-        "obiettivo": "Rendere visibile il ciclo CBT situazione-pensiero-emozione-comportamento senza schede lunghe.",
-        "campi": ["Descrivi situazione, pensiero automatico, emozione 0-10, azione fatta e risposta alternativa più equilibrata."],
-        "suggerimento": "Utile per ansia, stress e ruminazione nelle giornate non strutturate.",
+    "Piccolo passo evitato": {
+        "obiettivo": "Ridurre l'evitamento con un'azione piccola, sicura e concreta.",
+        "campi": ["Fai un passo di 5 minuti che stavi evitando. Scrivi quale."],
+        "suggerimento": "Utile quando ansia o insicurezza portano a rimandare.",
     },
-    "Problem solving breve": {
-        "obiettivo": "Trasformare un problema della giornata libera in un prossimo passo pratico e realistico.",
-        "campi": ["Scrivi problema, opzione più semplice, primo passo di massimo 10 minuti e ostacolo da prevenire."],
-        "suggerimento": "Utile quando emergono blocco, evitamento o sovraccarico.",
+    "Tempo per le preoccupazioni": {
+        "obiettivo": "Contenere i pensieri ripetitivi dando loro uno spazio limitato.",
+        "campi": ["Dedica 10 minuti alle preoccupazioni. Scrivi solo le 2 principali."],
+        "suggerimento": "Utile per sovrappensieri, stress e rimuginio serale.",
     },
-    "Esperimento comportamentale": {
-        "obiettivo": "Testare una previsione ansiosa con una prova piccola e sicura concordata in terapia.",
-        "campi": ["Scrivi previsione, prova fatta, risultato osservato e cosa hai imparato rispetto alla previsione."],
-        "suggerimento": "Utile per verificare credenze e ridurre evitamenti in modo graduale.",
+    "Azione di cura": {
+        "obiettivo": "Inserire un gesto semplice che sostenga energia, calma o autostima.",
+        "campi": ["Fai una cosa gentile per te. Scrivi cosa e umore dopo 0-10."],
+        "suggerimento": "Utile per stress, stanchezza e svalutazione di sé.",
     },
-    "Nota libera per la seduta": {
-        "obiettivo": "Raccogliere in modo semplice ciò che il paziente vuole riportare in seduta.",
-        "campi": ["Scrivi liberamente cosa vuoi ricordare o discutere in seduta."],
-        "suggerimento": "Da usare quando serve flessibilità e non un compito strutturato.",
+    "Nota per la seduta": {
+        "obiettivo": "Tenere traccia di un punto importante da portare in colloquio.",
+        "campi": ["Scrivi una cosa importante da ricordare in seduta."],
+        "suggerimento": "Da usare quando serve una nota libera e breve.",
     },
 }
 
@@ -549,9 +549,7 @@ def homework_readable_summary(submission, max_chars=180):
 
 
 def homework_template_label(template_name):
-    template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
-    objective = clean_text(template.get("obiettivo"))
-    return f"{template_name} — {objective}" if objective else template_name
+    return template_name
 
 
 def assignment_status(assignment, completed_ids):
@@ -842,19 +840,15 @@ def show_homework_tab():
         prompt = homework_main_prompt(template_name, selected_assignment)
         info_col, due_col = st.columns([3, 1])
         with info_col:
-            st.info(template.get("obiettivo", selected_assignment.get("instructions", "")))
+            st.info(template.get("obiettivo") or "Compito breve assegnato dal terapeuta.")
         with due_col:
             st.metric("Scadenza", selected_assignment.get("due_date", "—"))
-        if clean_text(template.get("suggerimento")):
-            st.caption(template["suggerimento"])
-        if clean_text(selected_assignment.get("instructions")):
-            st.caption(selected_assignment.get("instructions"))
         with st.form("assigned_homework_submission"):
             answer = st.text_area(
                 prompt,
                 key=f"assigned_{selected_assignment.get('id')}_single_answer",
                 height=150,
-                placeholder="Rispondi per punti. Bastano le informazioni essenziali utili alla prossima seduta.",
+                placeholder="Scrivi una risposta breve.",
             )
             if st.form_submit_button("Invia al terapeuta", use_container_width=True):
                 submissions.append({
@@ -879,14 +873,12 @@ def show_homework_tab():
         template = CBT_HOMEWORK_TEMPLATES[selected]
         prompt = homework_main_prompt(selected)
         st.markdown(f"**A cosa serve:** {template['obiettivo']}")
-        if clean_text(template.get("suggerimento")):
-            st.caption(template["suggerimento"])
         with st.form("free_homework_submission"):
             answer = st.text_area(
                 prompt,
                 key=f"free_{selected}_single_answer",
                 height=150,
-                placeholder="Scrivi solo i punti richiesti, senza dettagli non necessari.",
+                placeholder="Scrivi una risposta breve.",
             )
             if st.form_submit_button("Salva per la seduta", use_container_width=True):
                 submissions.append({
