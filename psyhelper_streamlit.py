@@ -1006,6 +1006,37 @@ def show_create_patient_dialog(therapist_username):
         st.rerun()
 
 
+@st.dialog("👥 Scegli profilo paziente")
+def show_patient_selector_dialog(clients, snapshots, overview_rows):
+    st.caption("Seleziona il profilo paziente da aprire nella dashboard. La scheda scelta verrà mostrata a tutta larghezza.")
+    search_term = st.text_input("Cerca per nome o username", placeholder="Es. mario", key="patient_selector_search").strip().lower()
+
+    visible_clients = [
+        client for client in clients
+        if not search_term
+        or search_term in str(client.get("nome", "")).lower()
+        or search_term in str(client.get("username", "")).lower()
+    ]
+
+    if not visible_clients:
+        st.info("Nessun profilo corrisponde alla ricerca.")
+    else:
+        for client in visible_clients:
+            snapshot = snapshots[client["username"]]
+            is_selected = client["username"] == st.session_state.get("selected_patient_username")
+            label = f"{'✅ Profilo attivo' if is_selected else 'Apri profilo'} · {client['nome']}"
+            if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
+                st.session_state.selected_patient_username = client["username"]
+                st.rerun()
+            st.caption(
+                f"@{client['username']} · ultima attività: {snapshot['last_activity']} · "
+                f"alert: {len(snapshot['alerts'])} · homework: {snapshot['homework_completed']}/{snapshot['homework_total']}"
+            )
+
+    with st.expander("Mostra tabella riepilogo", expanded=False):
+        st.dataframe(pd.DataFrame(overview_rows), use_container_width=True, hide_index=True)
+
+
 def show_therapist_dashboard():
     username = st.session_state.username
     metadata = st.session_state.get("user_metadata", load_user_metadata(username))
@@ -1062,182 +1093,173 @@ def show_therapist_dashboard():
     if st.session_state.get("selected_patient_username") not in patient_usernames:
         st.session_state.selected_patient_username = patient_usernames[0]
 
-    st.markdown("### Profili paziente")
-    st.caption("Clicca un profilo nell'elenco per aprire subito le sue informazioni, gli insight, gli homework e le note private.")
-
-    list_col, detail_col = st.columns([0.8, 2.2], gap="large")
-    with list_col:
-        st.markdown("#### Elenco profili")
-        for client in clients:
-            snapshot = snapshots[client["username"]]
-            is_selected = client["username"] == st.session_state.selected_patient_username
-            button_label = f"{'✅ ' if is_selected else '👤 '}{client['nome']}"
-            if st.button(button_label, key=f"open_patient_{client['username']}", use_container_width=True):
-                st.session_state.selected_patient_username = client["username"]
-                st.rerun()
-            st.caption(
-                f"@{client['username']} · ultima attività: {snapshot['last_activity']} · "
-                f"alert: {len(snapshot['alerts'])} · homework: {snapshot['homework_completed']}/{snapshot['homework_total']}"
-            )
-        with st.expander("Tabella riepilogo pazienti", expanded=False):
-            st.dataframe(pd.DataFrame(overview_rows), use_container_width=True, hide_index=True)
-
     selected_username = st.session_state.selected_patient_username
     selected_bundle = bundles[selected_username]
     selected_profile = selected_bundle["profile"]
     selected_wellness = selected_bundle["wellness"]
     selected_snapshot = clinical_snapshot(selected_wellness, selected_bundle["messages"])
 
-    with detail_col:
-        st.markdown(f"## {selected_profile.get('nome', selected_username)}")
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        kpi1.metric("Ansia media", f"{selected_snapshot['avg_anxiety']:.1f}/10")
-        kpi2.metric("Stress medio", f"{selected_snapshot['avg_stress']:.1f}/10")
-        kpi3.metric("Aderenza homework", f"{selected_snapshot['homework_compliance']:.0f}%")
-        kpi4.metric("Alert aperti", len(selected_snapshot["alerts"]))
+    selected_patient_name = selected_profile.get("nome", selected_username)
+    selector_col, active_col = st.columns([1, 3], gap="large")
+    with selector_col:
+        if st.button("👥 Scegli profilo paziente", use_container_width=True):
+            show_patient_selector_dialog(clients, snapshots, overview_rows)
+    with active_col:
+        st.info(
+            f"Profilo attivo: **{selected_patient_name}** (`@{selected_username}`) · "
+            f"ultima attività: {selected_snapshot['last_activity']} · "
+            f"alert: {len(selected_snapshot['alerts'])} · "
+            f"homework: {selected_snapshot['homework_completed']}/{selected_snapshot['homework_total']}"
+        )
 
-        detail_tabs = st.tabs(["🧠 Insight", "📊 Trend", "📚 Homework", "🗓️ Timeline", "🔒 Note private", "📄 Recap seduta"])
-        with detail_tabs[0]:
-            st.markdown("### Insight automatici clinicamente utili")
-            for insight in selected_snapshot["insights"]:
-                st.success(f"• {insight}")
-            st.markdown("### Alert intelligenti")
-            if selected_snapshot["alerts"]:
-                for alert in selected_snapshot["alerts"]:
-                    st.warning(f"Potenziale area da attenzionare: {alert}")
-            else:
-                st.info("Nessun alert automatico con i dati attuali.")
+    st.markdown(f"## {selected_patient_name}")
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    kpi1.metric("Ansia media", f"{selected_snapshot['avg_anxiety']:.1f}/10")
+    kpi2.metric("Stress medio", f"{selected_snapshot['avg_stress']:.1f}/10")
+    kpi3.metric("Aderenza homework", f"{selected_snapshot['homework_compliance']:.0f}%")
+    kpi4.metric("Alert aperti", len(selected_snapshot["alerts"]))
 
-        with detail_tabs[1]:
-            df = selected_snapshot["scope_df"]
-            if df.empty:
-                st.info("Nessuna scheda recente.")
-            else:
-                chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
-                fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
-                fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
-                st.plotly_chart(fig, use_container_width=True)
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.markdown("**Trigger ricorrenti**")
-                    st.dataframe(most_common_values(df["trigger"], limit=5).rename("Frequenza"), use_container_width=True)
-                with col_b:
-                    st.markdown("**Pensieri automatici recenti**")
-                    recent_thoughts = df["pensiero_automatico"].dropna().tail(5)
-                    st.write("\n".join(f"- {thought}" for thought in recent_thoughts if str(thought).strip()) or "Nessun pensiero inserito.")
+    detail_tabs = st.tabs(["🧠 Insight", "📊 Trend", "📚 Homework", "🗓️ Timeline", "🔒 Note private", "📄 Recap seduta"])
+    with detail_tabs[0]:
+        st.markdown("### Insight automatici clinicamente utili")
+        for insight in selected_snapshot["insights"]:
+            st.success(f"• {insight}")
+        st.markdown("### Alert intelligenti")
+        if selected_snapshot["alerts"]:
+            for alert in selected_snapshot["alerts"]:
+                st.warning(f"Potenziale area da attenzionare: {alert}")
+        else:
+            st.info("Nessun alert automatico con i dati attuali.")
 
-        with detail_tabs[2]:
-            st.markdown("### Homework CBT qualità di vita")
-            st.caption("Assegna un compito essenziale: modello, scadenza e una consegna già pronta. Il controllo mostra subito stato e sintesi.")
-            assignments = selected_wellness.get("homework_assignments", [])
-            submissions = selected_wellness.get("homework_submissions", [])
-            completed_ids = {submission.get("assignment_id") for submission in submissions}
+    with detail_tabs[1]:
+        df = selected_snapshot["scope_df"]
+        if df.empty:
+            st.info("Nessuna scheda recente.")
+        else:
+            chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
+            fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
+            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
+            st.plotly_chart(fig, use_container_width=True)
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown("**Trigger ricorrenti**")
+                st.dataframe(most_common_values(df["trigger"], limit=5).rename("Frequenza"), use_container_width=True)
+            with col_b:
+                st.markdown("**Pensieri automatici recenti**")
+                recent_thoughts = df["pensiero_automatico"].dropna().tail(5)
+                st.write("\n".join(f"- {thought}" for thought in recent_thoughts if str(thought).strip()) or "Nessun pensiero inserito.")
 
-            assign_col, monitor_col = st.columns([1, 1])
-            with assign_col:
-                with st.form("assign_homework"):
-                    template_name = st.selectbox(
-                        "Compito CBT",
-                        list(CBT_HOMEWORK_TEMPLATES.keys()),
-                        format_func=homework_template_label,
-                    )
-                    due_date = st.date_input("Scadenza", value=date.today())
-                    template = CBT_HOMEWORK_TEMPLATES[template_name]
-                    st.markdown(f"**Obiettivo:** {template['obiettivo']}")
-                    if clean_text(template.get("suggerimento")):
-                        st.caption(template["suggerimento"])
-                    prompt = st.text_area(
-                        "Consegna essenziale",
-                        value=homework_main_prompt(template_name),
-                        height=95,
-                        placeholder="Mantieni una sola traccia: il paziente risponderà in un unico spazio.",
-                    )
-                    if st.form_submit_button("Assegna", use_container_width=True):
-                        final_prompt = clean_text(prompt) or homework_main_prompt(template_name)
-                        selected_wellness["homework_assignments"].append({
-                            "id": f"hw_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
-                            "template": template_name,
-                            "objective": template["obiettivo"],
-                            "instructions": clean_text(template.get("suggerimento")),
-                            "questions": [final_prompt],
-                            "due_date": due_date.isoformat(),
-                            "assigned_at": datetime.utcnow().isoformat(timespec="seconds"),
-                            "assigned_by": username,
-                        })
-                        save_wellness_for(selected_username, selected_wellness)
-                        st.success("Homework assegnato.")
-                        st.rerun()
+    with detail_tabs[2]:
+        st.markdown("### Homework CBT qualità di vita")
+        st.caption("Assegna un compito essenziale: modello, scadenza e una consegna già pronta. Il controllo mostra subito stato e sintesi.")
+        assignments = selected_wellness.get("homework_assignments", [])
+        submissions = selected_wellness.get("homework_submissions", [])
+        completed_ids = {submission.get("assignment_id") for submission in submissions}
 
-            with monitor_col:
-                st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
-                if assignments:
-                    st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
-                else:
-                    st.info("Nessun homework assegnato.")
-
-            if submissions:
-                st.markdown("#### Ultime risposte")
-                response_rows = [
-                    {
-                        "data": submission.get("submitted_at", "—"),
-                        "homework": submission.get("template", "Homework"),
-                        "sintesi": homework_readable_summary(submission),
-                    }
-                    for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True)
-                ]
-                st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
-                with st.expander("Apri risposte complete", expanded=False):
-                    for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
-                        st.markdown(f"**{submission.get('template', 'Homework')} · {submission.get('submitted_at', '—')}**")
-                        render_homework_answers(submission)
-            else:
-                st.info("Il paziente non ha ancora inviato risposte agli homework.")
-
-        with detail_tabs[3]:
-            st.markdown("### Timeline terapeutica condivisa")
-            events = build_timeline_events(selected_wellness)
-            if not events:
-                st.info("La timeline si popolerà con diario, homework ed eventi.")
-            for event in events[:30]:
-                st.markdown(f"**{event.get('data', '—')} · {event.get('tipo', 'Evento')}**")
-                st.write(f"{event.get('titolo', '')} — {event.get('dettaglio', '')}")
-            with st.form("manual_timeline_event"):
-                event_title = st.text_input("Aggiungi evento/progresso/ricaduta")
-                event_detail = st.text_area("Dettaglio")
-                if st.form_submit_button("Aggiungi alla timeline", use_container_width=True):
-                    selected_wellness["timeline_events"].append({
-                        "data": datetime.utcnow().isoformat(timespec="seconds"),
-                        "tipo": "Evento clinico",
-                        "titolo": event_title,
-                        "dettaglio": event_detail,
+        assign_col, monitor_col = st.columns([1, 1])
+        with assign_col:
+            with st.form("assign_homework"):
+                template_name = st.selectbox(
+                    "Compito CBT",
+                    list(CBT_HOMEWORK_TEMPLATES.keys()),
+                    format_func=homework_template_label,
+                )
+                due_date = st.date_input("Scadenza", value=date.today())
+                template = CBT_HOMEWORK_TEMPLATES[template_name]
+                st.markdown(f"**Obiettivo:** {template['obiettivo']}")
+                if clean_text(template.get("suggerimento")):
+                    st.caption(template["suggerimento"])
+                prompt = st.text_area(
+                    "Consegna essenziale",
+                    value=homework_main_prompt(template_name),
+                    height=95,
+                    placeholder="Mantieni una sola traccia: il paziente risponderà in un unico spazio.",
+                )
+                if st.form_submit_button("Assegna", use_container_width=True):
+                    final_prompt = clean_text(prompt) or homework_main_prompt(template_name)
+                    selected_wellness["homework_assignments"].append({
+                        "id": f"hw_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                        "template": template_name,
+                        "objective": template["obiettivo"],
+                        "instructions": clean_text(template.get("suggerimento")),
+                        "questions": [final_prompt],
+                        "due_date": due_date.isoformat(),
+                        "assigned_at": datetime.utcnow().isoformat(timespec="seconds"),
+                        "assigned_by": username,
                     })
                     save_wellness_for(selected_username, selected_wellness)
-                    st.success("Evento aggiunto.")
+                    st.success("Homework assegnato.")
                     st.rerun()
 
-        with detail_tabs[4]:
-            st.markdown("### Note private terapeuta")
-            st.caption("Queste note restano nello spazio del professionista e non sono mostrate al paziente.")
-            notes = load_therapist_notes(username)
-            note_value = notes.get(selected_username, "")
-            updated_note = st.text_area("Osservazioni cliniche, ipotesi, note seduta", value=note_value, height=260)
-            if st.button("Salva note private", use_container_width=True):
-                notes[selected_username] = updated_note
-                save_therapist_notes(username, notes)
-                st.success("Note private salvate.")
+        with monitor_col:
+            st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
+            if assignments:
+                st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
+            else:
+                st.info("Nessun homework assegnato.")
 
-        with detail_tabs[5]:
-            st.markdown("### Riassunto automatico pre-seduta")
-            recap = weekly_recap(selected_snapshot)
-            st.text_area("Ultimi 14 giorni", value="\n".join(f"- {item}" for item in recap), height=260)
-            st.download_button(
-                "Scarica recap .txt",
-                data="\n".join(recap),
-                file_name=f"recap_{selected_username}.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
+        if submissions:
+            st.markdown("#### Ultime risposte")
+            response_rows = [
+                {
+                    "data": submission.get("submitted_at", "—"),
+                    "homework": submission.get("template", "Homework"),
+                    "sintesi": homework_readable_summary(submission),
+                }
+                for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True)
+            ]
+            st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
+            with st.expander("Apri risposte complete", expanded=False):
+                for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
+                    st.markdown(f"**{submission.get('template', 'Homework')} · {submission.get('submitted_at', '—')}**")
+                    render_homework_answers(submission)
+        else:
+            st.info("Il paziente non ha ancora inviato risposte agli homework.")
 
+    with detail_tabs[3]:
+        st.markdown("### Timeline terapeutica condivisa")
+        events = build_timeline_events(selected_wellness)
+        if not events:
+            st.info("La timeline si popolerà con diario, homework ed eventi.")
+        for event in events[:30]:
+            st.markdown(f"**{event.get('data', '—')} · {event.get('tipo', 'Evento')}**")
+            st.write(f"{event.get('titolo', '')} — {event.get('dettaglio', '')}")
+        with st.form("manual_timeline_event"):
+            event_title = st.text_input("Aggiungi evento/progresso/ricaduta")
+            event_detail = st.text_area("Dettaglio")
+            if st.form_submit_button("Aggiungi alla timeline", use_container_width=True):
+                selected_wellness["timeline_events"].append({
+                    "data": datetime.utcnow().isoformat(timespec="seconds"),
+                    "tipo": "Evento clinico",
+                    "titolo": event_title,
+                    "dettaglio": event_detail,
+                })
+                save_wellness_for(selected_username, selected_wellness)
+                st.success("Evento aggiunto.")
+                st.rerun()
+
+    with detail_tabs[4]:
+        st.markdown("### Note private terapeuta")
+        st.caption("Queste note restano nello spazio del professionista e non sono mostrate al paziente.")
+        notes = load_therapist_notes(username)
+        note_value = notes.get(selected_username, "")
+        updated_note = st.text_area("Osservazioni cliniche, ipotesi, note seduta", value=note_value, height=260)
+        if st.button("Salva note private", use_container_width=True):
+            notes[selected_username] = updated_note
+            save_therapist_notes(username, notes)
+            st.success("Note private salvate.")
+
+    with detail_tabs[5]:
+        st.markdown("### Riassunto automatico pre-seduta")
+        recap = weekly_recap(selected_snapshot)
+        st.text_area("Ultimi 14 giorni", value="\n".join(f"- {item}" for item in recap), height=260)
+        st.download_button(
+            "Scarica recap .txt",
+            data="\n".join(recap),
+            file_name=f"recap_{selected_username}.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
 
 def logout_button():
     if st.button("Logout", use_container_width=True):
