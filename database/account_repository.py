@@ -1,259 +1,127 @@
-"""Account persistence helpers for PsyHelper.
+"""Compatibility facade for the filesystem account repository.
 
-The repository intentionally preserves the existing pickle and text-file storage
-layout. It does not connect to PostgreSQL, Supabase, or any external database.
+Service-layer code should depend on repository objects. This module preserves the
+existing function-based API used by migrations, tests, and UI imports while
+forwarding persistence behavior to ``database.filesystem_account_repository``.
 """
 
-import hashlib
-import os
-import pickle
-import re
-from datetime import datetime
+from database import filesystem_account_repository as _filesystem
 
-from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerifyMismatchError, VerificationError
+os = _filesystem.os
+USERS_DIR = _filesystem.USERS_DIR
+PASSWORD_HASH_FILENAME = _filesystem.PASSWORD_HASH_FILENAME
+ARGON2_PREFIX = _filesystem.ARGON2_PREFIX
+LEGACY_SHA256_HEX_LENGTH = _filesystem.LEGACY_SHA256_HEX_LENGTH
 
-from database.json_storage import (
-    atomic_write_json,
-    json_path_for,
-    load_json_file,
-    validate_json_safe,
-)
-from database.wellness_repository import (
-    default_wellness_data,
-    ensure_wellness_schema,
-    load_wellness,
-    save_wellness,
-)
 
-USERS_DIR = os.path.expanduser("~/psyhelper_data/users")
-PASSWORD_HASH_FILENAME = "password.txt"
-ARGON2_PREFIX = "$argon2"
-LEGACY_SHA256_HEX_LENGTH = 64
-_password_hasher = PasswordHasher()
-os.makedirs(USERS_DIR, exist_ok=True)
+def _sync_users_dir():
+    _filesystem.USERS_DIR = USERS_DIR
 
 
 def hash_password(password):
-    """Return an Argon2 password hash for newly stored credentials."""
-    return _password_hasher.hash(password)
+    return _filesystem.hash_password(password)
 
 
 def hash_password_legacy_sha256(password):
-    """Return the legacy SHA-256 digest used by existing accounts."""
-    return hashlib.sha256(password.encode()).hexdigest()
+    return _filesystem.hash_password_legacy_sha256(password)
 
 
 def is_argon2_hash(stored_hash):
-    return stored_hash.startswith(ARGON2_PREFIX)
+    return _filesystem.is_argon2_hash(stored_hash)
 
 
 def is_legacy_sha256_hash(stored_hash):
-    return len(stored_hash) == LEGACY_SHA256_HEX_LENGTH and all(
-        character in "0123456789abcdef" for character in stored_hash.lower()
-    )
+    return _filesystem.is_legacy_sha256_hash(stored_hash)
 
 
 def password_hash_path(username):
-    return os.path.join(user_dir(username), PASSWORD_HASH_FILENAME)
+    _sync_users_dir()
+    return _filesystem.password_hash_path(username)
 
 
 def save_password_hash(username, password_hash):
-    with open(password_hash_path(username), "w") as f:
-        f.write(password_hash)
+    _sync_users_dir()
+    return _filesystem.save_password_hash(username, password_hash)
 
 
 def normalize_username(username):
-    normalized = username.strip().lower().replace(" ", "_")
-    return re.sub(r"[^a-z0-9_-]", "", normalized)
+    return _filesystem.normalize_username(username)
 
 
 def normalize_email(email):
-    return email.strip().lower()
+    return _filesystem.normalize_email(email)
 
 
 def is_valid_email(email):
-    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalize_email(email)))
+    return _filesystem.is_valid_email(email)
 
 
 def user_dir(username):
-    return os.path.join(USERS_DIR, normalize_username(username))
+    _sync_users_dir()
+    return _filesystem.user_dir(username)
 
 
 def user_exists(username):
-    return os.path.isdir(user_dir(username))
+    _sync_users_dir()
+    return _filesystem.user_exists(username)
 
 
 def default_user_metadata(role="client", therapist_username=None, subscription_status="inactive", email=None):
-    return {
-        "role": role,
-        "therapist_username": normalize_username(therapist_username) if therapist_username else None,
-        "subscription_status": subscription_status,
-        "email": normalize_email(email) if email else "",
-        "created_at": datetime.utcnow().isoformat(timespec="seconds"),
-        "beta_disclaimer_accepted_at": None,
-    }
+    return _filesystem.default_user_metadata(role, therapist_username, subscription_status, email)
 
 
 def metadata_path(account_dir):
-    return os.path.join(account_dir, "metadata.pkl")
+    return _filesystem.metadata_path(account_dir)
 
 
 def metadata_json_path(account_dir):
-    return json_path_for(metadata_path(account_dir))
+    return _filesystem.metadata_json_path(account_dir)
 
 
 def profile_path(account_dir):
-    return os.path.join(account_dir, "profile.pkl")
+    return _filesystem.profile_path(account_dir)
 
 
 def profile_json_path(account_dir):
-    return json_path_for(profile_path(account_dir))
+    return _filesystem.profile_json_path(account_dir)
 
 
 def messages_path(account_dir):
-    return os.path.join(account_dir, "messages.pkl")
+    return _filesystem.messages_path(account_dir)
 
 
 def messages_json_path(account_dir):
-    return json_path_for(messages_path(account_dir))
-
-
-def _is_iso_string_or_none(value):
-    if value is None:
-        return True
-    if not isinstance(value, str):
-        return False
-    try:
-        datetime.fromisoformat(value)
-    except ValueError:
-        return False
-    return True
+    return _filesystem.messages_json_path(account_dir)
 
 
 def normalize_user_metadata(metadata):
-    defaults = default_user_metadata()
-    if not isinstance(metadata, dict):
-        metadata = {}
-
-    normalized = {**defaults, **metadata}
-    if not isinstance(normalized.get("role"), str):
-        normalized["role"] = defaults["role"]
-    if not (isinstance(normalized.get("therapist_username"), str) or normalized.get("therapist_username") is None):
-        normalized["therapist_username"] = defaults["therapist_username"]
-    if not isinstance(normalized.get("subscription_status"), str):
-        normalized["subscription_status"] = defaults["subscription_status"]
-    if not (isinstance(normalized.get("email"), str) or normalized.get("email") is None):
-        normalized["email"] = defaults["email"]
-    if not _is_iso_string_or_none(normalized.get("created_at")):
-        normalized["created_at"] = defaults["created_at"]
-    if not _is_iso_string_or_none(normalized.get("beta_disclaimer_accepted_at")):
-        normalized["beta_disclaimer_accepted_at"] = defaults["beta_disclaimer_accepted_at"]
-
-    return validate_json_safe(normalized)
+    return _filesystem.normalize_user_metadata(metadata)
 
 
 def load_user_metadata(username):
-    if not user_exists(username):
-        return default_user_metadata(role="therapist", subscription_status="inactive")
-
-    account_dir = user_dir(username)
-    json_path = metadata_json_path(account_dir)
-    if os.path.exists(json_path):
-        try:
-            return normalize_user_metadata(load_json_file(json_path))
-        except Exception:
-            return default_user_metadata()
-
-    legacy_path = metadata_path(account_dir)
-    if not os.path.exists(legacy_path):
-        return default_user_metadata()
-
-    try:
-        with open(legacy_path, "rb") as f:
-            metadata = pickle.load(f)
-        metadata = normalize_user_metadata(metadata)
-    except Exception:
-        return default_user_metadata()
-
-    try:
-        atomic_write_json(json_path, metadata)
-    except Exception:
-        pass
-    return metadata
+    _sync_users_dir()
+    return _filesystem.load_user_metadata(username)
 
 
 def save_user_metadata(username, metadata):
-    os.makedirs(user_dir(username), exist_ok=True)
-    atomic_write_json(metadata_json_path(user_dir(username)), normalize_user_metadata(metadata))
+    _sync_users_dir()
+    return _filesystem.save_user_metadata(username, metadata)
 
 
 def normalize_profile(profile):
-    if not isinstance(profile, dict):
-        return {}
-    return validate_json_safe(profile)
+    return _filesystem.normalize_profile(profile)
 
 
 def normalize_messages(messages):
-    if not isinstance(messages, list):
-        return []
-
-    normalized = []
-    for message in messages:
-        if not isinstance(message, dict):
-            continue
-        role = message.get("role")
-        content = message.get("content")
-        if not isinstance(role, str) or not isinstance(content, str):
-            continue
-        normalized.append({"role": role, "content": content})
-    return validate_json_safe(normalized)
-
-
-def _load_json_or_default(json_path, normalizer, default):
-    try:
-        return normalizer(load_json_file(json_path))
-    except Exception:
-        return default
-
-
-def _load_pickle_migrate_or_default(legacy_path, json_path, normalizer, default):
-    try:
-        with open(legacy_path, "rb") as f:
-            data = pickle.load(f)
-        data = normalizer(data)
-    except Exception:
-        return default
-
-    try:
-        atomic_write_json(json_path, data)
-    except Exception:
-        pass
-    return data
+    return _filesystem.normalize_messages(messages)
 
 
 def load_profile(account_dir):
-    json_path = profile_json_path(account_dir)
-    if os.path.exists(json_path):
-        return _load_json_or_default(json_path, normalize_profile, {})
-
-    legacy_path = profile_path(account_dir)
-    if not os.path.exists(legacy_path):
-        return {}
-
-    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_profile, {})
+    return _filesystem.load_profile(account_dir)
 
 
 def load_messages(account_dir):
-    json_path = messages_json_path(account_dir)
-    if os.path.exists(json_path):
-        return _load_json_or_default(json_path, normalize_messages, [])
-
-    legacy_path = messages_path(account_dir)
-    if not os.path.exists(legacy_path):
-        return []
-
-    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_messages, [])
+    return _filesystem.load_messages(account_dir)
 
 
 def create_user(
@@ -266,159 +134,73 @@ def create_user(
     email=None,
     beta_disclaimer_accepted_at=None,
 ):
-    username = normalize_username(username)
-    account_dir = user_dir(username)
-    os.makedirs(account_dir, exist_ok=True)
-    save_password_hash(username, hash_password(password))
-    atomic_write_json(profile_json_path(account_dir), normalize_profile(profile or {}))
-    atomic_write_json(messages_json_path(account_dir), normalize_messages([]))
-    save_wellness(account_dir, default_wellness_data())
-    metadata = default_user_metadata(
+    _sync_users_dir()
+    return _filesystem.create_user(
+        username,
+        password,
         role=role,
         therapist_username=therapist_username,
         subscription_status=subscription_status,
+        profile=profile,
         email=email,
+        beta_disclaimer_accepted_at=beta_disclaimer_accepted_at,
     )
-    if beta_disclaimer_accepted_at:
-        metadata["beta_disclaimer_accepted_at"] = beta_disclaimer_accepted_at
-    save_user_metadata(username, metadata)
 
 
 def create_client_account(therapist_username, client_username, password, display_name):
-    create_user(
-        client_username,
-        password,
-        role="client",
-        therapist_username=therapist_username,
-        subscription_status="covered_by_therapist",
-        profile={"nome": display_name or normalize_username(client_username), "onboarding_completed": False},
-    )
+    _sync_users_dir()
+    return _filesystem.create_client_account(therapist_username, client_username, password, display_name)
 
 
 def verify_password(username, password):
-    try:
-        with open(password_hash_path(username), "r") as f:
-            stored_hash = f.read().strip()
-    except Exception:
-        return False
-
-    if is_argon2_hash(stored_hash):
-        try:
-            verified = _password_hasher.verify(stored_hash, password)
-        except (InvalidHashError, VerifyMismatchError, VerificationError):
-            return False
-        if verified and _password_hasher.check_needs_rehash(stored_hash):
-            save_password_hash(username, hash_password(password))
-        return verified
-
-    if is_legacy_sha256_hash(stored_hash) and stored_hash == hash_password_legacy_sha256(password):
-        save_password_hash(username, hash_password(password))
-        return True
-
-    return False
+    _sync_users_dir()
+    return _filesystem.verify_password(username, password)
 
 
 def therapist_email_exists(email):
-    normalized_email = normalize_email(email)
-    if not normalized_email or not os.path.isdir(USERS_DIR):
-        return False
-    for account_name in os.listdir(USERS_DIR):
-        if not user_exists(account_name):
-            continue
-        metadata = load_user_metadata(account_name)
-        if metadata.get("role") != "therapist":
-            continue
-        account_email = normalize_email(metadata.get("email", ""))
-        if not account_email:
-            account_email = normalize_email(load_account_bundle(account_name)["profile"].get("email", ""))
-        if account_email == normalized_email:
-            return True
-    return False
+    _sync_users_dir()
+    return _filesystem.therapist_email_exists(email)
 
 
 def load_account_bundle(username):
-    account_dir = user_dir(username)
-    profile = load_profile(account_dir)
-    messages = load_messages(account_dir)
-    wellness = load_wellness(account_dir)
-    return {"profile": profile, "messages": messages, "wellness": ensure_wellness_schema(wellness)}
+    _sync_users_dir()
+    return _filesystem.load_account_bundle(username)
 
 
 def save_account_bundle(username, profile, messages, wellness):
-    account_dir = user_dir(username)
-    atomic_write_json(profile_json_path(account_dir), normalize_profile(profile))
-    atomic_write_json(messages_json_path(account_dir), normalize_messages(messages))
-    save_wellness(account_dir, wellness)
+    _sync_users_dir()
+    return _filesystem.save_account_bundle(username, profile, messages, wellness)
 
 
 def save_wellness_for(username, wellness):
-    save_wellness(user_dir(username), wellness)
+    _sync_users_dir()
+    return _filesystem.save_wellness_for(username, wellness)
 
 
 def therapist_notes_path(therapist_username):
-    return os.path.join(user_dir(therapist_username), "therapist_notes.pkl")
+    _sync_users_dir()
+    return _filesystem.therapist_notes_path(therapist_username)
 
 
 def therapist_notes_json_path(therapist_username):
-    return json_path_for(therapist_notes_path(therapist_username))
-
-
-def _safe_note_value_to_string(value):
-    if isinstance(value, str):
-        return value
-    if isinstance(value, bool) or isinstance(value, int):
-        return str(value)
-    if isinstance(value, float) and value == value and value not in (float("inf"), float("-inf")):
-        return str(value)
-    return None
+    _sync_users_dir()
+    return _filesystem.therapist_notes_json_path(therapist_username)
 
 
 def normalize_therapist_notes(notes):
-    if not isinstance(notes, dict):
-        return {}
-
-    normalized = {}
-    for client_username, note in notes.items():
-        if not isinstance(client_username, str):
-            continue
-        safe_note = _safe_note_value_to_string(note)
-        if safe_note is None:
-            continue
-        normalized[client_username] = safe_note
-    return validate_json_safe(normalized)
+    return _filesystem.normalize_therapist_notes(notes)
 
 
 def load_therapist_notes(therapist_username):
-    json_path = therapist_notes_json_path(therapist_username)
-    if os.path.exists(json_path):
-        return _load_json_or_default(json_path, normalize_therapist_notes, {})
-
-    legacy_path = therapist_notes_path(therapist_username)
-    if not os.path.exists(legacy_path):
-        return {}
-
-    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_therapist_notes, {})
+    _sync_users_dir()
+    return _filesystem.load_therapist_notes(therapist_username)
 
 
 def save_therapist_notes(therapist_username, notes):
-    atomic_write_json(
-        therapist_notes_json_path(therapist_username),
-        normalize_therapist_notes(notes),
-    )
+    _sync_users_dir()
+    return _filesystem.save_therapist_notes(therapist_username, notes)
 
 
 def client_accounts_for(therapist_username):
-    clients = []
-    therapist_username = normalize_username(therapist_username)
-    for account_name in sorted(os.listdir(USERS_DIR)):
-        if not user_exists(account_name):
-            continue
-        metadata = load_user_metadata(account_name)
-        if metadata.get("role") == "client" and metadata.get("therapist_username") == therapist_username:
-            profile = load_account_bundle(account_name)["profile"]
-            clients.append({
-                "username": account_name,
-                "nome": profile.get("nome", account_name),
-                "creato_il": metadata.get("created_at", ""),
-            })
-    return clients
+    _sync_users_dir()
+    return _filesystem.client_accounts_for(therapist_username)
