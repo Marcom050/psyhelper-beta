@@ -1261,114 +1261,122 @@ def show_therapist_dashboard():
             use_container_width=True,
         )
 
+def reset_session_for_logout():
+    st.session_state.logged_in = False
+    st.session_state.username = None
+    st.session_state.user_metadata = {}
+    st.session_state.profile = {}
+    st.session_state.messages = []
+    st.session_state.wellness = default_wellness_data()
+    st.session_state.scroll_to_top = True
+
+
 def logout_button():
     if st.button("Logout", use_container_width=True):
-        st.session_state.logged_in = False
-        st.session_state.username = None
-        st.session_state.user_metadata = {}
-        st.session_state.profile = {}
-        st.session_state.messages = []
-        st.session_state.wellness = default_wellness_data()
-        st.session_state.scroll_to_top = True
+        reset_session_for_logout()
         st.rerun()
 
 
-# ====================== LOGIN ======================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+def render_login_form():
+    st.caption("I clienti non si registrano da soli: ricevono l'account dal proprio psicologo abbonato.")
+    with st.form("login"):
+        username = st.text_input("Nome utente")
+        password = st.text_input("Password", type="password")
+        if st.form_submit_button("Accedi", use_container_width=True):
+            normalized_username = normalize_username(username)
+            if user_exists(normalized_username) and verify_password(normalized_username, password):
+                st.session_state.logged_in = True
+                st.session_state.username = normalized_username
+                st.session_state.scroll_to_top = True
+                load_user_data(normalized_username)
+                st.rerun()
+            else:
+                st.error("Nome utente o password errati")
 
-if not st.session_state.logged_in:
+
+def render_therapist_signup_form():
+    st.info(
+        f"Crea l'account professionista per una prova beta di {BETA_TRIAL_DAYS} giorni. "
+        "Ogni email può creare un solo account psicologo e l'app non deve essere usata con clienti reali."
+    )
+    with st.form("therapist_signup"):
+        professional_name = st.text_input("Nome professionista o studio")
+        professional_email = st.text_input("Email professionale obbligatoria")
+        new_username = st.text_input("Scegli un nome utente professionista")
+        new_password = st.text_input("Scegli una password", type="password")
+        confirm_password = st.text_input("Conferma password", type="password")
+        if st.form_submit_button("Crea account professionista", use_container_width=True):
+            normalized_username = normalize_username(new_username)
+            initial_status = "trialing"
+            normalized_email = normalize_email(professional_email)
+            if not professional_name.strip():
+                st.error("Inserisci il nome del professionista o dello studio.")
+            elif not is_valid_email(normalized_email):
+                st.error("Inserisci un indirizzo email valido per l'account psicologo.")
+            elif therapist_email_exists(normalized_email):
+                st.error("Esiste già un account psicologo associato a questa email.")
+            elif new_password != confirm_password:
+                st.error("Le password non coincidono")
+            elif user_exists(normalized_username):
+                st.error("Nome utente già esistente")
+            elif len(normalized_username) < 3:
+                st.error("Il nome utente deve avere almeno 3 caratteri")
+            elif len(new_password) < 8:
+                st.error("La password deve avere almeno 8 caratteri")
+            else:
+                create_user(
+                    normalized_username,
+                    new_password,
+                    role="therapist",
+                    subscription_status=initial_status,
+                    profile={"nome": professional_name.strip(), "email": normalized_email, "account_type": "therapist"},
+                    email=normalized_email,
+                    beta_disclaimer_accepted_at=st.session_state.get(
+                        "beta_disclaimer_accepted_at", datetime.utcnow().isoformat(timespec="seconds")
+                    ),
+                )
+                st.success(
+                    f"Account professionista creato. La prova beta dura {BETA_TRIAL_DAYS} giorni dalla creazione; "
+                    "ora effettua il login."
+                )
+
+
+def render_login_area():
     tab1, tab2 = st.tabs(["Login", "Registrati come psicologo"])
     with tab1:
-        st.caption("I clienti non si registrano da soli: ricevono l'account dal proprio psicologo abbonato.")
-        with st.form("login"):
-            username = st.text_input("Nome utente")
-            password = st.text_input("Password", type="password")
-            if st.form_submit_button("Accedi", use_container_width=True):
-                normalized_username = normalize_username(username)
-                if user_exists(normalized_username) and verify_password(normalized_username, password):
-                    st.session_state.logged_in = True
-                    st.session_state.username = normalized_username
-                    st.session_state.scroll_to_top = True
-                    load_user_data(normalized_username)
-                    st.rerun()
-                else:
-                    st.error("Nome utente o password errati")
+        render_login_form()
     with tab2:
-        st.info(
-            f"Crea l'account professionista per una prova beta di {BETA_TRIAL_DAYS} giorni. "
-            "Ogni email può creare un solo account psicologo e l'app non deve essere usata con clienti reali."
-        )
-        with st.form("therapist_signup"):
-            professional_name = st.text_input("Nome professionista o studio")
-            professional_email = st.text_input("Email professionale obbligatoria")
-            new_username = st.text_input("Scegli un nome utente professionista")
-            new_password = st.text_input("Scegli una password", type="password")
-            confirm_password = st.text_input("Conferma password", type="password")
-            if st.form_submit_button("Crea account professionista", use_container_width=True):
-                normalized_username = normalize_username(new_username)
-                initial_status = "trialing"
-                normalized_email = normalize_email(professional_email)
-                if not professional_name.strip():
-                    st.error("Inserisci il nome del professionista o dello studio.")
-                elif not is_valid_email(normalized_email):
-                    st.error("Inserisci un indirizzo email valido per l'account psicologo.")
-                elif therapist_email_exists(normalized_email):
-                    st.error("Esiste già un account psicologo associato a questa email.")
-                elif new_password != confirm_password:
-                    st.error("Le password non coincidono")
-                elif user_exists(normalized_username):
-                    st.error("Nome utente già esistente")
-                elif len(normalized_username) < 3:
-                    st.error("Il nome utente deve avere almeno 3 caratteri")
-                elif len(new_password) < 8:
-                    st.error("La password deve avere almeno 8 caratteri")
-                else:
-                    create_user(
-                        normalized_username,
-                        new_password,
-                        role="therapist",
-                        subscription_status=initial_status,
-                        profile={"nome": professional_name.strip(), "email": normalized_email, "account_type": "therapist"},
-                        email=normalized_email,
-                        beta_disclaimer_accepted_at=st.session_state.get(
-                            "beta_disclaimer_accepted_at", datetime.utcnow().isoformat(timespec="seconds")
-                        ),
-                    )
-                    st.success(
-                        f"Account professionista creato. La prova beta dura {BETA_TRIAL_DAYS} giorni dalla creazione; "
-                        "ora effettua il login."
-                    )
-    st.stop()
+        render_therapist_signup_form()
 
-if st.session_state.pop("scroll_to_top", False):
-    scroll_to_top()
 
-st.session_state.setdefault("profile", {})
-st.session_state.setdefault("messages", [])
-st.session_state.setdefault("wellness", default_wellness_data())
-st.session_state.setdefault("user_metadata", load_user_metadata(st.session_state.username))
-if not isinstance(st.session_state.wellness, dict):
-    st.session_state.wellness = default_wellness_data()
-ensure_wellness_schema(st.session_state.wellness)
+def initialize_authenticated_session():
+    if st.session_state.pop("scroll_to_top", False):
+        scroll_to_top()
 
-current_metadata = st.session_state.get("user_metadata", {})
-current_role = current_metadata.get("role", "client")
+    st.session_state.setdefault("profile", {})
+    st.session_state.setdefault("messages", [])
+    st.session_state.setdefault("wellness", default_wellness_data())
+    st.session_state.setdefault("user_metadata", load_user_metadata(st.session_state.username))
+    if not isinstance(st.session_state.wellness, dict):
+        st.session_state.wellness = default_wellness_data()
+    ensure_wellness_schema(st.session_state.wellness)
 
-if current_role == "therapist":
-    show_therapist_dashboard()
-    st.divider()
-    logout_button()
-    st.stop()
 
-if not is_subscription_active_for(st.session_state.username):
+def ensure_subscription_or_stop(current_metadata):
+    if is_subscription_active_for(st.session_state.username):
+        return
+
     show_subscription_required(st.session_state.username, current_metadata.get("therapist_username"))
     st.divider()
     logout_button()
     st.stop()
 
-# ====================== ONBOARDING ======================
-if not st.session_state.profile.get("onboarding_completed", False):
+
+
+def render_onboarding_or_stop():
+    if st.session_state.profile.get("onboarding_completed", False):
+        return
+
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
 
     with st.form("onboarding"):
@@ -1402,37 +1410,63 @@ if not st.session_state.profile.get("onboarding_completed", False):
             st.rerun()
     st.stop()
 
-# ====================== AREA APP ======================
-app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
-with app_tabs[0]:
-    show_chat_tab()
-with app_tabs[1]:
-    show_diary_tab()
-with app_tabs[2]:
-    show_homework_tab()
-with app_tabs[3]:
-    show_monitoring_tab()
-with app_tabs[4]:
-    show_report_tab()
 
-st.divider()
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("Nuova sessione"):
-        st.session_state.messages = []
-        save_user_data(st.session_state.username)
-        st.session_state.scroll_to_top = True
-        st.rerun()
-with col2:
-    if st.button("Torna in alto"):
-        scroll_to_top()
-with col3:
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.username = None
-        st.session_state.user_metadata = {}
-        st.session_state.profile = {}
-        st.session_state.messages = []
-        st.session_state.wellness = default_wellness_data()
-        st.session_state.scroll_to_top = True
-        st.rerun()
+def render_client_app_tabs():
+    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
+    with app_tabs[0]:
+        show_chat_tab()
+    with app_tabs[1]:
+        show_diary_tab()
+    with app_tabs[2]:
+        show_homework_tab()
+    with app_tabs[3]:
+        show_monitoring_tab()
+    with app_tabs[4]:
+        show_report_tab()
+
+
+def render_client_footer_actions():
+    st.divider()
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("Nuova sessione"):
+            st.session_state.messages = []
+            save_user_data(st.session_state.username)
+            st.session_state.scroll_to_top = True
+            st.rerun()
+    with col2:
+        if st.button("Torna in alto"):
+            scroll_to_top()
+    with col3:
+        if st.button("Logout"):
+            reset_session_for_logout()
+            st.rerun()
+
+
+def render_authenticated_app():
+    initialize_authenticated_session()
+
+    current_metadata = st.session_state.get("user_metadata", {})
+    current_role = current_metadata.get("role", "client")
+
+    if current_role == "therapist":
+        show_therapist_dashboard()
+        st.divider()
+        logout_button()
+        st.stop()
+
+    ensure_subscription_or_stop(current_metadata)
+    render_onboarding_or_stop()
+    render_client_app_tabs()
+    render_client_footer_actions()
+
+
+# ====================== LOGIN ======================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    render_login_area()
+    st.stop()
+
+render_authenticated_app()
