@@ -11,11 +11,14 @@ The application code itself is covered by the repository `LICENSE`. Third-party 
 | aiosignal | 1.4.0 | no | Apache 2.0 | [https://github.com/aio-libs/aiosignal](https://github.com/aio-libs/aiosignal) |
 | altair | 6.1.0 | no | Copyright (c) 2015-2025, Vega-Altair Developers All rights reserved. Redistri... | [https://altair-viz.github.io](https://altair-viz.github.io) |
 | annotated-types | 0.7.0 | no | MIT License | [https://github.com/annotated-types/annotated-types](https://github.com/annotated-types/annotated-types) |
+| argon2-cffi | 25.1.0 | yes | MIT | [https://github.com/hynek/argon2-cffi](https://github.com/hynek/argon2-cffi) |
+| argon2-cffi-bindings | 25.1.0 | no | MIT | [https://github.com/hynek/argon2-cffi-bindings](https://github.com/hynek/argon2-cffi-bindings) |
 | anyio | 4.13.0 | no | MIT | [https://anyio.readthedocs.io/en/latest/](https://anyio.readthedocs.io/en/latest/) |
 | attrs | 26.1.0 | no | MIT | [https://www.attrs.org/](https://www.attrs.org/) |
 | blinker | 1.9.0 | no | MIT License | [https://discord.gg/pallets](https://discord.gg/pallets) |
 | cachetools | 7.1.1 | no | MIT | [https://github.com/tkem/cachetools/](https://github.com/tkem/cachetools/) |
 | certifi | 2026.4.22 | no | MPL-2.0 | [https://github.com/certifi/python-certifi](https://github.com/certifi/python-certifi) |
+| cffi | 2.0.0 | no | MIT | [https://github.com/python-cffi/cffi](https://github.com/python-cffi/cffi) |
 | charset-normalizer | 3.4.7 | no | MIT | [https://github.com/jawah/charset_normalizer/blob/master/CHANGELOG.md](https://github.com/jawah/charset_normalizer/blob/master/CHANGELOG.md) |
 | click | 8.3.3 | no | BSD-3-Clause | [https://click.palletsprojects.com/page/changes/](https://click.palletsprojects.com/page/changes/) |
 | dataclasses-json | 0.6.7 | no | MIT | [https://github.com/lidatong/dataclasses-json](https://github.com/lidatong/dataclasses-json) |
@@ -64,6 +67,7 @@ The application code itself is covered by the repository `LICENSE`. Third-party 
 | propcache | 0.5.2 | no | Apache-2.0 | [https://github.com/aio-libs/propcache](https://github.com/aio-libs/propcache) |
 | protobuf | 7.34.1 | no | 3-Clause BSD License | [https://developers.google.com/protocol-buffers/](https://developers.google.com/protocol-buffers/) |
 | pyarrow | 24.0.0 | no | Apache-2.0 | [https://arrow.apache.org/](https://arrow.apache.org/) |
+| pycparser | 2.23 | no | BSD-3-Clause | [https://github.com/eliben/pycparser](https://github.com/eliben/pycparser) |
 | pydantic | 2.13.4 | no | MIT | [https://github.com/pydantic/pydantic](https://github.com/pydantic/pydantic) |
 | pydantic_core | 2.46.4 | no | MIT | [https://github.com/pydantic/pydantic](https://github.com/pydantic/pydantic) |
 | pydantic-settings | 2.14.1 | no | MIT | [https://github.com/pydantic/pydantic-settings](https://github.com/pydantic/pydantic-settings) |
