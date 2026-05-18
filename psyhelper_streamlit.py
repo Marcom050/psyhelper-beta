@@ -1,4 +1,5 @@
 from datetime import date, datetime
+import logging
 
 import pandas as pd
 import plotly.express as px
@@ -58,6 +59,8 @@ from services.subscription_service import (
     trial_expires_at,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 
 session_adapter = SessionAdapter()
@@ -78,6 +81,13 @@ L'autore declina ogni tipo di responsabilità per qualsiasi uso improprio dell'a
 
 Questa applicazione è protetta dalla normativa sul diritto d’autore ai sensi della Legge sul diritto d'autore e successive modifiche. Tutti i diritti sono riservati. È vietata la riproduzione, distribuzione, modifica, pubblicazione, comunicazione o condivisione totale o parziale dell’applicazione e dei suoi contenuti senza preventiva autorizzazione del titolare dei diritti, salvo i casi consentiti dalla legge.
 """
+
+
+def secret_get(key, default=None):
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
 
 
 def render_analytics_banner():
@@ -140,7 +150,7 @@ st.markdown("""
 
 render_analytics_banner()
 
-GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", "")
+GROQ_API_KEY = secret_get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
     st.error("⚠️ API Key non configurata!")
     st.stop()
@@ -161,9 +171,9 @@ SENSATION_OPTIONS = [
 
 def api_client_config():
     return APIClientConfig.from_values(
-        base_url=st.secrets.get("API_BASE_URL", None),
-        timeout_seconds=st.secrets.get("API_TIMEOUT_SECONDS", None),
-        use_http_api=st.secrets.get("USE_HTTP_API", None),
+        base_url=secret_get("API_BASE_URL", None),
+        timeout_seconds=secret_get("API_TIMEOUT_SECONDS", None),
+        use_http_api=secret_get("USE_HTTP_API", None),
     )
 
 
@@ -197,7 +207,7 @@ def scroll_to_top():
 
 
 def active_subscription_statuses():
-    configured_statuses = st.secrets.get("ACTIVE_SUBSCRIPTION_STATUSES", "active,trialing")
+    configured_statuses = secret_get("ACTIVE_SUBSCRIPTION_STATUSES", "active,trialing")
     return {status.strip().lower() for status in configured_statuses.split(",") if status.strip()}
 
 
@@ -309,18 +319,42 @@ def weekly_recap_payload_for(username, report):
     return {"display_text": payload["text"], "download_text": "\n".join(payload["items"])}
 
 
-def get_response(user_input):
-    context = ChatContext(
+def chat_context_for(user_input):
+    return ChatContext(
         profile=session_adapter.get_profile(),
         wellness=session_adapter.get_wellness(),
         username=session_adapter.get_username() or "",
         user_input=user_input,
     )
+
+
+def get_local_chat_response(context):
     return get_chat_response(
         context,
         api_key=GROQ_API_KEY,
         copyright_policy=COPYRIGHT_POLICY,
     ).content
+
+
+def get_http_chat_response(context):
+    payload = api_client().chat_message(
+        context.username,
+        context.user_input,
+        dict(context.profile),
+        dict(context.wellness),
+    )
+    return payload["content"]
+
+
+def get_response(user_input):
+    context = chat_context_for(user_input)
+    if not use_http_api():
+        return get_local_chat_response(context)
+    try:
+        return get_http_chat_response(context)
+    except APIClientError as error:
+        LOGGER.warning("Chat API failed; falling back to local chat service: %s", error)
+        return get_local_chat_response(context)
 
 
 def entries_dataframe():
@@ -554,7 +588,7 @@ def show_subscription_required(account_label, therapist_username=None):
     if therapist_username:
         st.info(f"Questo account cliente è collegato allo psicologo: `{therapist_username}`.")
 
-    checkout_url = st.secrets.get("SUBSCRIPTION_CHECKOUT_URL", "")
+    checkout_url = secret_get("SUBSCRIPTION_CHECKOUT_URL", "")
     if checkout_url:
         st.link_button("Attiva o rinnova abbonamento", checkout_url, use_container_width=True)
     else:
@@ -1036,9 +1070,14 @@ def render_authenticated_app():
     render_client_footer_actions()
 
 
-# ====================== LOGIN ======================
-if not session_adapter.is_logged_in():
-    render_login_area()
-    st.stop()
+def main():
+    # ====================== LOGIN ======================
+    if not session_adapter.is_logged_in():
+        render_login_area()
+        st.stop()
 
-render_authenticated_app()
+    render_authenticated_app()
+
+
+if __name__ == "__main__":
+    main()

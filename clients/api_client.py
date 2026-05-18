@@ -18,6 +18,7 @@ from pydantic import BaseModel, ValidationError
 import requests
 
 from api.schemas.auth import AuthResponse, UserResponse
+from api.schemas.chat import ChatMessageRequest, ChatMessageResponse
 from api.schemas.homework import (
     HomeworkAssignmentResponse,
     HomeworkResponse,
@@ -164,6 +165,29 @@ class PsyHelperAPIClient:
             response_model=HomeworkSubmissionResponse,
         )
 
+    def chat_message(
+        self,
+        username: str,
+        user_input: str,
+        profile: dict[str, Any],
+        wellness: dict[str, Any],
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        payload = ChatMessageRequest(
+            username=username,
+            user_input=user_input,
+            profile=profile,
+            wellness=wellness,
+            session_id=session_id,
+        ).model_dump(exclude_none=True)
+        return self._request(
+            "POST",
+            "/chat/messages",
+            username=username,
+            json=payload,
+            response_model=ChatMessageResponse,
+        )
+
     def get_weekly_recap(self, username: str) -> dict[str, Any]:
         safe_username = quote(username, safe="")
         return self._request(
@@ -236,7 +260,7 @@ class PsyHelperAPIClient:
         payload = _response_payload(response)
         message = _error_message(payload) or f"HTTP {response.status_code}"
         LOGGER.warning("API request failed: HTTP %s %s", response.status_code, message)
-        if response.status_code == 401:
+        if response.status_code in {401, 403}:
             raise APIUnauthorizedError(response.status_code, message, payload)
         if response.status_code == 404:
             raise APINotFoundError(response.status_code, message, payload)
