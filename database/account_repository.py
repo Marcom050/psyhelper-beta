@@ -10,6 +10,9 @@ import pickle
 import re
 from datetime import datetime
 
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError, VerificationError
+
 from database.wellness_repository import (
     default_wellness_data,
     ensure_wellness_schema,
@@ -18,11 +21,40 @@ from database.wellness_repository import (
 )
 
 USERS_DIR = os.path.expanduser("~/psyhelper_data/users")
+PASSWORD_HASH_FILENAME = "password.txt"
+ARGON2_PREFIX = "$argon2"
+LEGACY_SHA256_HEX_LENGTH = 64
+_password_hasher = PasswordHasher()
 os.makedirs(USERS_DIR, exist_ok=True)
 
 
 def hash_password(password):
+    """Return an Argon2 password hash for newly stored credentials."""
+    return _password_hasher.hash(password)
+
+
+def hash_password_legacy_sha256(password):
+    """Return the legacy SHA-256 digest used by existing accounts."""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def is_argon2_hash(stored_hash):
+    return stored_hash.startswith(ARGON2_PREFIX)
+
+
+def is_legacy_sha256_hash(stored_hash):
+    return len(stored_hash) == LEGACY_SHA256_HEX_LENGTH and all(
+        character in "0123456789abcdef" for character in stored_hash.lower()
+    )
+
+
+def password_hash_path(username):
+    return os.path.join(user_dir(username), PASSWORD_HASH_FILENAME)
+
+
+def save_password_hash(username, password_hash):
+    with open(password_hash_path(username), "w") as f:
+        f.write(password_hash)
 
 
 def normalize_username(username):
@@ -98,8 +130,7 @@ def create_user(
     username = normalize_username(username)
     account_dir = user_dir(username)
     os.makedirs(account_dir, exist_ok=True)
-    with open(os.path.join(account_dir, "password.txt"), "w") as f:
-        f.write(hash_password(password))
+    save_password_hash(username, hash_password(password))
     with open(os.path.join(account_dir, "profile.pkl"), "wb") as f:
         pickle.dump(profile or {}, f)
     with open(os.path.join(account_dir, "messages.pkl"), "wb") as f:
@@ -129,10 +160,25 @@ def create_client_account(therapist_username, client_username, password, display
 
 def verify_password(username, password):
     try:
-        with open(os.path.join(user_dir(username), "password.txt"), "r") as f:
-            return f.read() == hash_password(password)
+        with open(password_hash_path(username), "r") as f:
+            stored_hash = f.read().strip()
     except Exception:
         return False
+
+    if is_argon2_hash(stored_hash):
+        try:
+            verified = _password_hasher.verify(stored_hash, password)
+        except (InvalidHashError, VerifyMismatchError, VerificationError):
+            return False
+        if verified and _password_hasher.check_needs_rehash(stored_hash):
+            save_password_hash(username, hash_password(password))
+        return verified
+
+    if is_legacy_sha256_hash(stored_hash) and stored_hash == hash_password_legacy_sha256(password):
+        save_password_hash(username, hash_password(password))
+        return True
+
+    return False
 
 
 def therapist_email_exists(email):
