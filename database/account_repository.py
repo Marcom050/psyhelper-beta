@@ -103,6 +103,22 @@ def metadata_json_path(account_dir):
     return json_path_for(metadata_path(account_dir))
 
 
+def profile_path(account_dir):
+    return os.path.join(account_dir, "profile.pkl")
+
+
+def profile_json_path(account_dir):
+    return json_path_for(profile_path(account_dir))
+
+
+def messages_path(account_dir):
+    return os.path.join(account_dir, "messages.pkl")
+
+
+def messages_json_path(account_dir):
+    return json_path_for(messages_path(account_dir))
+
+
 def _is_iso_string_or_none(value):
     if value is None:
         return True
@@ -172,6 +188,74 @@ def save_user_metadata(username, metadata):
     atomic_write_json(metadata_json_path(user_dir(username)), normalize_user_metadata(metadata))
 
 
+def normalize_profile(profile):
+    if not isinstance(profile, dict):
+        return {}
+    return validate_json_safe(profile)
+
+
+def normalize_messages(messages):
+    if not isinstance(messages, list):
+        return []
+
+    normalized = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        role = message.get("role")
+        content = message.get("content")
+        if not isinstance(role, str) or not isinstance(content, str):
+            continue
+        normalized.append({"role": role, "content": content})
+    return validate_json_safe(normalized)
+
+
+def _load_json_or_default(json_path, normalizer, default):
+    try:
+        return normalizer(load_json_file(json_path))
+    except Exception:
+        return default
+
+
+def _load_pickle_migrate_or_default(legacy_path, json_path, normalizer, default):
+    try:
+        with open(legacy_path, "rb") as f:
+            data = pickle.load(f)
+        data = normalizer(data)
+    except Exception:
+        return default
+
+    try:
+        atomic_write_json(json_path, data)
+    except Exception:
+        pass
+    return data
+
+
+def load_profile(account_dir):
+    json_path = profile_json_path(account_dir)
+    if os.path.exists(json_path):
+        return _load_json_or_default(json_path, normalize_profile, {})
+
+    legacy_path = profile_path(account_dir)
+    if not os.path.exists(legacy_path):
+        return {}
+
+    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_profile, {})
+
+
+def load_messages(account_dir):
+    json_path = messages_json_path(account_dir)
+    if os.path.exists(json_path):
+        return _load_json_or_default(json_path, normalize_messages, [])
+
+    legacy_path = messages_path(account_dir)
+    if not os.path.exists(legacy_path):
+        return []
+
+    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_messages, [])
+
+
 def create_user(
     username,
     password,
@@ -186,10 +270,8 @@ def create_user(
     account_dir = user_dir(username)
     os.makedirs(account_dir, exist_ok=True)
     save_password_hash(username, hash_password(password))
-    with open(os.path.join(account_dir, "profile.pkl"), "wb") as f:
-        pickle.dump(profile or {}, f)
-    with open(os.path.join(account_dir, "messages.pkl"), "wb") as f:
-        pickle.dump([], f)
+    atomic_write_json(profile_json_path(account_dir), normalize_profile(profile or {}))
+    atomic_write_json(messages_json_path(account_dir), normalize_messages([]))
     save_wellness(account_dir, default_wellness_data())
     metadata = default_user_metadata(
         role=role,
@@ -248,11 +330,7 @@ def therapist_email_exists(email):
             continue
         account_email = normalize_email(metadata.get("email", ""))
         if not account_email:
-            try:
-                with open(os.path.join(user_dir(account_name), "profile.pkl"), "rb") as f:
-                    account_email = normalize_email(pickle.load(f).get("email", ""))
-            except Exception:
-                account_email = ""
+            account_email = normalize_email(load_account_bundle(account_name)["profile"].get("email", ""))
         if account_email == normalized_email:
             return True
     return False
@@ -260,26 +338,16 @@ def therapist_email_exists(email):
 
 def load_account_bundle(username):
     account_dir = user_dir(username)
-    try:
-        with open(os.path.join(account_dir, "profile.pkl"), "rb") as f:
-            profile = pickle.load(f)
-    except Exception:
-        profile = {}
-    try:
-        with open(os.path.join(account_dir, "messages.pkl"), "rb") as f:
-            messages = pickle.load(f)
-    except Exception:
-        messages = []
+    profile = load_profile(account_dir)
+    messages = load_messages(account_dir)
     wellness = load_wellness(account_dir)
     return {"profile": profile, "messages": messages, "wellness": ensure_wellness_schema(wellness)}
 
 
 def save_account_bundle(username, profile, messages, wellness):
     account_dir = user_dir(username)
-    with open(os.path.join(account_dir, "profile.pkl"), "wb") as f:
-        pickle.dump(profile, f)
-    with open(os.path.join(account_dir, "messages.pkl"), "wb") as f:
-        pickle.dump(messages, f)
+    atomic_write_json(profile_json_path(account_dir), normalize_profile(profile))
+    atomic_write_json(messages_json_path(account_dir), normalize_messages(messages))
     save_wellness(account_dir, wellness)
 
 
@@ -313,12 +381,7 @@ def client_accounts_for(therapist_username):
             continue
         metadata = load_user_metadata(account_name)
         if metadata.get("role") == "client" and metadata.get("therapist_username") == therapist_username:
-            profile_path = os.path.join(user_dir(account_name), "profile.pkl")
-            try:
-                with open(profile_path, "rb") as f:
-                    profile = pickle.load(f)
-            except Exception:
-                profile = {}
+            profile = load_account_bundle(account_name)["profile"]
             clients.append({
                 "username": account_name,
                 "nome": profile.get("nome", account_name),
