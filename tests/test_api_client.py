@@ -77,6 +77,37 @@ class PsyHelperAPIClientTest(unittest.TestCase):
 
         self.assertEqual(session.request.call_args.kwargs["headers"]["X-Username"], "giulia")
 
+    def test_chat_message_success_flow_and_response_parsing(self):
+        payload = {"username": "giulia", "content": "Risposta API"}
+        client, session = self.make_client(FakeResponse(payload=payload))
+
+        response = client.chat_message(
+            "giulia",
+            "Sono in ansia",
+            {"nome": "Giulia"},
+            {"mood_entries": []},
+        )
+
+        self.assertEqual(response, payload)
+        session.request.assert_called_once_with(
+            "POST",
+            "http://api.local/chat/messages",
+            json={
+                "username": "giulia",
+                "user_input": "Sono in ansia",
+                "profile": {"nome": "Giulia"},
+                "wellness": {"mood_entries": []},
+            },
+            headers={"Accept": "application/json", "X-Username": "giulia"},
+            timeout=2.5,
+        )
+
+    def test_chat_message_parsing_rejects_invalid_response(self):
+        client, _session = self.make_client(FakeResponse(payload={"username": "giulia"}))
+
+        with self.assertRaises(APIResponseValidationError):
+            client.chat_message("giulia", "Ciao", {}, {})
+
     def test_get_wellness_returns_compatible_wellness_shape(self):
         wellness = {"mood_entries": [{"data": "2026-05-18", "ansia": 4}], "metadata": {}}
         client, _session = self.make_client(FakeResponse(payload={"username": "giulia", "wellness": wellness}))
@@ -116,6 +147,12 @@ class PsyHelperAPIClientTest(unittest.TestCase):
         )
         with self.assertRaises(APIHTTPError):
             client_422.create_mood_entry("giulia", {})
+
+        client_403, _session_403 = self.make_client(
+            FakeResponse(status_code=403, payload={"error": {"message": "Forbidden"}})
+        )
+        with self.assertRaises(APIUnauthorizedError):
+            client_403.chat_message("giulia", "Ciao", {}, {})
 
     def test_timeout_handling(self):
         client, _session = self.make_client(side_effect=requests.Timeout("slow"))
