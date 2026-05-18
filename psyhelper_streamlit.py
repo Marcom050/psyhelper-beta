@@ -3,12 +3,7 @@ from datetime import date, datetime
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnableWithMessageHistory
-from langchain_groq import ChatGroq
-
-from services.llm_prompt_service import build_llm_system_prompt
+from services.chat_service import ChatContext, get_response as get_chat_response
 from services.clinical_analysis_service import (
     build_timeline_events,
     clinical_snapshot,
@@ -127,8 +122,6 @@ if not GROQ_API_KEY:
     st.error("⚠️ API Key non configurata!")
     st.stop()
 
-llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.50, api_key=GROQ_API_KEY)
-
 
 MOOD_OPTIONS = ["Sereno", "Ansioso", "Triste", "Irritabile", "Sovraccarico", "Speranzoso", "Altro"]
 SENSATION_OPTIONS = [
@@ -213,20 +206,17 @@ def save_user_data(username):
 
 
 def get_response(user_input):
-    profile = st.session_state.get("profile", {})
-    wellness = st.session_state.get("wellness", default_wellness_data())
-    system_prompt = build_llm_system_prompt(profile, wellness, COPYRIGHT_POLICY)
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        MessagesPlaceholder(variable_name="history"),
-        ("human", "{input}"),
-    ])
-
-    chain = prompt | llm
-    chain_with_history = RunnableWithMessageHistory(chain, lambda x: ChatMessageHistory(), input_messages_key="input", history_messages_key="history")
-    response = chain_with_history.invoke({"input": user_input}, config={"configurable": {"session_id": "psyhelper_user"}})
-    return response.content
+    context = ChatContext(
+        profile=st.session_state.get("profile", {}),
+        wellness=st.session_state.get("wellness", default_wellness_data()),
+        username=st.session_state.get("username", ""),
+        user_input=user_input,
+    )
+    return get_chat_response(
+        context,
+        api_key=GROQ_API_KEY,
+        copyright_policy=COPYRIGHT_POLICY,
+    ).content
 
 
 def entries_dataframe():
