@@ -10,6 +10,25 @@ from services.clinical_analysis_service import (
     most_common_values,
     weekly_recap,
 )
+from services.homework_service import (
+    CBT_HOMEWORK_TEMPLATES,
+    append_assignment,
+    append_submission,
+    assignment_status,
+    clean_text,
+    completed_assignment_ids,
+    create_assignment,
+    create_submission,
+    get_assigned_homework,
+    get_open_assignments,
+    get_submitted_homework,
+    homework_answer_items,
+    homework_assignment_rows,
+    homework_main_prompt,
+    homework_readable_summary,
+    homework_template_label,
+    submitted_homework_rows,
+)
 from services.auth_service import (
     client_accounts_for,
     create_client_account,
@@ -134,40 +153,6 @@ SENSATION_OPTIONS = [
     "Testa pesante",
     "Calore/freddo",
 ]
-CBT_HOMEWORK_TEMPLATES = {
-    "Respiro 3 minuti": {
-        "obiettivo": "Ridurre l'attivazione fisica dell'ansia con una pausa breve e ripetibile.",
-        "campi": ["Fallo una volta. Ansia prima/dopo 0-10 e una parola su com'è andata."],
-        "suggerimento": "Adatto per ansia, tensione e momenti di blocco.",
-    },
-    "Pensiero più realistico": {
-        "obiettivo": "Allenare una risposta più equilibrata a un pensiero ansioso o insicuro.",
-        "campi": ["Scrivi: pensiero difficile + risposta più realistica."],
-        "suggerimento": "Utile per ruminazione, catastrofismo e autocritica.",
-    },
-    "Piccolo passo evitato": {
-        "obiettivo": "Ridurre l'evitamento con un'azione piccola, sicura e concreta.",
-        "campi": ["Fai un passo di 5 minuti che stavi evitando. Scrivi quale."],
-        "suggerimento": "Utile quando ansia o insicurezza portano a rimandare.",
-    },
-    "Tempo per le preoccupazioni": {
-        "obiettivo": "Contenere i pensieri ripetitivi dando loro uno spazio limitato.",
-        "campi": ["Dedica 10 minuti alle preoccupazioni. Scrivi solo le 2 principali."],
-        "suggerimento": "Utile per sovrappensieri, stress e rimuginio serale.",
-    },
-    "Azione di cura": {
-        "obiettivo": "Inserire un gesto semplice che sostenga energia, calma o autostima.",
-        "campi": ["Fai una cosa gentile per te. Scrivi cosa e umore dopo 0-10."],
-        "suggerimento": "Utile per stress, stanchezza e svalutazione di sé.",
-    },
-    "Nota per la seduta": {
-        "obiettivo": "Tenere traccia di un punto importante da portare in colloquio.",
-        "campi": ["Scrivi una cosa importante da ricordare in seduta."],
-        "suggerimento": "Da usare quando serve una nota libera e breve.",
-    },
-}
-
-
 def scroll_to_top():
     st.html(
         """
@@ -228,58 +213,6 @@ def entries_dataframe():
     return df.sort_values("data")
 
 
-def clean_text(value):
-    return str(value or "").strip()
-
-
-def homework_questions_for(template_name, assignment=None):
-    assignment = assignment or {}
-    custom_questions = [clean_text(question) for question in assignment.get("questions", [])]
-    custom_questions = [question for question in custom_questions if question]
-    if custom_questions:
-        return custom_questions
-    template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
-    return template.get("campi", ["Scrivi qui la tua risposta"])
-
-
-def homework_main_prompt(template_name, assignment=None):
-    questions = homework_questions_for(template_name, assignment)
-    return questions[0] if questions else "Scrivi qui la tua risposta"
-
-
-def homework_answer_items(answers):
-    if isinstance(answers, dict):
-        return [(clean_text(question), clean_text(answer)) for question, answer in answers.items() if clean_text(answer)]
-    if isinstance(answers, list):
-        return [(f"Risposta {index}", clean_text(answer)) for index, answer in enumerate(answers, start=1) if clean_text(answer)]
-    answer = clean_text(answers)
-    return [("Risposta", answer)] if answer else []
-
-
-def homework_readable_summary(submission, max_chars=180):
-    summary = clean_text(submission.get("summary"))
-    answer_items = homework_answer_items(submission.get("answers", {}))
-    readable = summary or (" · ".join(answer for _, answer in answer_items[:2]) if answer_items else "Nessuna risposta inserita.")
-    return readable if len(readable) <= max_chars else f"{readable[:max_chars].rstrip()}…"
-
-
-def homework_template_label(template_name):
-    return template_name
-
-
-def assignment_status(assignment, completed_ids):
-    if assignment.get("id") in completed_ids or assignment.get("status") == "completato":
-        return "Completato"
-    due = clean_text(assignment.get("due_date"))
-    if due:
-        try:
-            if date.fromisoformat(due) < date.today():
-                return "Scaduto"
-        except ValueError:
-            pass
-    return "Da completare"
-
-
 def render_homework_answers(submission):
     answer_items = homework_answer_items(submission.get("answers", {}))
     if not answer_items:
@@ -288,20 +221,6 @@ def render_homework_answers(submission):
     for question, answer in answer_items:
         st.markdown(f"**{question}**")
         st.write(answer)
-
-
-def homework_assignment_rows(assignments, completed_ids):
-    rows = []
-    for assignment in assignments:
-        rows.append({
-            "homework": assignment.get("template", "Homework"),
-            "scadenza": assignment.get("due_date", "—"),
-            "stato": assignment_status(assignment, completed_ids),
-            "consegna": homework_main_prompt(assignment.get("template", "Homework"), assignment),
-        })
-    return rows
-
-
 def show_chat_tab():
     st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
 
@@ -410,10 +329,10 @@ def show_homework_tab():
     )
     ensure_wellness_schema(st.session_state.wellness)
 
-    assignments = st.session_state.wellness["homework_assignments"]
-    submissions = st.session_state.wellness["homework_submissions"]
-    completed_ids = {submission.get("assignment_id") for submission in submissions}
-    open_assignments = [assignment for assignment in assignments if assignment.get("id") not in completed_ids]
+    assignments = get_assigned_homework(st.session_state.wellness)
+    submissions = get_submitted_homework(st.session_state.wellness)
+    completed_ids = completed_assignment_ids(submissions)
+    open_assignments = get_open_assignments(assignments, submissions)
 
     if open_assignments:
         st.markdown("### Da completare")
@@ -438,13 +357,10 @@ def show_homework_tab():
                 placeholder="Scrivi una risposta breve.",
             )
             if st.form_submit_button("Invia al terapeuta", use_container_width=True):
-                submissions.append({
-                    "assignment_id": selected_assignment.get("id"),
-                    "template": template_name,
-                    "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
-                    "answers": {prompt: answer},
-                    "summary": homework_readable_summary({"answers": {prompt: answer}}, max_chars=140),
-                })
+                append_submission(
+                    st.session_state.wellness,
+                    create_submission(selected_assignment.get("id"), template_name, prompt, answer),
+                )
                 save_user_data(st.session_state.username)
                 st.success("Homework inviato. Il terapeuta vedrà solo la sintesi e la risposta essenziale.")
                 st.rerun()
@@ -468,26 +384,16 @@ def show_homework_tab():
                 placeholder="Scrivi una risposta breve.",
             )
             if st.form_submit_button("Salva per la seduta", use_container_width=True):
-                submissions.append({
-                    "assignment_id": None,
-                    "template": selected,
-                    "submitted_at": datetime.utcnow().isoformat(timespec="seconds"),
-                    "answers": {prompt: answer},
-                    "summary": homework_readable_summary({"answers": {prompt: answer}}, max_chars=140),
-                })
+                append_submission(
+                    st.session_state.wellness,
+                    create_submission(None, selected, prompt, answer),
+                )
                 save_user_data(st.session_state.username)
                 st.success("Check-in salvato.")
 
     if submissions:
         with st.expander("Storico essenziale homework e note"):
-            rows = [
-                {
-                    "data": item.get("submitted_at"),
-                    "homework": item.get("template"),
-                    "sintesi": homework_readable_summary(item),
-                }
-                for item in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True)
-            ]
+            rows = submitted_homework_rows(submissions, display_defaults=False)
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 def show_report_tab():
@@ -739,9 +645,9 @@ def show_therapist_dashboard():
     with detail_tabs[2]:
         st.markdown("### Homework CBT qualità di vita")
         st.caption("Assegna un compito essenziale: modello, scadenza e una consegna già pronta. Il controllo mostra subito stato e sintesi.")
-        assignments = selected_wellness.get("homework_assignments", [])
-        submissions = selected_wellness.get("homework_submissions", [])
-        completed_ids = {submission.get("assignment_id") for submission in submissions}
+        assignments = get_assigned_homework(selected_wellness)
+        submissions = get_submitted_homework(selected_wellness)
+        completed_ids = completed_assignment_ids(submissions)
 
         assign_col, monitor_col = st.columns([1, 1])
         with assign_col:
@@ -763,17 +669,8 @@ def show_therapist_dashboard():
                     placeholder="Mantieni una sola traccia: il paziente risponderà in un unico spazio.",
                 )
                 if st.form_submit_button("Assegna", use_container_width=True):
-                    final_prompt = clean_text(prompt) or homework_main_prompt(template_name)
-                    selected_wellness["homework_assignments"].append({
-                        "id": f"hw_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
-                        "template": template_name,
-                        "objective": template["obiettivo"],
-                        "instructions": clean_text(template.get("suggerimento")),
-                        "questions": [final_prompt],
-                        "due_date": due_date.isoformat(),
-                        "assigned_at": datetime.utcnow().isoformat(timespec="seconds"),
-                        "assigned_by": username,
-                    })
+                    assignment = create_assignment(template_name, due_date, username, prompt=prompt)
+                    append_assignment(selected_wellness, assignment)
                     save_wellness_for(selected_username, selected_wellness)
                     st.success("Homework assegnato.")
                     st.rerun()
@@ -787,14 +684,7 @@ def show_therapist_dashboard():
 
         if submissions:
             st.markdown("#### Ultime risposte")
-            response_rows = [
-                {
-                    "data": submission.get("submitted_at", "—"),
-                    "homework": submission.get("template", "Homework"),
-                    "sintesi": homework_readable_summary(submission),
-                }
-                for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True)
-            ]
+            response_rows = submitted_homework_rows(submissions)
             st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
             with st.expander("Apri risposte complete", expanded=False):
                 for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
