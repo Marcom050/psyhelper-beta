@@ -14,22 +14,24 @@ from database.account_repository import (
     user_exists,
     verify_password,
 )
-from database.filesystem_account_repository import FilesystemAccountRepository
-from database.filesystem_notes_repository import FilesystemNotesRepository
-from database.filesystem_wellness_repository import FilesystemWellnessRepository
+from database.repository_factory import (
+    get_account_repository,
+    get_notes_repository,
+    get_wellness_repository,
+)
 from database.wellness_repository import default_wellness_data, ensure_wellness_schema
 
 
 def _account_repository(repository=None):
-    return repository or FilesystemAccountRepository()
+    return repository or get_account_repository()
 
 
 def _notes_repository(repository=None):
-    return repository or FilesystemNotesRepository()
+    return repository or get_notes_repository()
 
 
 def _wellness_repository(repository=None):
-    return repository or FilesystemWellnessRepository()
+    return repository or get_wellness_repository()
 
 
 def load_account_bundle(username, repository=None):
