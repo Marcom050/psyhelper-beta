@@ -18,6 +18,12 @@ from pydantic import BaseModel, ValidationError
 import requests
 
 from api.schemas.auth import AuthResponse, UserResponse
+from api.schemas.homework import (
+    HomeworkAssignmentResponse,
+    HomeworkResponse,
+    HomeworkSubmissionResponse,
+)
+from api.schemas.reports import ClinicalReportResponse, WeeklyRecapResponse
 from api.schemas.wellness import MoodEntryResponse, WellnessResponse
 from clients.exceptions import (
     APIConnectionError,
@@ -128,6 +134,53 @@ class PsyHelperAPIClient:
             response_model=MoodEntryResponse,
         )
         return response
+
+    def get_homework(self, username: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        return self._request(
+            "GET",
+            f"/clients/{safe_username}/homework",
+            username=username,
+            response_model=HomeworkResponse,
+        )
+
+    def create_homework_assignment(self, username: str, assignment: dict[str, Any]) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        return self._request(
+            "POST",
+            f"/clients/{safe_username}/homework-assignments",
+            username=username,
+            json=assignment,
+            response_model=HomeworkAssignmentResponse,
+        )
+
+    def create_homework_submission(self, username: str, submission: dict[str, Any]) -> dict[str, Any]:
+        payload = {**submission, "username": username}
+        return self._request(
+            "POST",
+            "/homework-submissions",
+            username=username,
+            json=payload,
+            response_model=HomeworkSubmissionResponse,
+        )
+
+    def get_weekly_recap(self, username: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        return self._request(
+            "GET",
+            f"/clients/{safe_username}/weekly-recap",
+            username=username,
+            response_model=WeeklyRecapResponse,
+        )
+
+    def get_clinical_report(self, username: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        return self._request(
+            "GET",
+            f"/clients/{safe_username}/clinical-report",
+            username=username,
+            response_model=ClinicalReportResponse,
+        )
 
     def _request(
         self,

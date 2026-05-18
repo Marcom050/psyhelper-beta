@@ -223,6 +223,92 @@ def save_user_data(username):
     session_adapter.persist_user_session(username)
 
 
+def replace_wellness(current_wellness, updated_wellness):
+    current_wellness.clear()
+    current_wellness.update(updated_wellness)
+
+
+def homework_for(username, wellness):
+    if not use_http_api():
+        return get_assigned_homework(wellness), get_submitted_homework(wellness)
+    try:
+        payload = api_client().get_homework(username)
+    except APIClientError as error:
+        show_api_error(error)
+        return get_assigned_homework(wellness), get_submitted_homework(wellness)
+    return payload["assignments"], payload["submissions"]
+
+
+def save_homework_submission_for(username, wellness, assignment_id, template, prompt, answer):
+    if not use_http_api():
+        append_submission(wellness, create_submission(assignment_id, template, prompt, answer))
+        save_user_data(username)
+        return True
+    try:
+        response = api_client().create_homework_submission(
+            username,
+            {
+                "assignment_id": assignment_id,
+                "template": template,
+                "prompt": prompt,
+                "answer": answer,
+            },
+        )
+    except APIClientError as error:
+        show_api_error(error)
+        return False
+    session_adapter.set_wellness(response["wellness"])
+    return True
+
+
+def assign_homework_for(client_username, therapist_username, wellness, template_name, due_date, prompt):
+    if not use_http_api():
+        assignment = create_assignment(template_name, due_date, therapist_username, prompt=prompt)
+        append_assignment(wellness, assignment)
+        save_wellness_for(client_username, wellness)
+        return True
+    try:
+        response = api_client().create_homework_assignment(
+            client_username,
+            {
+                "template": template_name,
+                "due_date": due_date.isoformat() if hasattr(due_date, "isoformat") else str(due_date),
+                "assigned_by": therapist_username,
+                "prompt": prompt,
+            },
+        )
+    except APIClientError as error:
+        show_api_error(error)
+        return False
+    replace_wellness(wellness, response["wellness"])
+    return True
+
+
+def clinical_report_for(username, wellness, messages):
+    if not use_http_api():
+        return clinical_snapshot(wellness, messages)
+    try:
+        report = api_client().get_clinical_report(username)["report"]
+    except APIClientError as error:
+        show_api_error(error)
+        return clinical_snapshot(wellness, messages)
+    report["scope_df"] = mood_entries_dataframe(wellness)
+    return report
+
+
+def weekly_recap_payload_for(username, report):
+    if not use_http_api():
+        recap = weekly_recap(report)
+        return {"display_text": recap.to_text(bullet_prefix="- "), "download_text": recap.to_text()}
+    try:
+        payload = api_client().get_weekly_recap(username)
+    except APIClientError as error:
+        show_api_error(error)
+        recap = weekly_recap(report)
+        return {"display_text": recap.to_text(bullet_prefix="- "), "download_text": recap.to_text()}
+    return {"display_text": payload["text"], "download_text": "\n".join(payload["items"])}
+
+
 def get_response(user_input):
     context = ChatContext(
         profile=session_adapter.get_profile(),
@@ -365,8 +451,7 @@ def show_homework_tab():
     )
     ensure_wellness_schema(session_adapter.get_wellness())
 
-    assignments = get_assigned_homework(session_adapter.get_wellness())
-    submissions = get_submitted_homework(session_adapter.get_wellness())
+    assignments, submissions = homework_for(session_adapter.get_username(), session_adapter.get_wellness())
     completed_ids = completed_assignment_ids(submissions)
     open_assignments = get_open_assignments(assignments, submissions)
 
@@ -393,13 +478,16 @@ def show_homework_tab():
                 placeholder="Scrivi una risposta breve.",
             )
             if st.form_submit_button("Invia al terapeuta", use_container_width=True):
-                append_submission(
+                if save_homework_submission_for(
+                    session_adapter.get_username(),
                     session_adapter.get_wellness(),
-                    create_submission(selected_assignment.get("id"), template_name, prompt, answer),
-                )
-                save_user_data(session_adapter.get_username())
-                st.success("Homework inviato. Il terapeuta vedrà solo la sintesi e la risposta essenziale.")
-                st.rerun()
+                    selected_assignment.get("id"),
+                    template_name,
+                    prompt,
+                    answer,
+                ):
+                    st.success("Homework inviato. Il terapeuta vedrà solo la sintesi e la risposta essenziale.")
+                    st.rerun()
     else:
         st.info("Non ci sono homework assegnati aperti. Puoi comunque salvare un check-in breve da portare in seduta.")
 
@@ -420,12 +508,15 @@ def show_homework_tab():
                 placeholder="Scrivi una risposta breve.",
             )
             if st.form_submit_button("Salva per la seduta", use_container_width=True):
-                append_submission(
+                if save_homework_submission_for(
+                    session_adapter.get_username(),
                     session_adapter.get_wellness(),
-                    create_submission(None, selected, prompt, answer),
-                )
-                save_user_data(session_adapter.get_username())
-                st.success("Check-in salvato.")
+                    None,
+                    selected,
+                    prompt,
+                    answer,
+                ):
+                    st.success("Check-in salvato.")
 
     if submissions:
         with st.expander("Storico essenziale homework e note"):
@@ -434,16 +525,17 @@ def show_homework_tab():
 
 def show_report_tab():
     st.subheader("📋 Resoconto per colloqui psicologici")
-    report = clinical_snapshot(session_adapter.get_wellness(), session_adapter.get_messages())
-    if report.scope_df.empty:
+    report = clinical_report_for(session_adapter.get_username(), session_adapter.get_wellness(), session_adapter.get_messages())
+    report_scope_df = report["scope_df"]
+    if report_scope_df.empty:
         st.info("Quando avrai salvato alcune schede, qui comparirà un resoconto sintetico esportabile.")
         return
 
-    st.text_area("Resoconto sintetico", value=report.export_text, height=360)
-    st.download_button("Scarica resoconto .txt", data=report.export_text, file_name="resoconto_psyhelper.txt", mime="text/plain", use_container_width=True)
+    st.text_area("Resoconto sintetico", value=report["export_text"], height=360)
+    st.download_button("Scarica resoconto .txt", data=report["export_text"], file_name="resoconto_psyhelper.txt", mime="text/plain", use_container_width=True)
 
     with st.expander("Vedi schede dettagliate"):
-        st.dataframe(report.scope_df.sort_values("data", ascending=False), use_container_width=True)
+        st.dataframe(report_scope_df.sort_values("data", ascending=False), use_container_width=True)
 
 
 def show_subscription_required(account_label, therapist_username=None):
@@ -576,7 +668,7 @@ def show_therapist_dashboard():
     for client in clients:
         bundle = load_account_bundle(client["username"])
         bundles[client["username"]] = bundle
-        snapshot = clinical_snapshot(bundle["wellness"], bundle["messages"])
+        snapshot = clinical_report_for(client["username"], bundle["wellness"], bundle["messages"])
         snapshots[client["username"]] = snapshot
         overview_rows.append({
             "paziente": client["nome"],
@@ -597,7 +689,7 @@ def show_therapist_dashboard():
     selected_bundle = bundles[selected_username]
     selected_profile = selected_bundle["profile"]
     selected_wellness = selected_bundle["wellness"]
-    selected_snapshot = clinical_snapshot(selected_wellness, selected_bundle["messages"])
+    selected_snapshot = clinical_report_for(selected_username, selected_wellness, selected_bundle["messages"])
 
     selected_patient_name = selected_profile.get("nome", selected_username)
     selector_col, active_col = st.columns([1, 3], gap="large")
@@ -652,8 +744,7 @@ def show_therapist_dashboard():
     with detail_tabs[2]:
         st.markdown("### Homework CBT qualità di vita")
         st.caption("Assegna un compito essenziale: modello, scadenza e una consegna già pronta. Il controllo mostra subito stato e sintesi.")
-        assignments = get_assigned_homework(selected_wellness)
-        submissions = get_submitted_homework(selected_wellness)
+        assignments, submissions = homework_for(selected_username, selected_wellness)
         completed_ids = completed_assignment_ids(submissions)
 
         assign_col, monitor_col = st.columns([1, 1])
@@ -676,11 +767,9 @@ def show_therapist_dashboard():
                     placeholder="Mantieni una sola traccia: il paziente risponderà in un unico spazio.",
                 )
                 if st.form_submit_button("Assegna", use_container_width=True):
-                    assignment = create_assignment(template_name, due_date, username, prompt=prompt)
-                    append_assignment(selected_wellness, assignment)
-                    save_wellness_for(selected_username, selected_wellness)
-                    st.success("Homework assegnato.")
-                    st.rerun()
+                    if assign_homework_for(selected_username, username, selected_wellness, template_name, due_date, prompt):
+                        st.success("Homework assegnato.")
+                        st.rerun()
 
         with monitor_col:
             st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
@@ -735,11 +824,11 @@ def show_therapist_dashboard():
 
     with detail_tabs[5]:
         st.markdown("### Riassunto automatico pre-seduta")
-        recap = weekly_recap(selected_snapshot)
-        st.text_area("Ultimi 14 giorni", value=recap.to_text(bullet_prefix="- "), height=260)
+        recap_payload = weekly_recap_payload_for(selected_username, selected_snapshot)
+        st.text_area("Ultimi 14 giorni", value=recap_payload["display_text"], height=260)
         st.download_button(
             "Scarica recap .txt",
-            data=recap.to_text(),
+            data=recap_payload["download_text"],
             file_name=f"recap_{selected_username}.txt",
             mime="text/plain",
             use_container_width=True,
