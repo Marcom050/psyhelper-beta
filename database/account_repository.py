@@ -13,6 +13,12 @@ from datetime import datetime
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError, VerificationError
 
+from database.json_storage import (
+    atomic_write_json,
+    json_path_for,
+    load_json_file,
+    validate_json_safe,
+)
 from database.wellness_repository import (
     default_wellness_data,
     ensure_wellness_schema,
@@ -89,32 +95,81 @@ def default_user_metadata(role="client", therapist_username=None, subscription_s
     }
 
 
+def metadata_path(account_dir):
+    return os.path.join(account_dir, "metadata.pkl")
+
+
+def metadata_json_path(account_dir):
+    return json_path_for(metadata_path(account_dir))
+
+
+def _is_iso_string_or_none(value):
+    if value is None:
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def normalize_user_metadata(metadata):
+    defaults = default_user_metadata()
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    normalized = {**defaults, **metadata}
+    if not isinstance(normalized.get("role"), str):
+        normalized["role"] = defaults["role"]
+    if not (isinstance(normalized.get("therapist_username"), str) or normalized.get("therapist_username") is None):
+        normalized["therapist_username"] = defaults["therapist_username"]
+    if not isinstance(normalized.get("subscription_status"), str):
+        normalized["subscription_status"] = defaults["subscription_status"]
+    if not (isinstance(normalized.get("email"), str) or normalized.get("email") is None):
+        normalized["email"] = defaults["email"]
+    if not _is_iso_string_or_none(normalized.get("created_at")):
+        normalized["created_at"] = defaults["created_at"]
+    if not _is_iso_string_or_none(normalized.get("beta_disclaimer_accepted_at")):
+        normalized["beta_disclaimer_accepted_at"] = defaults["beta_disclaimer_accepted_at"]
+
+    return validate_json_safe(normalized)
+
+
 def load_user_metadata(username):
     if not user_exists(username):
         return default_user_metadata(role="therapist", subscription_status="inactive")
 
-    metadata_path = os.path.join(user_dir(username), "metadata.pkl")
-    try:
-        with open(metadata_path, "rb") as f:
-            metadata = pickle.load(f)
-    except Exception:
-        # Compatibilità con account creati prima del modello psicologo/cliente:
-        # li trattiamo come professionisti attivi per non bloccare gli utenti esistenti.
-        metadata = default_user_metadata(role="therapist", subscription_status="active")
+    account_dir = user_dir(username)
+    json_path = metadata_json_path(account_dir)
+    if os.path.exists(json_path):
+        try:
+            return normalize_user_metadata(load_json_file(json_path))
+        except Exception:
+            return default_user_metadata()
 
-    metadata.setdefault("role", "client")
-    metadata.setdefault("therapist_username", None)
-    metadata.setdefault("subscription_status", "inactive")
-    metadata.setdefault("email", "")
-    metadata.setdefault("created_at", datetime.utcnow().isoformat(timespec="seconds"))
-    metadata.setdefault("beta_disclaimer_accepted_at", None)
+    legacy_path = metadata_path(account_dir)
+    if not os.path.exists(legacy_path):
+        return default_user_metadata()
+
+    try:
+        with open(legacy_path, "rb") as f:
+            metadata = pickle.load(f)
+        metadata = normalize_user_metadata(metadata)
+    except Exception:
+        return default_user_metadata()
+
+    try:
+        atomic_write_json(json_path, metadata)
+    except Exception:
+        pass
     return metadata
 
 
 def save_user_metadata(username, metadata):
     os.makedirs(user_dir(username), exist_ok=True)
-    with open(os.path.join(user_dir(username), "metadata.pkl"), "wb") as f:
-        pickle.dump(metadata, f)
+    atomic_write_json(metadata_json_path(user_dir(username)), normalize_user_metadata(metadata))
 
 
 def create_user(
