@@ -6,15 +6,11 @@ repository objects; by default the filesystem repositories use JSON files.
 """
 
 from database.account_repository import (
-    USERS_DIR,
     default_user_metadata,
     hash_password,
     is_valid_email,
     normalize_email,
     normalize_username,
-    therapist_notes_json_path,
-    therapist_notes_path,
-    user_dir,
     user_exists,
     verify_password,
 )
@@ -104,11 +100,10 @@ def save_therapist_notes(therapist_username, notes, repository=None):
 
 
 def save_wellness_for(username, wellness, repository=None):
-    return _wellness_repository(repository).save_wellness(user_dir(username), wellness)
+    return _wellness_repository(repository).save_wellness(username, wellness)
 
 
 __all__ = [
-    "USERS_DIR",
     "client_accounts_for",
     "create_client_account",
     "create_user",
@@ -127,9 +122,6 @@ __all__ = [
     "save_wellness_for",
     "save_therapist_notes",
     "therapist_email_exists",
-    "therapist_notes_json_path",
-    "therapist_notes_path",
-    "user_dir",
     "user_exists",
     "verify_password",
 ]
