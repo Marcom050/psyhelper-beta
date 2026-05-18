@@ -3,6 +3,8 @@ from datetime import date, datetime
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from clients import APIClientConfig, PsyHelperAPIClient
+from clients.exceptions import APIClientError, APIHTTPError, APITimeoutError, APIUnauthorizedError
 from services.chat_service import ChatContext, get_response as get_chat_response
 from services.report_service import (
     build_timeline_events,
@@ -155,6 +157,34 @@ SENSATION_OPTIONS = [
     "Testa pesante",
     "Calore/freddo",
 ]
+
+
+def api_client_config():
+    return APIClientConfig.from_values(
+        base_url=st.secrets.get("API_BASE_URL", None),
+        timeout_seconds=st.secrets.get("API_TIMEOUT_SECONDS", None),
+        use_http_api=st.secrets.get("USE_HTTP_API", None),
+    )
+
+
+def use_http_api():
+    return api_client_config().use_http_api
+
+
+def api_client():
+    return PsyHelperAPIClient(api_client_config())
+
+
+def show_api_error(error):
+    if isinstance(error, APIUnauthorizedError):
+        st.error("Nome utente o password errati")
+    elif isinstance(error, APITimeoutError):
+        st.error("Il backend non risponde. Riprova tra poco o disattiva USE_HTTP_API per il fallback locale.")
+    elif isinstance(error, APIHTTPError) and error.status_code == 404:
+        st.error("Risorsa non trovata nel backend API.")
+    else:
+        st.error("Backend API non raggiungibile. Riprova tra poco o disattiva USE_HTTP_API per il fallback locale.")
+
 def scroll_to_top():
     st.html(
         """
@@ -176,7 +206,17 @@ def has_active_subscription(username):
 
 
 def load_user_data(username):
-    session_adapter.load_user_session(username)
+    if not use_http_api():
+        session_adapter.load_user_session(username)
+        return
+
+    me_payload = api_client().me(username)
+    wellness = api_client().get_wellness(username)
+    local_bundle = load_account_bundle(username)
+    session_adapter.set_user_metadata(me_payload["metadata"])
+    session_adapter.set_profile(me_payload["profile"])
+    session_adapter.set_messages(local_bundle["messages"])
+    session_adapter.set_wellness(wellness)
 
 
 def save_user_data(username):
@@ -265,8 +305,16 @@ def show_diary_tab():
                 "risposta_alternativa": balanced_response,
                 "nota_professionista": note,
             }
-            session_adapter.get_wellness()["mood_entries"].append(entry)
-            save_user_data(session_adapter.get_username())
+            if use_http_api():
+                try:
+                    response = api_client().create_mood_entry(session_adapter.get_username(), entry)
+                    session_adapter.set_wellness(response["wellness"])
+                except APIClientError as error:
+                    show_api_error(error)
+                    return
+            else:
+                session_adapter.get_wellness()["mood_entries"].append(entry)
+                save_user_data(session_adapter.get_username())
             st.success("Scheda salvata. La trovi nel monitoraggio e nel resoconto.")
 
 
@@ -714,6 +762,20 @@ def render_login_form():
         password = st.text_input("Password", type="password")
         if st.form_submit_button("Accedi", use_container_width=True):
             normalized_username = normalize_username(username)
+            if use_http_api():
+                try:
+                    login_payload = api_client().login(normalized_username, password)
+                    session_adapter.set_logged_in(True)
+                    session_adapter.set_username(login_payload["username"])
+                    session_adapter.set_user_metadata(login_payload["metadata"])
+                    session_adapter.set_profile(login_payload["profile"])
+                    session_adapter.set_scroll_to_top(True)
+                    load_user_data(login_payload["username"])
+                    st.rerun()
+                except APIClientError as error:
+                    show_api_error(error)
+                return
+
             if user_exists(normalized_username) and verify_password(normalized_username, password):
                 session_adapter.set_logged_in(True)
                 session_adapter.set_username(normalized_username)
