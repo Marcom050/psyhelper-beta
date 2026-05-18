@@ -2,8 +2,7 @@
 
 The functions in this module deliberately avoid Streamlit dependencies so they can
 be exercised independently from the UI flow. Persistence is delegated to
-repository objects; by default the filesystem repositories preserve the existing
-JSON/pickle storage layout.
+repository objects; by default the filesystem repositories use JSON files.
 """
 
 from database.account_repository import (

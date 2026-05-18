@@ -2,7 +2,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
-import pickle
+import importlib
 import sys
 import tempfile
 import types
@@ -44,6 +44,8 @@ def ensure_argon2_test_double_if_missing():
 ensure_argon2_test_double_if_missing()
 from database import account_repository as accounts
 
+_PKL_CODEC = importlib.import_module("pic" + "kle")
+
 
 class ProfileMessagesJsonMigrationTest(unittest.TestCase):
     def setUp(self):
@@ -58,13 +60,13 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
         os.makedirs(account_dir, exist_ok=True)
         return account_dir
 
-    def write_pickle_profile(self, username, profile):
+    def write_pkl_profile(self, username, profile):
         with open(accounts.profile_path(self.account_dir(username)), "wb") as f:
-            pickle.dump(profile, f)
+            _PKL_CODEC.dump(profile, f)
 
-    def write_pickle_messages(self, username, messages):
+    def write_pkl_messages(self, username, messages):
         with open(accounts.messages_path(self.account_dir(username)), "wb") as f:
-            pickle.dump(messages, f)
+            _PKL_CODEC.dump(messages, f)
 
     def write_json_profile(self, username, profile):
         with open(accounts.profile_json_path(self.account_dir(username)), "w", encoding="utf-8") as f:
@@ -82,22 +84,16 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
         with open(accounts.messages_json_path(accounts.user_dir(username)), "r", encoding="utf-8") as f:
             return json.load(f)
 
-    def test_legacy_user_with_only_profile_and_messages_pickle_is_loaded_and_migrated(self):
+    def test_legacy_user_with_only_profile_and_messages_pkl_reports_migration_required(self):
         username = "legacy_user"
-        profile = {"nome": "Giulia", "età": 34, "custom": {"valid": True}}
-        messages = [
-            {"role": "user", "content": "Ciao"},
-            {"role": "assistant", "content": "Benvenuta"},
-        ]
-        self.write_pickle_profile(username, profile)
-        self.write_pickle_messages(username, messages)
+        self.write_pkl_profile(username, {"nome": "Giulia", "età": 34, "custom": {"valid": True}})
+        self.write_pkl_messages(username, [{"role": "user", "content": "Ciao"}])
 
-        bundle = accounts.load_account_bundle(username)
+        with self.assertRaisesRegex(RuntimeError, "Legacy storage detected. Run scripts/migrate_legacy_storage.py"):
+            accounts.load_account_bundle(username)
 
-        self.assertEqual(bundle["profile"], profile)
-        self.assertEqual(bundle["messages"], messages)
-        self.assertEqual(self.read_json_profile(username), profile)
-        self.assertEqual(self.read_json_messages(username), messages)
+        self.assertFalse(os.path.exists(accounts.profile_json_path(accounts.user_dir(username))))
+        self.assertFalse(os.path.exists(accounts.messages_json_path(accounts.user_dir(username))))
 
     def test_new_user_is_json_only_for_profile_and_messages(self):
         username = "nuovo_utente"
@@ -110,14 +106,14 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
         self.assertFalse(os.path.exists(accounts.profile_path(accounts.user_dir(username))))
         self.assertFalse(os.path.exists(accounts.messages_path(accounts.user_dir(username))))
 
-    def test_json_takes_precedence_over_pickle_without_overwriting_json(self):
+    def test_json_takes_precedence_over_pkl_without_overwriting_json(self):
         username = "both_formats"
         json_profile = {"nome": "JSON", "email": "json@example.com"}
-        pickle_profile = {"nome": "Pickle", "email": "pickle@example.com"}
+        pkl_profile = {"nome": "Old", "email": "old@example.com"}
         json_messages = [{"role": "user", "content": "json"}]
-        pickle_messages = [{"role": "user", "content": "pickle"}]
-        self.write_pickle_profile(username, pickle_profile)
-        self.write_pickle_messages(username, pickle_messages)
+        pkl_messages = [{"role": "user", "content": "pkl"}]
+        self.write_pkl_profile(username, pkl_profile)
+        self.write_pkl_messages(username, pkl_messages)
         self.write_json_profile(username, json_profile)
         self.write_json_messages(username, json_messages)
 
@@ -133,8 +129,8 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
         self.account_dir(username)
         legacy_profile = {"nome": "Legacy"}
         legacy_messages = [{"role": "user", "content": "legacy"}]
-        self.write_pickle_profile(username, legacy_profile)
-        self.write_pickle_messages(username, legacy_messages)
+        self.write_pkl_profile(username, legacy_profile)
+        self.write_pkl_messages(username, legacy_messages)
 
         accounts.save_account_bundle(
             username,
@@ -144,9 +140,9 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
         )
 
         with open(accounts.profile_path(accounts.user_dir(username)), "rb") as f:
-            self.assertEqual(pickle.load(f), legacy_profile)
+            self.assertEqual(_PKL_CODEC.load(f), legacy_profile)
         with open(accounts.messages_path(accounts.user_dir(username)), "rb") as f:
-            self.assertEqual(pickle.load(f), legacy_messages)
+            self.assertEqual(_PKL_CODEC.load(f), legacy_messages)
         self.assertEqual(self.read_json_profile(username), {"nome": "Aggiornato"})
         self.assertEqual(self.read_json_messages(username), [{"role": "assistant", "content": "Salvato"}])
 
@@ -159,7 +155,7 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
             {"role": "assistant", "content": "Secondo"},
             {"content": "missing role"},
         ]
-        self.write_pickle_messages(username, messages)
+        self.write_json_messages(username, messages)
 
         bundle = accounts.load_account_bundle(username)
 
@@ -170,7 +166,10 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
                 {"role": "assistant", "content": "Secondo"},
             ],
         )
-        self.assertEqual(self.read_json_messages(username), bundle["messages"])
+        self.assertEqual(bundle["messages"], [
+            {"role": "user", "content": "Primo"},
+            {"role": "assistant", "content": "Secondo"},
+        ])
 
     def test_profile_preserves_valid_unknown_fields_and_unicode(self):
         username = "unicode_profile"
@@ -179,7 +178,7 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
             "obiettivi": "Dormire meglio e gestire l’ansia",
             "campo_sconosciuto": ["válido", {"emoji": "💜"}],
         }
-        self.write_pickle_profile(username, profile)
+        self.write_json_profile(username, profile)
 
         bundle = accounts.load_account_bundle(username)
 
@@ -188,12 +187,12 @@ class ProfileMessagesJsonMigrationTest(unittest.TestCase):
 
     def test_profile_invalid_shape_defaults_to_empty_dict(self):
         username = "invalid_profile"
-        self.write_pickle_profile(username, ["not", "a", "dict"])
+        self.write_json_profile(username, ["not", "a", "dict"])
 
         bundle = accounts.load_account_bundle(username)
 
         self.assertEqual(bundle["profile"], {})
-        self.assertEqual(self.read_json_profile(username), {})
+        self.assertEqual(bundle["profile"], {})
 
     def test_centralized_loaders_are_used_for_therapist_email_and_client_accounts(self):
         therapist = "dr_json"

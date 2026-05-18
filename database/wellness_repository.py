@@ -1,15 +1,9 @@
-"""Wellness persistence helpers for PsyHelper.
-
-This module migrates wellness storage from legacy pickle files to JSON while
-separating wellness-specific data access from Streamlit and service-layer code.
-"""
+"""Wellness JSON persistence helpers for PsyHelper."""
 
 import os
-import pickle
 
 from database.json_storage import (
     atomic_write_json,
-    json_path_for,
     load_json_file,
     validate_json_safe,
 )
@@ -29,7 +23,7 @@ def ensure_wellness_schema(wellness):
     wellness.setdefault("homework_assignments", [])
     wellness.setdefault("homework_submissions", [])
     wellness.setdefault("timeline_events", [])
-    # Migrazione: la vecchia app salvava log mindfulness; non viene più mostrato nel prodotto clinico.
+    # Older exports may include mindfulness logs; they are no longer shown in the clinical product.
     wellness.pop("mindfulness_log", None)
     return wellness
 
@@ -39,7 +33,7 @@ def wellness_path(account_dir):
 
 
 def wellness_json_path(account_dir):
-    return json_path_for(wellness_path(account_dir))
+    return os.path.join(account_dir, "wellness.json")
 
 
 def normalize_wellness_data(wellness):
@@ -57,22 +51,9 @@ def load_wellness(account_dir):
         except Exception:
             return default_wellness_data()
 
-    try:
-        with open(wellness_path(account_dir), "rb") as f:
-            wellness = pickle.load(f)
-    except Exception:
-        return default_wellness_data()
-
-    try:
-        wellness = normalize_wellness_data(wellness)
-    except Exception:
-        return default_wellness_data()
-
-    try:
-        atomic_write_json(json_path, wellness)
-    except Exception:
-        pass
-    return wellness
+    if os.path.exists(wellness_path(account_dir)):
+        raise RuntimeError("Legacy storage detected. Run scripts/migrate_legacy_storage.py")
+    return default_wellness_data()
 
 
 def save_wellness(account_dir, wellness):
