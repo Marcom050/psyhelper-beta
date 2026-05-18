@@ -32,11 +32,14 @@ def is_trial_expired(metadata):
     return datetime.utcnow() >= trial_expires_at(metadata.get("created_at"))
 
 
-def is_subscription_active_for(username, active_subscription_statuses):
-    metadata = load_user_metadata(username)
+def is_subscription_active_for(username, active_subscription_statuses, repository=None):
+    metadata = load_user_metadata(username, repository=repository)
     if metadata.get("role") == "client":
         therapist_username = metadata.get("therapist_username")
-        return bool(therapist_username and is_subscription_active_for(therapist_username, active_subscription_statuses))
+        return bool(
+            therapist_username
+            and is_subscription_active_for(therapist_username, active_subscription_statuses, repository=repository)
+        )
 
     subscription_status = metadata.get("subscription_status", "inactive").lower()
     if subscription_status == "trialing":
