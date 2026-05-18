@@ -169,6 +169,103 @@ class PsyHelperAPIClientTest(unittest.TestCase):
         self.assertIn("homework_assignments", payload)
         self.assertIn("timeline_events", payload)
 
+    def test_homework_http_flow_parses_assignments_and_submissions(self):
+        payload = {
+            "username": "giulia",
+            "assignments": [{"id": "hw1", "template": "Nota per la seduta"}],
+            "submissions": [{"assignment_id": "hw1", "template": "Nota per la seduta"}],
+            "statuses": [{"assignment_id": "hw1", "status": "Completato"}],
+        }
+        client, session = self.make_client(FakeResponse(payload=payload))
+
+        response = client.get_homework("giulia")
+
+        self.assertEqual(response, payload)
+        session.request.assert_called_once_with(
+            "GET",
+            "http://api.local/clients/giulia/homework",
+            json=None,
+            headers={"Accept": "application/json", "X-Username": "giulia"},
+            timeout=2.5,
+        )
+
+    def test_homework_assignment_and_submission_posts_preserve_shapes(self):
+        wellness = {"homework_assignments": [{"id": "hw1"}], "homework_submissions": []}
+        assignment_payload = {
+            "username": "giulia",
+            "assignment": {"id": "hw1", "template": "Nota per la seduta"},
+            "wellness": wellness,
+        }
+        client, session = self.make_client(FakeResponse(payload=assignment_payload))
+
+        response = client.create_homework_assignment(
+            "giulia",
+            {"template": "Nota per la seduta", "due_date": "2026-05-20", "assigned_by": "terapeuta"},
+        )
+
+        self.assertEqual(response["wellness"], wellness)
+        self.assertEqual(session.request.call_args.args[:2], ("POST", "http://api.local/clients/giulia/homework-assignments"))
+
+        submission_payload = {
+            "username": "giulia",
+            "submission": {"assignment_id": "hw1", "template": "Nota per la seduta"},
+            "wellness": {"homework_assignments": [{"id": "hw1"}], "homework_submissions": [{"assignment_id": "hw1"}]},
+        }
+        client, session = self.make_client(FakeResponse(payload=submission_payload))
+
+        response = client.create_homework_submission(
+            "giulia",
+            {"assignment_id": "hw1", "template": "Nota per la seduta", "prompt": "Scrivi", "answer": "Ok"},
+        )
+
+        self.assertEqual(response["submission"]["assignment_id"], "hw1")
+        self.assertEqual(session.request.call_args.args[:2], ("POST", "http://api.local/homework-submissions"))
+        self.assertEqual(session.request.call_args.kwargs["json"]["username"], "giulia")
+
+    def test_reports_http_flow_and_response_parsing(self):
+        recap_payload = {
+            "username": "giulia",
+            "items": ["Schede ultime 2 settimane: 1", "Ansia media: 6.0/10"],
+            "text": "- Schede ultime 2 settimane: 1\n- Ansia media: 6.0/10",
+        }
+        client, session = self.make_client(FakeResponse(payload=recap_payload))
+
+        recap = client.get_weekly_recap("giulia")
+
+        self.assertEqual(recap, recap_payload)
+        self.assertEqual(session.request.call_args.args[:2], ("GET", "http://api.local/clients/giulia/weekly-recap"))
+
+        report_payload = {
+            "username": "giulia",
+            "report": {
+                "entries_count": 1,
+                "avg_anxiety": 6.0,
+                "avg_stress": 5.0,
+                "insights": ["Trigger ricorrente: lavoro"],
+                "alerts": [],
+                "homework_total": 1,
+                "homework_completed": 1,
+                "homework_compliance": 100.0,
+                "last_activity": "2026-05-18",
+                "export_text": "RESOCONTO PSYHELPER",
+                "sections": [{"title": "Trigger", "lines": ["- lavoro: 1"]}],
+            },
+        }
+        client, session = self.make_client(FakeResponse(payload=report_payload))
+
+        report = client.get_clinical_report("giulia")
+
+        self.assertEqual(report["report"]["export_text"], "RESOCONTO PSYHELPER")
+        self.assertEqual(session.request.call_args.args[:2], ("GET", "http://api.local/clients/giulia/clinical-report"))
+
+    def test_http_error_handling_for_migrated_homework_and_reports(self):
+        client, _session = self.make_client(FakeResponse(status_code=500, payload={"error": {"message": "boom"}}))
+
+        with self.assertRaises(APIHTTPError):
+            client.get_homework("giulia")
+        with self.assertRaises(APIHTTPError):
+            client.get_weekly_recap("giulia")
+
 
 if __name__ == "__main__":
     unittest.main()

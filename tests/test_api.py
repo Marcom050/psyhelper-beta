@@ -98,6 +98,25 @@ class PsyHelperAPITest(unittest.TestCase):
         self.assertEqual(len(list_response.json()["assignments"]), 1)
         self.assertEqual(list_response.json()["statuses"][0]["status"], "Da completare")
 
+        submission_response = self.client.post(
+            "/homework-submissions",
+            headers={"X-Username": "giulia"},
+            json={
+                "username": "giulia",
+                "assignment_id": create_response.json()["assignment"]["id"],
+                "template": "Nota per la seduta",
+                "prompt": "Scrivi una nota.",
+                "answer": "Porto questa nota in seduta.",
+            },
+        )
+        self.assertEqual(submission_response.status_code, 200, submission_response.text)
+        self.assertEqual(submission_response.json()["submission"]["template"], "Nota per la seduta")
+
+        completed_response = self.client.get("/clients/giulia/homework", headers={"X-Username": "giulia"})
+        self.assertEqual(completed_response.status_code, 200, completed_response.text)
+        self.assertEqual(len(completed_response.json()["submissions"]), 1)
+        self.assertEqual(completed_response.json()["statuses"][0]["status"], "Completato")
+
     def test_report_endpoints(self):
         self.signup()
         self.client.post(
