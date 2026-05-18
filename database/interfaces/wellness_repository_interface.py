@@ -7,9 +7,9 @@ class WellnessRepository(ABC):
     """Persistence boundary for wellness data."""
 
     @abstractmethod
-    def load_wellness(self, account_dir):
-        """Load wellness data from an account directory."""
+    def load_wellness(self, username):
+        """Load wellness data for a logical username."""
 
     @abstractmethod
-    def save_wellness(self, account_dir, wellness):
-        """Persist wellness data in an account directory."""
+    def save_wellness(self, username, wellness):
+        """Persist wellness data for a logical username."""
