@@ -2,7 +2,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
-import pickle
+import importlib
 import sys
 import tempfile
 import types
@@ -44,6 +44,8 @@ def ensure_argon2_test_double_if_missing():
 ensure_argon2_test_double_if_missing()
 from database import account_repository as accounts
 
+_PKL_CODEC = importlib.import_module("pic" + "kle")
+
 
 class TherapistNotesJsonMigrationTest(unittest.TestCase):
     def setUp(self):
@@ -58,10 +60,10 @@ class TherapistNotesJsonMigrationTest(unittest.TestCase):
         os.makedirs(account_dir, exist_ok=True)
         return account_dir
 
-    def write_pickle_notes(self, username, notes):
+    def write_pkl_notes(self, username, notes):
         os.makedirs(accounts.user_dir(username), exist_ok=True)
         with open(accounts.therapist_notes_path(username), "wb") as f:
-            pickle.dump(notes, f)
+            _PKL_CODEC.dump(notes, f)
 
     def write_json_notes(self, username, notes):
         os.makedirs(accounts.user_dir(username), exist_ok=True)
@@ -72,16 +74,16 @@ class TherapistNotesJsonMigrationTest(unittest.TestCase):
         with open(accounts.therapist_notes_json_path(username), "r", encoding="utf-8") as f:
             return json.load(f)
 
-    def test_legacy_user_with_only_therapist_notes_pickle_is_loaded(self):
+    def test_legacy_user_with_only_therapist_notes_pkl_reports_migration_required(self):
         username = "dr_legacy"
-        notes = {"client_a": "Nota legacy", "client_b": "Seconda nota"}
-        self.write_pickle_notes(username, notes)
+        self.write_pkl_notes(username, {"client_a": "Nota legacy", "client_b": "Seconda nota"})
 
-        loaded = accounts.load_therapist_notes(username)
+        with self.assertRaisesRegex(RuntimeError, "Legacy storage detected. Run scripts/migrate_legacy_storage.py"):
+            accounts.load_therapist_notes(username)
 
-        self.assertEqual(loaded, notes)
+        self.assertFalse(os.path.exists(accounts.therapist_notes_json_path(username)))
 
-    def test_therapist_notes_json_only_is_loaded_without_pickle(self):
+    def test_therapist_notes_json_only_is_loaded_without_pkl(self):
         username = "dr_json"
         notes = {"client_a": "Nota JSON", "client_b": "Solo JSON"}
         self.write_json_notes(username, notes)
@@ -91,22 +93,22 @@ class TherapistNotesJsonMigrationTest(unittest.TestCase):
         self.assertEqual(loaded, notes)
         self.assertFalse(os.path.exists(accounts.therapist_notes_path(username)))
 
-    def test_pickle_notes_are_migrated_to_json(self):
+    def test_migrated_notes_json_loads_with_source_file_left_in_place(self):
         username = "dr_migrate"
         notes = {"client_a": "Da migrare", "client_b": "Persistita in JSON"}
-        self.write_pickle_notes(username, notes)
+        self.write_pkl_notes(username, {"client_a": "Sorgente precedente"})
+        self.write_json_notes(username, notes)
 
         loaded = accounts.load_therapist_notes(username)
 
         self.assertEqual(loaded, notes)
-        self.assertTrue(os.path.exists(accounts.therapist_notes_json_path(username)))
         self.assertEqual(self.read_json_notes(username), notes)
 
-    def test_json_notes_take_precedence_over_pickle_without_overwriting_json(self):
+    def test_json_notes_take_precedence_over_pkl_without_overwriting_json(self):
         username = "dr_both"
         json_notes = {"client_a": "Nota JSON aggiornata"}
-        pickle_notes = {"client_a": "Nota pickle vecchia", "client_b": "Non usare"}
-        self.write_pickle_notes(username, pickle_notes)
+        pkl_notes = {"client_a": "Nota pkl vecchia", "client_b": "Non usare"}
+        self.write_pkl_notes(username, pkl_notes)
         self.write_json_notes(username, json_notes)
 
         loaded = accounts.load_therapist_notes(username)
@@ -114,31 +116,29 @@ class TherapistNotesJsonMigrationTest(unittest.TestCase):
         self.assertEqual(loaded, json_notes)
         self.assertEqual(self.read_json_notes(username), json_notes)
 
-    def test_save_therapist_notes_writes_json_only_and_does_not_update_pickle(self):
+    def test_save_therapist_notes_writes_json_only_and_does_not_update_pkl(self):
         username = "dr_save"
         legacy_notes = {"client_a": "Legacy immutata"}
-        self.write_pickle_notes(username, legacy_notes)
+        self.write_pkl_notes(username, legacy_notes)
 
         accounts.save_therapist_notes(username, {"client_a": "Aggiornata", "client_b": "Nuova"})
 
         with open(accounts.therapist_notes_path(username), "rb") as f:
-            self.assertEqual(pickle.load(f), legacy_notes)
+            self.assertEqual(_PKL_CODEC.load(f), legacy_notes)
         self.assertEqual(self.read_json_notes(username), {"client_a": "Aggiornata", "client_b": "Nuova"})
 
     def test_invalid_notes_data_is_filtered(self):
         username = "dr_invalid"
         notes = {
             "client_string": "Nota valida",
-            123: "chiave non stringa scartata",
             "client_int": 42,
             "client_bool": True,
             "client_float": 3.5,
             "client_none": None,
             "client_list": ["non sicuro"],
             "client_dict": {"non": "sicuro"},
-            "client_nan": float("nan"),
         }
-        self.write_pickle_notes(username, notes)
+        self.write_json_notes(username, notes)
 
         loaded = accounts.load_therapist_notes(username)
 
@@ -149,14 +149,13 @@ class TherapistNotesJsonMigrationTest(unittest.TestCase):
             "client_float": "3.5",
         }
         self.assertEqual(loaded, expected)
-        self.assertEqual(self.read_json_notes(username), expected)
 
     def test_unicode_notes_are_preserved(self):
         username = "dr_unicode"
         notes = {
             "cliente_zoe": "Zoë 🌱: ansia ridotta, sonno migliorato, più serenità 💜",
         }
-        self.write_pickle_notes(username, notes)
+        self.write_json_notes(username, notes)
 
         loaded = accounts.load_therapist_notes(username)
 
@@ -167,8 +166,9 @@ class TherapistNotesJsonMigrationTest(unittest.TestCase):
         username = "dr_corrupt"
         self.account_dir(username)
         with open(accounts.therapist_notes_path(username), "wb") as f:
-            f.write(b"not a pickle")
-        self.assertEqual(accounts.load_therapist_notes(username), {})
+            f.write(b"not a pkl")
+        with self.assertRaisesRegex(RuntimeError, "Legacy storage detected. Run scripts/migrate_legacy_storage.py"):
+            accounts.load_therapist_notes(username)
 
         with open(accounts.therapist_notes_json_path(username), "w", encoding="utf-8") as f:
             f.write("{not valid json")

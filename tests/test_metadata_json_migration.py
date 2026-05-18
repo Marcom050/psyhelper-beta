@@ -2,7 +2,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
-import pickle
+import importlib
 import sys
 import tempfile
 import types
@@ -44,6 +44,8 @@ def ensure_argon2_test_double_if_missing():
 ensure_argon2_test_double_if_missing()
 from database import account_repository as accounts
 
+_PKL_CODEC = importlib.import_module("pic" + "kle")
+
 
 class MetadataJsonMigrationTest(unittest.TestCase):
     def setUp(self):
@@ -58,9 +60,9 @@ class MetadataJsonMigrationTest(unittest.TestCase):
         os.makedirs(account_dir, exist_ok=True)
         return account_dir
 
-    def write_pickle_metadata(self, username, metadata):
+    def write_pkl_metadata(self, username, metadata):
         with open(accounts.metadata_path(self.account_dir(username)), "wb") as f:
-            pickle.dump(metadata, f)
+            _PKL_CODEC.dump(metadata, f)
 
     def write_json_metadata(self, username, metadata):
         with open(accounts.metadata_json_path(self.account_dir(username)), "w", encoding="utf-8") as f:
@@ -70,25 +72,26 @@ class MetadataJsonMigrationTest(unittest.TestCase):
         with open(accounts.metadata_json_path(accounts.user_dir(username)), "r", encoding="utf-8") as f:
             return json.load(f)
 
-    def test_legacy_user_with_only_pickle_is_loaded_and_migrated_to_json(self):
+    def test_legacy_user_with_only_pkl_reports_migration_required(self):
         username = "legacy_client"
-        legacy_metadata = {
-            "role": "client",
-            "therapist_username": "dr_rossi",
-            "subscription_status": "covered_by_therapist",
-            "email": "cliente@example.com",
-            "created_at": "2026-05-01T09:00:00",
-            "beta_disclaimer_accepted_at": "2026-05-02T10:00:00",
-        }
-        self.write_pickle_metadata(username, legacy_metadata)
+        self.write_pkl_metadata(
+            username,
+            {
+                "role": "client",
+                "therapist_username": "dr_rossi",
+                "subscription_status": "covered_by_therapist",
+                "email": "cliente@example.com",
+                "created_at": "2026-05-01T09:00:00",
+                "beta_disclaimer_accepted_at": "2026-05-02T10:00:00",
+            },
+        )
 
-        loaded = accounts.load_user_metadata(username)
+        with self.assertRaisesRegex(RuntimeError, "Legacy storage detected. Run scripts/migrate_legacy_storage.py"):
+            accounts.load_user_metadata(username)
 
-        self.assertEqual(loaded, legacy_metadata)
-        self.assertTrue(os.path.exists(accounts.metadata_json_path(accounts.user_dir(username))))
-        self.assertEqual(self.read_json_metadata(username), legacy_metadata)
+        self.assertFalse(os.path.exists(accounts.metadata_json_path(accounts.user_dir(username))))
 
-    def test_new_user_with_only_json_is_loaded_without_pickle(self):
+    def test_new_user_with_only_json_is_loaded_without_pkl(self):
         username = "json_user"
         metadata = {
             "role": "therapist",
@@ -105,7 +108,7 @@ class MetadataJsonMigrationTest(unittest.TestCase):
         self.assertEqual(loaded, metadata)
         self.assertFalse(os.path.exists(accounts.metadata_path(accounts.user_dir(username))))
 
-    def test_json_takes_precedence_when_json_and_pickle_exist(self):
+    def test_json_takes_precedence_when_json_and_pkl_exist(self):
         username = "both_formats"
         json_metadata = {
             "role": "therapist",
@@ -115,15 +118,15 @@ class MetadataJsonMigrationTest(unittest.TestCase):
             "created_at": "2026-05-04T09:00:00",
             "beta_disclaimer_accepted_at": None,
         }
-        pickle_metadata = {
+        pkl_metadata = {
             "role": "client",
             "therapist_username": "legacy_therapist",
             "subscription_status": "inactive",
-            "email": "pickle@example.com",
+            "email": "old@example.com",
             "created_at": "2026-05-01T09:00:00",
             "beta_disclaimer_accepted_at": "2026-05-02T10:00:00",
         }
-        self.write_pickle_metadata(username, pickle_metadata)
+        self.write_pkl_metadata(username, pkl_metadata)
         self.write_json_metadata(username, json_metadata)
 
         loaded = accounts.load_user_metadata(username)

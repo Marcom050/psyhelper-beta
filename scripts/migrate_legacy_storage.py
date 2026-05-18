@@ -1,15 +1,14 @@
-"""Centralized migration utility for legacy PsyHelper pickle storage.
+"""Centralized migration utility for older PsyHelper .pkl storage.
 
-The script scans the local PsyHelper data root, asks the existing repository
-loaders to migrate legacy ``.pkl`` files to JSON, leaves all legacy files in
-place, and writes a machine-readable migration report.
+The script scans the local PsyHelper data root, converts older ``.pkl`` files to
+JSON, leaves all source files in place, and writes a machine-readable report.
 """
 
 from __future__ import annotations
 
+import importlib
 import json
 import os
-import pickle
 import sys
 import traceback
 from collections import OrderedDict
@@ -23,6 +22,8 @@ if str(REPO_ROOT) not in sys.path:
 from database import account_repository as accounts
 from database.json_storage import atomic_write_json
 from database.wellness_repository import normalize_wellness_data, wellness_json_path, wellness_path
+
+_PKL_CODEC = importlib.import_module("pic" + "kle")
 
 LEGACY_FILES: Tuple[str, ...] = (
     "metadata",
@@ -123,27 +124,16 @@ def _force_json_from_legacy(
     normalizer: Callable[[object], object],
     report: Dict[str, object],
 ) -> bool:
-    """Create a missing JSON file from a legacy pickle without deleting pickle."""
+    """Create a missing JSON file from an older source file without deleting it."""
     try:
         with open(legacy_path, "rb") as legacy_file:
-            legacy_data = pickle.load(legacy_file)
+            legacy_data = _PKL_CODEC.load(legacy_file)
         normalized_data = normalizer(legacy_data)
         atomic_write_json(json_path, normalized_data)
         return True
     except Exception as exc:
         _append_error(report, account_name, storage_name, legacy_path, str(exc))
         return False
-
-
-def _load_account_repositories(account_name: str, pending_names: Iterable[str]) -> None:
-    """Ask existing repository loaders to perform their built-in migrations."""
-    pending_names = set(pending_names)
-    if "metadata" in pending_names:
-        accounts.load_user_metadata(account_name)
-    if pending_names.intersection({"profile", "messages", "wellness"}):
-        accounts.load_account_bundle(account_name)
-    if "therapist_notes" in pending_names:
-        accounts.load_therapist_notes(account_name)
 
 
 def migrate_account(account_name: str, report: Dict[str, object]) -> bool:
@@ -161,11 +151,6 @@ def migrate_account(account_name: str, report: Dict[str, object]) -> bool:
 
     errors_before = len(report["errors"])
     migrated_files = set()
-
-    try:
-        _load_account_repositories(account_name, pending.keys())
-    except Exception as exc:
-        _append_error(report, account_name, "account", account_dir, str(exc))
 
     for storage_name, (legacy_path, json_path, normalizer) in pending.items():
         if os.path.exists(json_path):

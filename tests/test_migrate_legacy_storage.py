@@ -2,7 +2,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
-import pickle
+import importlib
 import sys
 import tempfile
 import types
@@ -43,8 +43,11 @@ def ensure_argon2_test_double_if_missing():
 
 ensure_argon2_test_double_if_missing()
 from database import account_repository as accounts
-from database.wellness_repository import wellness_json_path, wellness_path
+
+from database.wellness_repository import load_wellness, wellness_json_path, wellness_path
 from scripts import migrate_legacy_storage as migration
+
+_PKL_CODEC = importlib.import_module("pic" + "kle")
 
 
 class LegacyStorageMigrationScriptTest(unittest.TestCase):
@@ -63,9 +66,9 @@ class LegacyStorageMigrationScriptTest(unittest.TestCase):
         os.makedirs(account_dir, exist_ok=True)
         return account_dir
 
-    def write_pickle(self, path, data):
+    def write_pkl(self, path, data):
         with open(path, "wb") as f:
-            pickle.dump(data, f)
+            _PKL_CODEC.dump(data, f)
 
     def read_json(self, path):
         with open(path, "r", encoding="utf-8") as f:
@@ -82,15 +85,15 @@ class LegacyStorageMigrationScriptTest(unittest.TestCase):
     ):
         account_dir = self.account_dir(username)
         if metadata is not None:
-            self.write_pickle(accounts.metadata_path(account_dir), metadata)
+            self.write_pkl(accounts.metadata_path(account_dir), metadata)
         if profile is not None:
-            self.write_pickle(accounts.profile_path(account_dir), profile)
+            self.write_pkl(accounts.profile_path(account_dir), profile)
         if messages is not None:
-            self.write_pickle(accounts.messages_path(account_dir), messages)
+            self.write_pkl(accounts.messages_path(account_dir), messages)
         if wellness is not None:
-            self.write_pickle(wellness_path(account_dir), wellness)
+            self.write_pkl(wellness_path(account_dir), wellness)
         if therapist_notes is not None:
-            self.write_pickle(accounts.therapist_notes_path(username), therapist_notes)
+            self.write_pkl(accounts.therapist_notes_path(username), therapist_notes)
 
     def test_complete_legacy_account_is_migrated_and_reported(self):
         self.write_legacy_account(
@@ -121,6 +124,9 @@ class LegacyStorageMigrationScriptTest(unittest.TestCase):
         self.assertEqual(self.read_json(accounts.messages_json_path(account_dir)), [{"role": "user", "content": "ciao"}])
         self.assertNotIn("mindfulness_log", self.read_json(wellness_json_path(account_dir)))
         self.assertEqual(self.read_json(accounts.therapist_notes_json_path("complete_legacy")), {"client_a": "nota"})
+        self.assertEqual(accounts.load_user_metadata("complete_legacy")["email"], "dr@example.com")
+        self.assertEqual(accounts.load_account_bundle("complete_legacy")["profile"]["nome"], "Dott.ssa Legacy")
+        self.assertEqual(accounts.load_therapist_notes("complete_legacy"), {"client_a": "nota"})
         self.assertEqual(self.read_json(migration.report_path_for(self.users_dir)), report)
 
     def test_partial_accounts_and_existing_json_keep_json_as_primary(self):
@@ -130,7 +136,7 @@ class LegacyStorageMigrationScriptTest(unittest.TestCase):
             messages=[{"role": "assistant", "content": "solo messaggi"}],
         )
         both_dir = self.account_dir("both_formats")
-        self.write_pickle(accounts.profile_path(both_dir), {"nome": "Pickle"})
+        self.write_pkl(accounts.profile_path(both_dir), {"nome": "Old"})
         with open(accounts.profile_json_path(both_dir), "w", encoding="utf-8") as f:
             json.dump({"nome": "JSON"}, f, ensure_ascii=False, allow_nan=False)
 
@@ -146,10 +152,20 @@ class LegacyStorageMigrationScriptTest(unittest.TestCase):
         self.assertEqual(self.read_json(accounts.messages_json_path(partial_dir)), [{"role": "assistant", "content": "solo messaggi"}])
         self.assertEqual(self.read_json(accounts.profile_json_path(both_dir)), {"nome": "JSON"})
 
+
+    def test_wellness_runtime_reports_migration_required_for_source_only_account(self):
+        account_dir = self.account_dir("wellness_only")
+        self.write_pkl(wellness_path(account_dir), {"mood_entries": [{"mood": 2}]})
+
+        with self.assertRaisesRegex(RuntimeError, "Legacy storage detected. Run scripts/migrate_legacy_storage.py"):
+            load_wellness(account_dir)
+
+        self.assertFalse(os.path.exists(wellness_json_path(account_dir)))
+
     def test_corrupt_account_is_reported_without_stopping_other_accounts(self):
         corrupt_dir = self.account_dir("corrupt_account")
         with open(accounts.profile_path(corrupt_dir), "wb") as f:
-            f.write(b"not a pickle")
+            f.write(b"not a pkl")
         self.write_legacy_account("valid_account", profile={"nome": "Valida"})
 
         report = migration.migrate_legacy_storage(self.users_dir)

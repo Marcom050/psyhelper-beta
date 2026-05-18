@@ -1,13 +1,11 @@
 """Filesystem-backed account repository implementation.
 
-The repository intentionally preserves the existing pickle, JSON, and text-file
-storage layout. It does not connect to PostgreSQL, Supabase, or any external
-database.
+The repository uses JSON files for runtime account storage and does not connect
+to PostgreSQL, Supabase, or any external database.
 """
 
 import hashlib
 import os
-import pickle
 import re
 from datetime import datetime
 
@@ -16,7 +14,6 @@ from argon2.exceptions import InvalidHashError, VerifyMismatchError, Verificatio
 
 from database.json_storage import (
     atomic_write_json,
-    json_path_for,
     load_json_file,
     validate_json_safe,
 )
@@ -102,7 +99,7 @@ def metadata_path(account_dir):
 
 
 def metadata_json_path(account_dir):
-    return json_path_for(metadata_path(account_dir))
+    return os.path.join(account_dir, "metadata.json")
 
 
 def profile_path(account_dir):
@@ -110,7 +107,7 @@ def profile_path(account_dir):
 
 
 def profile_json_path(account_dir):
-    return json_path_for(profile_path(account_dir))
+    return os.path.join(account_dir, "profile.json")
 
 
 def messages_path(account_dir):
@@ -118,7 +115,15 @@ def messages_path(account_dir):
 
 
 def messages_json_path(account_dir):
-    return json_path_for(messages_path(account_dir))
+    return os.path.join(account_dir, "messages.json")
+
+
+LEGACY_STORAGE_ERROR = "Legacy storage detected. Run scripts/migrate_legacy_storage.py"
+
+
+def _raise_if_legacy_only(old_path, new_path):
+    if os.path.exists(old_path) and not os.path.exists(new_path):
+        raise RuntimeError(LEGACY_STORAGE_ERROR)
 
 
 def _is_iso_string_or_none(value):
@@ -167,22 +172,8 @@ def load_user_metadata(username):
         except Exception:
             return default_user_metadata()
 
-    legacy_path = metadata_path(account_dir)
-    if not os.path.exists(legacy_path):
-        return default_user_metadata()
-
-    try:
-        with open(legacy_path, "rb") as f:
-            metadata = pickle.load(f)
-        metadata = normalize_user_metadata(metadata)
-    except Exception:
-        return default_user_metadata()
-
-    try:
-        atomic_write_json(json_path, metadata)
-    except Exception:
-        pass
-    return metadata
+    _raise_if_legacy_only(metadata_path(account_dir), json_path)
+    return default_user_metadata()
 
 
 def save_user_metadata(username, metadata):
@@ -219,31 +210,13 @@ def _load_json_or_default(json_path, normalizer, default):
         return default
 
 
-def _load_pickle_migrate_or_default(legacy_path, json_path, normalizer, default):
-    try:
-        with open(legacy_path, "rb") as f:
-            data = pickle.load(f)
-        data = normalizer(data)
-    except Exception:
-        return default
-
-    try:
-        atomic_write_json(json_path, data)
-    except Exception:
-        pass
-    return data
-
-
 def load_profile(account_dir):
     json_path = profile_json_path(account_dir)
     if os.path.exists(json_path):
         return _load_json_or_default(json_path, normalize_profile, {})
 
-    legacy_path = profile_path(account_dir)
-    if not os.path.exists(legacy_path):
-        return {}
-
-    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_profile, {})
+    _raise_if_legacy_only(profile_path(account_dir), json_path)
+    return {}
 
 
 def load_messages(account_dir):
@@ -251,11 +224,8 @@ def load_messages(account_dir):
     if os.path.exists(json_path):
         return _load_json_or_default(json_path, normalize_messages, [])
 
-    legacy_path = messages_path(account_dir)
-    if not os.path.exists(legacy_path):
-        return []
-
-    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_messages, [])
+    _raise_if_legacy_only(messages_path(account_dir), json_path)
+    return []
 
 
 def create_user(
@@ -362,7 +332,7 @@ def therapist_notes_path(therapist_username):
 
 
 def therapist_notes_json_path(therapist_username):
-    return json_path_for(therapist_notes_path(therapist_username))
+    return os.path.join(user_dir(therapist_username), "therapist_notes.json")
 
 
 def _safe_note_value_to_string(value):
@@ -395,11 +365,8 @@ def load_therapist_notes(therapist_username):
     if os.path.exists(json_path):
         return _load_json_or_default(json_path, normalize_therapist_notes, {})
 
-    legacy_path = therapist_notes_path(therapist_username)
-    if not os.path.exists(legacy_path):
-        return {}
-
-    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_therapist_notes, {})
+    _raise_if_legacy_only(therapist_notes_path(therapist_username), json_path)
+    return {}
 
 
 def save_therapist_notes(therapist_username, notes):
