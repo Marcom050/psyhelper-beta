@@ -33,7 +33,6 @@ from services.auth_service import (
     client_accounts_for,
     create_client_account,
     create_user,
-    default_wellness_data,
     ensure_wellness_schema,
     is_valid_email,
     load_account_bundle,
@@ -41,13 +40,13 @@ from services.auth_service import (
     load_therapist_notes,
     normalize_email,
     normalize_username,
-    save_account_bundle,
     save_wellness_for,
     save_therapist_notes,
     therapist_email_exists,
     user_exists,
     verify_password,
 )
+from services.session_adapter import SessionAdapter
 from services.subscription_service import (
     BETA_TRIAL_DAYS,
     is_subscription_active_for,
@@ -57,6 +56,9 @@ from services.subscription_service import (
 )
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
+
+session_adapter = SessionAdapter()
+session_adapter.initialize_defaults()
 
 ANALYTICS_ID = "G-KWR24JLV0Y"
 COPYRIGHT_POLICY = """
@@ -83,10 +85,10 @@ def render_analytics_banner():
     )
     consent = st.sidebar.checkbox(
         "Acconsento all'uso di Google Analytics",
-        value=st.session_state.get("analytics_consent", False),
+        value=session_adapter.get_analytics_consent(),
         key="analytics_consent_checkbox",
     )
-    st.session_state.analytics_consent = consent
+    session_adapter.set_analytics_consent(consent)
 
     if not consent:
         st.sidebar.info("Analytics disattivato: nessuno script Google Analytics viene caricato.")
@@ -112,7 +114,7 @@ def render_analytics_banner():
 # =============================================
 st.title("🧠 PsyHelper")
 
-if not st.session_state.get("beta_disclaimer_accepted", False):
+if not session_adapter.is_beta_disclaimer_accepted():
     st.warning("Prima di usare o creare un account devi accettare le condizioni della versione di prova.")
     st.markdown("### Scarico di responsabilità e diritto d'autore")
     st.info(BETA_DISCLAIMER_TEXT)
@@ -121,8 +123,7 @@ if not st.session_state.get("beta_disclaimer_accepted", False):
         key="beta_disclaimer_acceptance_checkbox",
     )
     if st.button("Accetta e continua", use_container_width=True, disabled=not accepted):
-        st.session_state.beta_disclaimer_accepted = True
-        st.session_state.beta_disclaimer_accepted_at = datetime.utcnow().isoformat(timespec="seconds")
+        session_adapter.accept_beta_disclaimer(datetime.utcnow().isoformat(timespec="seconds"))
         st.rerun()
     st.stop()
 
@@ -174,27 +175,18 @@ def has_active_subscription(username):
 
 
 def load_user_data(username):
-    bundle = load_account_bundle(username)
-    st.session_state.user_metadata = load_user_metadata(username)
-    st.session_state.profile = bundle["profile"]
-    st.session_state.messages = bundle["messages"]
-    st.session_state.wellness = bundle["wellness"]
+    session_adapter.load_user_session(username)
 
 
 def save_user_data(username):
-    save_account_bundle(
-        username,
-        st.session_state.profile,
-        st.session_state.messages,
-        st.session_state.get("wellness", default_wellness_data()),
-    )
+    session_adapter.persist_user_session(username)
 
 
 def get_response(user_input):
     context = ChatContext(
-        profile=st.session_state.get("profile", {}),
-        wellness=st.session_state.get("wellness", default_wellness_data()),
-        username=st.session_state.get("username", ""),
+        profile=session_adapter.get_profile(),
+        wellness=session_adapter.get_wellness(),
+        username=session_adapter.get_username() or "",
         user_input=user_input,
     )
     return get_chat_response(
@@ -205,7 +197,7 @@ def get_response(user_input):
 
 
 def entries_dataframe():
-    entries = st.session_state.get("wellness", default_wellness_data()).get("mood_entries", [])
+    entries = session_adapter.get_wellness().get("mood_entries", [])
     if not entries:
         return pd.DataFrame()
     df = pd.DataFrame(entries)
@@ -222,22 +214,22 @@ def render_homework_answers(submission):
         st.markdown(f"**{question}**")
         st.write(answer)
 def show_chat_tab():
-    st.markdown(f"<p class='subtitle'>Ciao {st.session_state.profile.get('nome', st.session_state.username)}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p class='subtitle'>Ciao {session_adapter.get_profile().get('nome', session_adapter.get_username())}</p>", unsafe_allow_html=True)
 
-    for msg in st.session_state.messages:
+    for msg in session_adapter.get_messages():
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
     if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza vuoi approfondire..."):
-        st.session_state.messages.append({"role": "user", "content": user_input})
+        session_adapter.get_messages().append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
         with st.chat_message("assistant"):
             with st.spinner("Sto pensando..."):
                 reply = get_response(user_input)
                 st.markdown(reply)
-                st.session_state.messages.append({"role": "assistant", "content": reply})
-        save_user_data(st.session_state.username)
+                session_adapter.get_messages().append({"role": "assistant", "content": reply})
+        save_user_data(session_adapter.get_username())
 
 
 def show_diary_tab():
@@ -277,8 +269,8 @@ def show_diary_tab():
                 "risposta_alternativa": balanced_response,
                 "nota_professionista": note,
             }
-            st.session_state.wellness["mood_entries"].append(entry)
-            save_user_data(st.session_state.username)
+            session_adapter.get_wellness()["mood_entries"].append(entry)
+            save_user_data(session_adapter.get_username())
             st.success("Scheda salvata. La trovi nel monitoraggio e nel resoconto.")
 
 
@@ -289,7 +281,7 @@ def show_monitoring_tab():
         st.info("Aggiungi almeno una scheda nel diario per vedere trend e indicatori.")
         return
 
-    snapshot = clinical_snapshot(st.session_state.wellness, st.session_state.messages)
+    snapshot = clinical_snapshot(session_adapter.get_wellness(), session_adapter.get_messages())
     latest = df.iloc[-1]
     avg_anxiety = df["ansia"].mean()
     avg_stress = df["stress"].mean()
@@ -327,10 +319,10 @@ def show_homework_tab():
         "Compiti CBT rapidi per monitorare la qualità della vita tra le sedute: "
         "una consegna chiara, una risposta essenziale, invio immediato al terapeuta."
     )
-    ensure_wellness_schema(st.session_state.wellness)
+    ensure_wellness_schema(session_adapter.get_wellness())
 
-    assignments = get_assigned_homework(st.session_state.wellness)
-    submissions = get_submitted_homework(st.session_state.wellness)
+    assignments = get_assigned_homework(session_adapter.get_wellness())
+    submissions = get_submitted_homework(session_adapter.get_wellness())
     completed_ids = completed_assignment_ids(submissions)
     open_assignments = get_open_assignments(assignments, submissions)
 
@@ -358,10 +350,10 @@ def show_homework_tab():
             )
             if st.form_submit_button("Invia al terapeuta", use_container_width=True):
                 append_submission(
-                    st.session_state.wellness,
+                    session_adapter.get_wellness(),
                     create_submission(selected_assignment.get("id"), template_name, prompt, answer),
                 )
-                save_user_data(st.session_state.username)
+                save_user_data(session_adapter.get_username())
                 st.success("Homework inviato. Il terapeuta vedrà solo la sintesi e la risposta essenziale.")
                 st.rerun()
     else:
@@ -385,10 +377,10 @@ def show_homework_tab():
             )
             if st.form_submit_button("Salva per la seduta", use_container_width=True):
                 append_submission(
-                    st.session_state.wellness,
+                    session_adapter.get_wellness(),
                     create_submission(None, selected, prompt, answer),
                 )
-                save_user_data(st.session_state.username)
+                save_user_data(session_adapter.get_username())
                 st.success("Check-in salvato.")
 
     if submissions:
@@ -494,7 +486,7 @@ def show_create_patient_dialog(therapist_username):
         st.error("Le password non coincidono.")
     else:
         create_client_account(therapist_username, normalized_client_username, client_password, client_name.strip())
-        st.session_state.selected_patient_username = normalized_client_username
+        session_adapter.set_selected_patient_username(normalized_client_username)
         st.success(f"Profilo paziente `{normalized_client_username}` creato.")
         st.rerun()
 
@@ -516,10 +508,10 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
     else:
         for client in visible_clients:
             snapshot = snapshots[client["username"]]
-            is_selected = client["username"] == st.session_state.get("selected_patient_username")
+            is_selected = client["username"] == session_adapter.get_selected_patient_username()
             label = f"{'✅ Profilo attivo' if is_selected else 'Apri profilo'} · {client['nome']}"
             if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
-                st.session_state.selected_patient_username = client["username"]
+                session_adapter.set_selected_patient_username(client["username"])
                 st.rerun()
             st.caption(
                 f"@{client['username']} · ultima attività: {snapshot['last_activity']} · "
@@ -531,8 +523,8 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
 
 
 def show_therapist_dashboard():
-    username = st.session_state.username
-    metadata = st.session_state.get("user_metadata", load_user_metadata(username))
+    username = session_adapter.get_username()
+    metadata = session_adapter.get_user_metadata() or load_user_metadata(username)
     subscription_status = metadata.get("subscription_status", "inactive")
     subscription_active = has_active_subscription(username)
 
@@ -583,10 +575,10 @@ def show_therapist_dashboard():
         })
 
     patient_usernames = [client["username"] for client in clients]
-    if st.session_state.get("selected_patient_username") not in patient_usernames:
-        st.session_state.selected_patient_username = patient_usernames[0]
+    if session_adapter.get_selected_patient_username() not in patient_usernames:
+        session_adapter.set_selected_patient_username(patient_usernames[0])
 
-    selected_username = st.session_state.selected_patient_username
+    selected_username = session_adapter.get_selected_patient_username()
     selected_bundle = bundles[selected_username]
     selected_profile = selected_bundle["profile"]
     selected_wellness = selected_bundle["wellness"]
@@ -739,13 +731,7 @@ def show_therapist_dashboard():
         )
 
 def reset_session_for_logout():
-    st.session_state.logged_in = False
-    st.session_state.username = None
-    st.session_state.user_metadata = {}
-    st.session_state.profile = {}
-    st.session_state.messages = []
-    st.session_state.wellness = default_wellness_data()
-    st.session_state.scroll_to_top = True
+    session_adapter.reset_for_logout()
 
 
 def logout_button():
@@ -762,9 +748,9 @@ def render_login_form():
         if st.form_submit_button("Accedi", use_container_width=True):
             normalized_username = normalize_username(username)
             if user_exists(normalized_username) and verify_password(normalized_username, password):
-                st.session_state.logged_in = True
-                st.session_state.username = normalized_username
-                st.session_state.scroll_to_top = True
+                session_adapter.set_logged_in(True)
+                session_adapter.set_username(normalized_username)
+                session_adapter.set_scroll_to_top(True)
                 load_user_data(normalized_username)
                 st.rerun()
             else:
@@ -808,8 +794,8 @@ def render_therapist_signup_form():
                     subscription_status=initial_status,
                     profile={"nome": professional_name.strip(), "email": normalized_email, "account_type": "therapist"},
                     email=normalized_email,
-                    beta_disclaimer_accepted_at=st.session_state.get(
-                        "beta_disclaimer_accepted_at", datetime.utcnow().isoformat(timespec="seconds")
+                    beta_disclaimer_accepted_at=session_adapter.get_beta_disclaimer_accepted_at(
+                        datetime.utcnow().isoformat(timespec="seconds")
                     ),
                 )
                 st.success(
@@ -827,23 +813,17 @@ def render_login_area():
 
 
 def initialize_authenticated_session():
-    if st.session_state.pop("scroll_to_top", False):
+    if session_adapter.pop_scroll_to_top():
         scroll_to_top()
 
-    st.session_state.setdefault("profile", {})
-    st.session_state.setdefault("messages", [])
-    st.session_state.setdefault("wellness", default_wellness_data())
-    st.session_state.setdefault("user_metadata", load_user_metadata(st.session_state.username))
-    if not isinstance(st.session_state.wellness, dict):
-        st.session_state.wellness = default_wellness_data()
-    ensure_wellness_schema(st.session_state.wellness)
+    session_adapter.ensure_authenticated_defaults()
 
 
 def ensure_subscription_or_stop(current_metadata):
-    if has_active_subscription(st.session_state.username):
+    if has_active_subscription(session_adapter.get_username()):
         return
 
-    show_subscription_required(st.session_state.username, current_metadata.get("therapist_username"))
+    show_subscription_required(session_adapter.get_username(), current_metadata.get("therapist_username"))
     st.divider()
     logout_button()
     st.stop()
@@ -851,7 +831,7 @@ def ensure_subscription_or_stop(current_metadata):
 
 
 def render_onboarding_or_stop():
-    if st.session_state.profile.get("onboarding_completed", False):
+    if session_adapter.get_profile().get("onboarding_completed", False):
         return
 
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
@@ -859,7 +839,7 @@ def render_onboarding_or_stop():
     with st.form("onboarding"):
         col1, col2 = st.columns(2)
         with col1:
-            nome = st.text_input("Come ti chiami?", value=st.session_state.profile.get("nome", ""))
+            nome = st.text_input("Come ti chiami?", value=session_adapter.get_profile().get("nome", ""))
             età = st.number_input("Età", 14, 90, 30)
             umore = st.selectbox("Umore attuale", MOOD_OPTIONS)
             intensità = st.slider("Intensità del malessere (1-10)", 1, 10, 5)
@@ -870,7 +850,7 @@ def render_onboarding_or_stop():
         pensieri = st.text_area("Quali pensieri ti occupano di più ultimamente?")
         obiettivi = st.text_area("Cosa vorresti migliorare nel tuo benessere mentale?")
         if st.form_submit_button("Inizia il percorso 💜", use_container_width=True):
-            st.session_state.profile = {
+            session_adapter.set_profile({
                 "nome": nome or "Utente",
                 "età": età,
                 "umore": umore,
@@ -881,9 +861,9 @@ def render_onboarding_or_stop():
                 "obiettivi": obiettivi,
                 "motivazione": motivazione,
                 "onboarding_completed": True,
-            }
-            st.session_state.scroll_to_top = True
-            save_user_data(st.session_state.username)
+            })
+            session_adapter.set_scroll_to_top(True)
+            save_user_data(session_adapter.get_username())
             st.rerun()
     st.stop()
 
@@ -907,9 +887,9 @@ def render_client_footer_actions():
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("Nuova sessione"):
-            st.session_state.messages = []
-            save_user_data(st.session_state.username)
-            st.session_state.scroll_to_top = True
+            session_adapter.set_messages([])
+            save_user_data(session_adapter.get_username())
+            session_adapter.set_scroll_to_top(True)
             st.rerun()
     with col2:
         if st.button("Torna in alto"):
@@ -923,7 +903,7 @@ def render_client_footer_actions():
 def render_authenticated_app():
     initialize_authenticated_session()
 
-    current_metadata = st.session_state.get("user_metadata", {})
+    current_metadata = session_adapter.get_user_metadata()
     current_role = current_metadata.get("role", "client")
 
     if current_role == "therapist":
@@ -939,10 +919,7 @@ def render_authenticated_app():
 
 
 # ====================== LOGIN ======================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-if not st.session_state.logged_in:
+if not session_adapter.is_logged_in():
     render_login_area()
     st.stop()
 
