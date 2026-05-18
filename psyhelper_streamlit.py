@@ -4,9 +4,10 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from services.chat_service import ChatContext, get_response as get_chat_response
-from services.clinical_analysis_service import (
+from services.report_service import (
     build_timeline_events,
     clinical_snapshot,
+    mood_entries_dataframe,
     most_common_values,
     weekly_recap,
 )
@@ -197,12 +198,7 @@ def get_response(user_input):
 
 
 def entries_dataframe():
-    entries = session_adapter.get_wellness().get("mood_entries", [])
-    if not entries:
-        return pd.DataFrame()
-    df = pd.DataFrame(entries)
-    df["data"] = pd.to_datetime(df["data"])
-    return df.sort_values("data")
+    return mood_entries_dataframe(session_adapter.get_wellness())
 
 
 def render_homework_answers(submission):
@@ -390,45 +386,16 @@ def show_homework_tab():
 
 def show_report_tab():
     st.subheader("📋 Resoconto per colloqui psicologici")
-    df = entries_dataframe()
-    if df.empty:
+    report = clinical_snapshot(session_adapter.get_wellness(), session_adapter.get_messages())
+    if report.scope_df.empty:
         st.info("Quando avrai salvato alcune schede, qui comparirà un resoconto sintetico esportabile.")
         return
 
-    last_14 = df[df["data"] >= (pd.Timestamp.today().normalize() - pd.Timedelta(days=14))]
-    scope_df = last_14 if not last_14.empty else df
-    trigger_counts = most_common_values(scope_df["trigger"], limit=5)
-    sensation_counts = most_common_values(scope_df["sensazioni"], limit=5)
-    mood_counts = scope_df["umore"].value_counts().head(5)
-
-    report = [
-        "RESOCONTO PSYHELPER",
-        f"Periodo: {scope_df['data'].min().date()} - {scope_df['data'].max().date()}",
-        f"Schede compilate: {len(scope_df)}",
-        f"Ansia media: {scope_df['ansia'].mean():.1f}/10",
-        f"Stress medio: {scope_df['stress'].mean():.1f}/10",
-        f"Intensità emotiva media: {scope_df['umore_intensita'].mean():.1f}/10",
-        "",
-        "Stati d'animo più frequenti:",
-        *(f"- {name}: {count}" for name, count in mood_counts.items()),
-        "",
-        "Trigger ricorrenti:",
-        *(f"- {name}: {count}" for name, count in trigger_counts.items()),
-        "",
-        "Sensazioni corporee ricorrenti:",
-        *(f"- {name}: {count}" for name, count in sensation_counts.items()),
-        "",
-        "Ultime note per il professionista:",
-    ]
-    notes = scope_df["nota_professionista"].dropna().tail(5)
-    report.extend([f"- {note}" for note in notes if str(note).strip()] or ["- Nessuna nota inserita."])
-    report_text = "\n".join(report)
-
-    st.text_area("Resoconto sintetico", value=report_text, height=360)
-    st.download_button("Scarica resoconto .txt", data=report_text, file_name="resoconto_psyhelper.txt", mime="text/plain", use_container_width=True)
+    st.text_area("Resoconto sintetico", value=report.export_text, height=360)
+    st.download_button("Scarica resoconto .txt", data=report.export_text, file_name="resoconto_psyhelper.txt", mime="text/plain", use_container_width=True)
 
     with st.expander("Vedi schede dettagliate"):
-        st.dataframe(scope_df.sort_values("data", ascending=False), use_container_width=True)
+        st.dataframe(report.scope_df.sort_values("data", ascending=False), use_container_width=True)
 
 
 def show_subscription_required(account_label, therapist_username=None):
@@ -721,10 +688,10 @@ def show_therapist_dashboard():
     with detail_tabs[5]:
         st.markdown("### Riassunto automatico pre-seduta")
         recap = weekly_recap(selected_snapshot)
-        st.text_area("Ultimi 14 giorni", value="\n".join(f"- {item}" for item in recap), height=260)
+        st.text_area("Ultimi 14 giorni", value=recap.to_text(bullet_prefix="- "), height=260)
         st.download_button(
             "Scarica recap .txt",
-            data="\n".join(recap),
+            data=recap.to_text(),
             file_name=f"recap_{selected_username}.txt",
             mime="text/plain",
             use_container_width=True,
