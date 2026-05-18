@@ -100,12 +100,14 @@ def normalize_user_metadata(metadata):
 
 def load_user_metadata(username):
     _sync_users_dir()
-    return _filesystem.load_user_metadata(username)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().load_user_metadata(username)
 
 
 def save_user_metadata(username, metadata):
     _sync_users_dir()
-    return _filesystem.save_user_metadata(username, metadata)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().save_user_metadata(username, metadata)
 
 
 def normalize_profile(profile):
@@ -135,7 +137,8 @@ def create_user(
     beta_disclaimer_accepted_at=None,
 ):
     _sync_users_dir()
-    return _filesystem.create_user(
+    from database.repository_factory import get_account_repository
+    return get_account_repository().create_user(
         username,
         password,
         role=role,
@@ -159,22 +162,26 @@ def verify_password(username, password):
 
 def therapist_email_exists(email):
     _sync_users_dir()
-    return _filesystem.therapist_email_exists(email)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().therapist_email_exists(email)
 
 
 def load_account_bundle(username):
     _sync_users_dir()
-    return _filesystem.load_account_bundle(username)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().load_account_bundle(username)
 
 
 def save_account_bundle(username, profile, messages, wellness):
     _sync_users_dir()
-    return _filesystem.save_account_bundle(username, profile, messages, wellness)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().save_account_bundle(username, profile, messages, wellness)
 
 
 def save_wellness_for(username, wellness):
     _sync_users_dir()
-    return _filesystem.save_wellness_for(username, wellness)
+    from database.repository_factory import get_wellness_repository
+    return get_wellness_repository().save_wellness(username, wellness)
 
 
 def therapist_notes_path(therapist_username):
@@ -193,14 +200,17 @@ def normalize_therapist_notes(notes):
 
 def load_therapist_notes(therapist_username):
     _sync_users_dir()
-    return _filesystem.load_therapist_notes(therapist_username)
+    from database.repository_factory import get_notes_repository
+    return get_notes_repository().load_therapist_notes(therapist_username)
 
 
 def save_therapist_notes(therapist_username, notes):
     _sync_users_dir()
-    return _filesystem.save_therapist_notes(therapist_username, notes)
+    from database.repository_factory import get_notes_repository
+    return get_notes_repository().save_therapist_notes(therapist_username, notes)
 
 
 def client_accounts_for(therapist_username):
     _sync_users_dir()
-    return _filesystem.client_accounts_for(therapist_username)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().client_accounts_for(therapist_username)
