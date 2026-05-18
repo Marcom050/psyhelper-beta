@@ -359,18 +359,52 @@ def therapist_notes_path(therapist_username):
     return os.path.join(user_dir(therapist_username), "therapist_notes.pkl")
 
 
+def therapist_notes_json_path(therapist_username):
+    return json_path_for(therapist_notes_path(therapist_username))
+
+
+def _safe_note_value_to_string(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool) or isinstance(value, int):
+        return str(value)
+    if isinstance(value, float) and value == value and value not in (float("inf"), float("-inf")):
+        return str(value)
+    return None
+
+
+def normalize_therapist_notes(notes):
+    if not isinstance(notes, dict):
+        return {}
+
+    normalized = {}
+    for client_username, note in notes.items():
+        if not isinstance(client_username, str):
+            continue
+        safe_note = _safe_note_value_to_string(note)
+        if safe_note is None:
+            continue
+        normalized[client_username] = safe_note
+    return validate_json_safe(normalized)
+
+
 def load_therapist_notes(therapist_username):
-    try:
-        with open(therapist_notes_path(therapist_username), "rb") as f:
-            notes = pickle.load(f)
-    except Exception:
-        notes = {}
-    return notes if isinstance(notes, dict) else {}
+    json_path = therapist_notes_json_path(therapist_username)
+    if os.path.exists(json_path):
+        return _load_json_or_default(json_path, normalize_therapist_notes, {})
+
+    legacy_path = therapist_notes_path(therapist_username)
+    if not os.path.exists(legacy_path):
+        return {}
+
+    return _load_pickle_migrate_or_default(legacy_path, json_path, normalize_therapist_notes, {})
 
 
 def save_therapist_notes(therapist_username, notes):
-    with open(therapist_notes_path(therapist_username), "wb") as f:
-        pickle.dump(notes, f)
+    atomic_write_json(
+        therapist_notes_json_path(therapist_username),
+        normalize_therapist_notes(notes),
+    )
 
 
 def client_accounts_for(therapist_username):
