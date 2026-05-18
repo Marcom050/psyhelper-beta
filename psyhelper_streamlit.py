@@ -8,6 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableWithMessageHistory
 from langchain_groq import ChatGroq
 
+from services.llm_prompt_service import build_llm_system_prompt
 from services.clinical_analysis_service import (
     build_timeline_events,
     clinical_snapshot,
@@ -214,24 +215,7 @@ def save_user_data(username):
 def get_response(user_input):
     profile = st.session_state.get("profile", {})
     wellness = st.session_state.get("wellness", default_wellness_data())
-    recent_entries = wellness.get("mood_entries", [])[-3:]
-    nome = profile.get("nome") or ""
-    profile_text = "\n".join([f"- {k}: {v}" for k, v in profile.items() if k != "nome" and v])
-    recent_text = "\n".join(
-        [
-            f"- {entry['data']}: umore {entry['umore']} ({entry['umore_intensita']}/10), "
-            f"ansia {entry['ansia']}/10, stress {entry['stress']}/10, trigger: {entry['trigger']}"
-            for entry in recent_entries
-        ]
-    ) or "Nessuna scheda recente."
-
-    system_prompt = f"""Sei PsyHelper, un assistente specializzato in Terapia Cognitivo-Comportamentale.
-Nome utente: {nome}
-Profilo: {profile_text}
-Schede recenti di monitoraggio: {recent_text}
-Focalizzati su emozioni, pensieri automatici, trigger, sensazioni corporee e comportamenti. Usa tecniche CBT in modo mirato, concreto e non giudicante.
-Non formulare diagnosi e non sostituirti a uno psicologo/psicoterapeuta. In caso di rischio immediato invita a contattare servizi di emergenza o una persona fidata.
-{COPYRIGHT_POLICY}"""
+    system_prompt = build_llm_system_prompt(profile, wellness, COPYRIGHT_POLICY)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
