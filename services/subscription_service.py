@@ -16,8 +16,20 @@ def parse_iso_datetime(value):
         return None
 
 
+def normalize_datetime_utc(value):
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        parsed = parse_iso_datetime(value)
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 def trial_expires_at(created_at):
-    created_datetime = parse_iso_datetime(created_at) or datetime.now(UTC)
+    created_datetime = normalize_datetime_utc(created_at) or datetime.now(UTC)
     return created_datetime + timedelta(days=BETA_TRIAL_DAYS)
 
 
@@ -31,7 +43,7 @@ def is_trial_expired(metadata):
         return False
     if metadata.get("subscription_status", "inactive").lower() != "trialing":
         return False
-    expires_at = parse_iso_datetime(metadata.get("subscription_expires_at")) or trial_expires_at(metadata.get("created_at"))
+    expires_at = normalize_datetime_utc(metadata.get("subscription_expires_at")) or trial_expires_at(metadata.get("created_at"))
     return datetime.now(UTC) >= expires_at
 
 
