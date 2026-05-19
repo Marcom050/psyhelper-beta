@@ -1,55 +1,83 @@
-# Streamlit Cloud deployment readiness (controlled private beta)
+# Streamlit Cloud deployment guide for controlled private beta
 
-## Scope
-This document covers deploying `psyhelper_streamlit.py` on Streamlit Cloud for a controlled private beta.
+## What this deploy path actually is
+- **Streamlit entrypoint:** `psyhelper_streamlit.py`.
+- **FastAPI/API entrypoint:** `api/app.py` (`app` object, typically served via `uvicorn api.app:app`).
+- Streamlit can run in:
+  - **HTTP API mode** (`USE_HTTP_API=true`) and talk to FastAPI via `API_BASE_URL`.
+  - **Local fallback mode** (`USE_HTTP_API=false`) where app logic runs in-process.
 
-## Mandatory secrets / environment variables
-Configure these in **Streamlit Cloud → App settings → Secrets**:
-- `ENVIRONMENT=production`
-- `SECRET_KEY` (>=32 random chars)
+For controlled private beta staging, prefer explicit HTTP API mode with isolated backend and managed PostgreSQL.
+
+## Required runtime configuration (production-like private beta)
+Set these in **Streamlit Cloud → App settings → Secrets** (and equivalent backend host secrets):
+
+- `ENVIRONMENT=production` (or `staging` for staging)
+- `SECRET_KEY` (strong random value, >=32 chars)
 - `DEBUG=false`
 - `TESTING=false`
 - `STRICT_PRODUCTION_MODE=true`
 - `USE_POSTGRESQL=true`
-- `DATABASE_URL=...` (managed PostgreSQL)
+- `DATABASE_URL=postgresql://...` (managed PostgreSQL)
 - `USE_FILESYSTEM_FALLBACK=false`
-- `AUTH_SECURITY_STATE_PATH` (persistent mounted path if available)
-- `AUDIT_LOG_PATH` (persistent mounted path if available)
-- `DATA_RIGHTS_STORAGE_PATH` (persistent mounted path if available)
-- `PRIVACY_POLICY_VERSION`
-- `TERMS_VERSION`
+- `AUTH_SECURITY_STATE_PATH` (only if local file persistence is still used)
+- `AUDIT_LOG_PATH` (only if local file persistence is still used)
+- `DATA_RIGHTS_STORAGE_PATH` (only if local file persistence is still used)
+- `PRIVACY_POLICY_VERSION` (explicit)
+- `TERMS_VERSION` (explicit)
 - `CONSENT_ENFORCEMENT_ENABLED=true`
-- `DATA_EXPORT_ENABLED=true|false` (explicit)
-- `ADMIN_BOOTSTRAP_MODE=disabled`
-- `ADMIN_BOOTSTRAP_SECRET` (>=32 random chars)
-- `CORS_ALLOWED_ORIGINS`
+- `DATA_EXPORT_ENABLED=true` or `false` (explicit)
+- `ADMIN_BOOTSTRAP_MODE=disabled` (or tightly controlled one-time `cli` before disable)
+- `ADMIN_BOOTSTRAP_SECRET` (strong random value, >=32 chars)
+- `CORS_ALLOWED_ORIGINS` (no wildcard in production-like env)
+- `API_BASE_URL` (backend URL when using HTTP API mode)
 
-## Streamlit Cloud specific risks
-- Filesystem is ephemeral across restarts/redeploys: do **not** rely on local files for sensitive state.
-- Secrets are managed in Streamlit settings, not `.env` files.
-- Relative paths may point to ephemeral container storage.
-- Persistent storage for audit/auth/data-rights is not native; prefer managed DB-backed persistence before handling sensitive production workloads.
+## Optional configuration
+- `REFERRER_POLICY` (default exists if unset)
+- `ACCESS_TOKEN_EXPIRE_MINUTES`
+- `REFRESH_TOKEN_EXPIRE_DAYS`
+- `TOKEN_ISSUER`
+- `DB_CONNECT_TIMEOUT_SEC`
+- `DB_STATEMENT_TIMEOUT_MS`
+- `LOGIN_RATE_LIMIT_ATTEMPTS`
+- `LOGIN_RATE_LIMIT_WINDOW_SEC`
+- `LOGIN_LOCKOUT_SEC`
+- `BETA_TRIAL_DAYS`
+- `EXPORT_OUTPUT_PATH` (ephemeral safe temp location, e.g. `/tmp/...`)
 
-## Entrypoint / runtime
-- App entrypoint: `psyhelper_streamlit.py`.
-- Verify Python version compatibility with `requirements.txt` on Streamlit Cloud runtime.
-- Ensure `requirements.txt` includes FastAPI/Streamlit/PostgreSQL deps required by selected runtime path.
+## How to set Streamlit secrets
+1. Open Streamlit Cloud app settings.
+2. Go to **Secrets**.
+3. Paste key/value entries in TOML format.
+4. Save and redeploy/reboot app.
+5. Verify startup logs for missing key or import failures.
 
-## Redeploy
-1. Push changes to tracked branch.
-2. In Streamlit Cloud, click **Reboot app** or **Deploy** latest commit.
-3. Verify logs show successful imports and startup.
+## Backend/API connection notes
+- If backend is separate from Streamlit, deploy API (`uvicorn api.app:app`) to your backend host.
+- Set `API_BASE_URL` in Streamlit secrets to backend base URL.
+- Set `USE_HTTP_API=true` in Streamlit secrets.
+- Ensure API host allows CORS from the Streamlit app origin only.
 
-## Logs
-- Open **Manage app → Logs** for runtime/import errors.
-- Typical breakages: missing dependency, missing secret, invalid `DATABASE_URL`, permission/path errors.
+## Post-deploy smoke validation
+- Dry-run local safety check:
+  - `python scripts/smoke_test_private_beta.py --dry-run`
+- Staging HTTP smoke:
+  - `python scripts/smoke_test_private_beta.py --base-url https://<api-host>`
+- Manual checklist only:
+  - `python scripts/smoke_test_private_beta.py --manual-checklist`
 
-## Post-deploy smoke
-Run:
-- `python scripts/smoke_test_private_beta.py --base-url https://<api-host>` (if API exposed)
-- `python scripts/smoke_test_private_beta.py` (dry-run fallback)
+## Rollback / redeploy basics
+1. Revert to last known-good commit/tag.
+2. Redeploy Streamlit app.
+3. Redeploy backend API if separate.
+4. Re-run smoke checks and manual checklist before reopening beta access.
 
-Then validate manual checklist flows: login, therapist onboarding, client creation, mood, homework, report/export.
+## Log inspection basics
+- Streamlit: App logs in Streamlit Cloud dashboard.
+- API: host/container logs for FastAPI process.
+- Verify auth/admin/export operations in audit logs and platform logs.
 
-## Sensitive-data caveat
-Streamlit Cloud is suitable for controlled beta validation, but sensitive clinical persistence must be externalized (managed PostgreSQL and persistent audit/auth/data-rights strategy) before scaling.
+## Known limitations and caveats (important)
+- Streamlit Cloud filesystem is **ephemeral**; do not depend on local disk for durable sensitive state.
+- Production-like usage requires managed PostgreSQL and explicit persistence strategy for audit/auth/data-rights artifacts.
+- This setup is for **controlled private beta validation**, not full clinical compliance certification.

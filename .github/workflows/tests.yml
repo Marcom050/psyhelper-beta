@@ -23,3 +23,9 @@ jobs:
 
       - name: Run tests
         run: pytest -q
+
+      - name: Preprod readiness (dev-safe)
+        run: python scripts/preprod_readiness_check.py
+
+      - name: Private beta smoke dry-run
+        run: python scripts/smoke_test_private_beta.py --dry-run

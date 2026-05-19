@@ -16,6 +16,8 @@ REQUIRED_ENV_KEYS = {
     "USE_FILESYSTEM_FALLBACK",
     "AUTH_SECURITY_STATE_PATH",
     "AUDIT_LOG_PATH",
+    "DATA_RIGHTS_STORAGE_PATH",
+    "EXPORT_OUTPUT_PATH",
     "ADMIN_BOOTSTRAP_MODE",
     "ADMIN_BOOTSTRAP_SECRET",
     "PRIVACY_POLICY_VERSION",
@@ -42,6 +44,12 @@ def _run_readiness(extra: dict[str, str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run([sys.executable, "scripts/preprod_readiness_check.py"], capture_output=True, text=True, check=False, env=env)
 
 
+def _run_smoke(extra: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env.update(extra)
+    return subprocess.run([sys.executable, "scripts/smoke_test_private_beta.py", *args], capture_output=True, text=True, check=False, env=env)
+
+
 def test_env_example_contains_required_keys():
     for file_name in (".env.example", ".env.production.example"):
         keys = _keys(file_name)
@@ -65,12 +73,49 @@ def test_streamlit_cloud_docs_exist():
     assert Path("docs/streamlit_cloud_deployment.md").exists()
 
 
-def test_smoke_script_imports_or_dry_runs():
-    env = os.environ.copy()
-    env['ENVIRONMENT'] = 'development'
-    result = subprocess.run([sys.executable, 'scripts/smoke_test_private_beta.py'], capture_output=True, text=True, check=False, env=env)
+def test_smoke_script_dry_run_succeeds():
+    result = _run_smoke({"ENVIRONMENT": "development"}, "--dry-run")
     assert result.returncode == 0
-    assert "dry-run mode" in result.stdout
+    assert "dry-run" in result.stdout.lower()
+    assert "manual checklist" in result.stdout.lower()
+
+
+def test_smoke_script_http_mode_fails_for_unreachable_base_url():
+    result = _run_smoke({}, "--base-url", "http://127.0.0.1:9")
+    assert result.returncode != 0
+    assert "endpoint unreachable" in result.stdout.lower() or "no safe health endpoints" in result.stdout.lower()
+
+
+def test_smoke_manual_checklist_has_core_flows():
+    result = _run_smoke({}, "--manual-checklist")
+    assert result.returncode == 0
+    output = result.stdout.lower()
+    for phrase in [
+        "admin bootstrap",
+        "therapist onboarding/login",
+        "client creation",
+        "mood entry",
+        "homework assignment",
+        "report/chat",
+        "self export",
+        "audit/log verification",
+        "tenant/subscription sanity",
+    ]:
+        assert phrase in output
+
+
+def test_no_real_secrets_in_env_examples():
+    forbidden_fragments = ["sk-", "AKIA", "-----BEGIN", "prod_secret", "real_secret"]
+    for file_name in (".env.example", ".env.production.example"):
+        text = Path(file_name).read_text()
+        for marker in forbidden_fragments:
+            assert marker not in text
+
+
+def test_smoke_script_has_no_delete_or_mutation_calls():
+    text = Path("scripts/smoke_test_private_beta.py").read_text().lower()
+    for forbidden in ["method=\"delete\"", "method='delete'", "/delete", "hard-delete", "drop table", "truncate"]:
+        assert forbidden not in text
 
 
 def test_readiness_check_storage_persistence_requirements():
@@ -95,11 +140,3 @@ def test_readiness_check_storage_persistence_requirements():
     assert "[FAIL] Auth security persistence configured" in result.stdout
     assert "[FAIL] Audit persistence configured" in result.stdout
     assert "[FAIL] Data-rights persistence configured" in result.stdout
-
-
-def test_no_real_secrets_in_env_examples():
-    forbidden_fragments = ["sk-", "AKIA", "-----BEGIN", "prod_secret", "real_secret"]
-    for file_name in (".env.example", ".env.production.example"):
-        text = Path(file_name).read_text()
-        for marker in forbidden_fragments:
-            assert marker not in text
