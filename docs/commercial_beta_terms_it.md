@@ -56,8 +56,19 @@ Tempo di risposta previsto: entro **1 giorno lavorativo** durante la beta commer
 ## Prezzo abbonamento
 Piano: **PsyHelper Beta Professionista — €29,90/mese** (salvo diversa configurazione contrattuale esplicita).
 
-## Recesso/cancellazione
-Termini di cancellazione: **[PLACEHOLDER DA VALIDARE LEGALMENTE]**.
+## Periodo di prova, disdetta e rimborsi durante la beta commerciale controllata
+- Il piano **“PsyHelper Beta Professionista”** ha un prezzo di **€29,90/mese**.
+- Alla creazione dell’account, il professionista deve fornire i propri dati di contatto e le informazioni necessarie alla fatturazione/pagamento.
+- L’account può prevedere un periodo di prova iniziale di **24 ore**.
+- Durante le prime 24 ore dalla creazione dell’account, il professionista può richiedere la cancellazione/disdetta scrivendo a **m.maskaro74@gmail.com**. In questo caso non verrà effettuato alcun addebito relativo al primo periodo mensile.
+- Trascorse le prime 24 ore senza richiesta di cancellazione/disdetta, il piano viene considerato attivato e il pagamento del primo mese diventa dovuto secondo il processo di fatturazione/pagamento previsto per la beta commerciale controllata.
+- Durante la beta commerciale controllata, la fatturazione e l’attivazione dell’abbonamento possono essere gestite manualmente da Marco Mascaro.
+- Salvo diverso accordo scritto o obbligo inderogabile di legge, gli importi già pagati non sono rimborsabili.
+- Salvo diverso accordo scritto, la disdetta dopo l’attivazione ha effetto alla fine del periodo già pagato.
+- Dopo la disdetta, l’account può essere disattivato o messo in sola lettura secondo il processo operativo applicabile.
+- Prima della disattivazione definitiva, il professionista può richiedere l’export dei dati disponibili secondo il processo data-rights/export documentato.
+- Eventuali richieste di cancellazione, limitazione o conservazione dati vengono gestite secondo il processo privacy/data-rights documentato e nei limiti tecnici, contrattuali e normativi applicabili.
+- Questa policy è una procedura operativa preliminare per la beta commerciale controllata e deve essere validata legalmente prima di una diffusione commerciale ampia.
 
 ## Nota legale
 Documento operativo preliminare per beta commerciale controllata; da validare legalmente prima di espansione commerciale ampia.

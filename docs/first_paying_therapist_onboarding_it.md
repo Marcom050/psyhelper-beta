@@ -55,7 +55,8 @@ PsyHelper è uno strumento di supporto operativo. Non sostituisce il giudizio cl
 
 
 ## Percorsi richieste amministrative
-- Cancellazione/disdetta: inviare richiesta a **m.maskaro74@gmail.com**.
+- Cancellazione/disdetta entro le prime 24 ore: inviare richiesta a **m.maskaro74@gmail.com** per evitare il primo addebito mensile.
+- Cancellazione/disdetta dopo l'attivazione: ha effetto a fine periodo già pagato, salvo diverso accordo scritto.
 - Export dati: inviare richiesta a **m.maskaro74@gmail.com**.
 - Delete request: inviare richiesta a **m.maskaro74@gmail.com** (con limiti/tempi comunicati).
 

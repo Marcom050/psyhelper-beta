@@ -9,6 +9,8 @@ Documento operativo preliminare per beta commerciale controllata; da validare le
 - Minimizzazione: inserire solo dati necessari e pertinenti.
 - Accessi: consentiti solo a utenti autorizzati con account attivo.
 - Diritti: export/cancellazione/rettifica gestiti tramite processo manuale tracciato.
+- In caso di disdetta commerciale, l'account può passare in sola lettura o essere disattivato secondo processo operativo documentato.
+- Prima della disattivazione definitiva, può essere richiesto export dei dati disponibili tramite processo data-rights.
 - Conservazione: soggetta a policy operative correnti e limiti della fase beta commerciale controllata.
 - Incidenti/supporto: gestiti tramite email **m.maskaro74@gmail.com** (Responsabile supporto: **Marco Mascaro**, risposta prevista entro 1 giorno lavorativo in beta commerciale controllata).
 

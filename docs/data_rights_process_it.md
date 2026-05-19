@@ -33,3 +33,9 @@ Documento operativo preliminare per beta commerciale controllata; da validare le
   - passaggi che hanno portato al problema;
   - screenshot utili, evitando dati clinici non necessari.
 - In caso di issue critica, Marco può sospendere temporaneamente gli accessi, impostare l'account in modalità read-only o interrompere il test beta fino al completamento delle verifiche.
+
+
+## Relazione con disdetta/account commerciale
+- In caso di disdetta commerciale, l'account può essere messo in sola lettura o disattivato secondo processo operativo applicabile.
+- Prima della disattivazione definitiva, il professionista può richiedere export dei dati disponibili tramite questo processo.
+- Richieste di cancellazione, limitazione o conservazione dati restano gestite nei limiti tecnici, contrattuali e normativi applicabili.
