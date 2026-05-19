@@ -1,13 +1,26 @@
 """FastAPI application exposing the minimal PsyHelper HTTP API boundary."""
 
+import os
 import time
 from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from api.exceptions import APIError
 from api.routers import auth, chat, homework, reports, therapists, wellness, mobile_v1, admin
 from database.postgres.connection import db_healthcheck
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = os.getenv("REFERRER_POLICY", "strict-origin-when-cross-origin")
+        if request.url.path.startswith(("/v1/", "/me", "/admin", "/clients", "/therapists")):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
 
 async def health(_request: Request):
@@ -34,6 +47,7 @@ async def unhandled_error_handler(_request: Request, exc: Exception):
 
 
 app = FastAPI(debug=False,routes=[],exception_handlers={APIError: api_error_handler, Exception: unhandled_error_handler})
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_route("/health", health, methods=["GET"])
 app.add_route("/health/db", health_db, methods=["GET"])
 app.include_router(auth.router)

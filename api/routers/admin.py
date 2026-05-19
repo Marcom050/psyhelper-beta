@@ -8,6 +8,7 @@ from database.audit_log import get_events, log_event
 from services import auth_service
 from services import data_rights_service
 from services import privacy_service
+from services import data_export_service
 
 router = APIRouter()
 
@@ -111,7 +112,9 @@ async def patch_tenant_suspend(request: Request):
 async def list_data_rights_requests(request: Request):
     admin = require_admin(request)
     tenant_id = request.query_params.get("tenant_id")
-    items = data_rights_service.list_requests(tenant_id=tenant_id)
+    status = request.query_params.get("status")
+    request_type = request.query_params.get("type")
+    items = data_rights_service.list_requests(tenant_id=tenant_id, status=status, request_type=request_type)
     log_event("admin_data_rights_list", actor=admin.username, payload={"tenant_id": tenant_id})
     return JSONResponse(success_response({"items": items}))
 
@@ -126,12 +129,33 @@ async def update_data_rights_request(request: Request):
     admin = require_admin(request)
     payload = await request.json()
     item = data_rights_service.update_request_status(request.path_params["request_id"], payload.get("status"), payload.get("metadata"))
-    if item and item.get("request_type") == "delete" and item.get("status") in {"processing", "completed"}:
+    if item and item.get("request_type") == "delete":
         md = auth_service.load_user_metadata(item["subject_username"])
-        md["deletion_requested"] = True
+        if item.get("status") in {"processing", "completed"}:
+            md["deletion_requested"] = True
+        elif item.get("status") in {"rejected", "cancelled"}:
+            md["deletion_requested"] = False
         auth_service.save_user_metadata(item["subject_username"], md)
     log_event("admin_data_rights_update", actor=admin.username, payload={"request_id": request.path_params["request_id"], "status": payload.get("status")})
     return JSONResponse(success_response(item or {}))
+
+
+async def export_data_rights_request(request: Request):
+    admin = require_admin(request)
+    item = data_rights_service.get_request(request.path_params["request_id"])
+    if not item:
+        return JSONResponse(success_response({}))
+    if item.get("status") not in {"processing", "completed"}:
+        item = data_rights_service.update_request_status(item["request_id"], "processing")
+    exported = data_export_service.generate_user_export(
+        actor_username=admin.username,
+        subject_username=item["subject_username"],
+        tenant_id=item["tenant_id"],
+        request_id=item["request_id"],
+    )
+    item = data_rights_service.update_request_status(item["request_id"], "completed", {"export_generated_at": exported["generated_at"]})
+    log_event("admin_data_rights_export", actor=admin.username, payload={"request_id": item["request_id"]})
+    return JSONResponse(success_response({"request": item, "export": exported}))
 
 
 router.add_api_route('/admin/tenants', list_tenants, methods=['GET'])
@@ -145,3 +169,4 @@ router.add_api_route('/admin/tenants/{id}/suspend', patch_tenant_suspend, method
 router.add_api_route('/admin/data-rights/requests', list_data_rights_requests, methods=['GET'])
 router.add_api_route('/admin/data-rights/requests/{request_id}', get_data_rights_request, methods=['GET'])
 router.add_api_route('/admin/data-rights/requests/{request_id}', update_data_rights_request, methods=['PATCH'])
+router.add_api_route('/admin/data-rights/requests/{request_id}/export', export_data_rights_request, methods=['GET'])

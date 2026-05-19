@@ -8,6 +8,7 @@ from api.dependencies import account_bundle, enforce_subscription_read_access, e
 from api.schemas.common import success_response
 from api.schemas.wellness import MoodEntryRequest
 from services import auth_service
+from services import data_export_service
 
 router = APIRouter()
 
@@ -41,6 +42,15 @@ async def create_chat_message(request: Request):
     auth_service.save_account_bundle(current.username, bundle["profile"], bundle["messages"], bundle["wellness"])
     return JSONResponse(success_response({"ok": True}))
 
+
+async def export_my_data(request: Request):
+    ctx = get_current_active_context(request)
+    current = ctx["auth"]
+    enforce_subscription_read_access(current)
+    tenant_id = current.metadata.get("tenant_id") or current.username
+    exported = data_export_service.generate_user_export(actor_username=current.username, subject_username=current.username, tenant_id=tenant_id)
+    return JSONResponse(success_response({"export": exported}))
+
 async def list_mood_entries(request: Request):
     ctx = get_current_active_context(request); current = ctx["auth"]; enforce_subscription_read_access(current); bundle = account_bundle(current.username)
     limit = int(request.query_params.get("limit", 50)); offset = int(request.query_params.get("offset", 0)); entries = bundle["wellness"].get("mood_entries", [])
@@ -60,3 +70,5 @@ router.add_api_route("/v1/chat/history", chat_history, methods=["GET"])
 router.add_api_route("/v1/chat/messages", create_chat_message, methods=["POST"])
 router.add_api_route("/v1/wellness/mood-entries", list_mood_entries, methods=["GET"])
 router.add_api_route("/v1/wellness/mood-entries", create_mood_entry, methods=["POST"])
+
+router.add_api_route("/v1/me/export", export_my_data, methods=["GET"])

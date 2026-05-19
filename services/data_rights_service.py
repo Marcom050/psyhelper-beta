@@ -7,6 +7,13 @@ from database.json_storage import atomic_write_json, load_json_file
 REQUESTS_PATH = os.path.expanduser("~/psyhelper_data/data_rights_requests.json")
 VALID_TYPES = {"export", "delete", "retention", "processing_restriction"}
 VALID_STATUS = {"requested", "processing", "completed", "rejected", "cancelled"}
+ALLOWED_TRANSITIONS = {
+    "requested": {"processing", "rejected"},
+    "processing": {"completed", "rejected", "cancelled"},
+    "completed": set(),
+    "rejected": set(),
+    "cancelled": set(),
+}
 
 
 def _now() -> str:
@@ -45,10 +52,14 @@ def create_request(request_type: str, subject_username: str, tenant_id: str, req
     return item
 
 
-def list_requests(tenant_id: str | None = None) -> list[dict]:
+def list_requests(tenant_id: str | None = None, request_type: str | None = None, status: str | None = None) -> list[dict]:
     items = _load()
     if tenant_id:
         items = [i for i in items if i.get("tenant_id") == tenant_id]
+    if request_type:
+        items = [i for i in items if i.get("request_type") == request_type]
+    if status:
+        items = [i for i in items if i.get("status") == status]
     return items
 
 
@@ -66,6 +77,9 @@ def update_request_status(request_id: str, status: str, metadata: dict | None = 
     out = None
     for item in items:
         if item.get("request_id") == request_id:
+            current = item.get("status")
+            if status != current and status not in ALLOWED_TRANSITIONS.get(current, set()):
+                raise ValueError("invalid status transition")
             item["status"] = status
             if metadata:
                 item["metadata"] = {**(item.get("metadata") or {}), **metadata}
