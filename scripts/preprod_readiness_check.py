@@ -44,20 +44,25 @@ def run() -> int:
     data_export_enabled = os.getenv("DATA_EXPORT_ENABLED", "").strip().lower()
     admin_bootstrap_secret = os.getenv("ADMIN_BOOTSTRAP_SECRET", "").strip()
     admin_bootstrap_mode = os.getenv("ADMIN_BOOTSTRAP_MODE", "cli").strip().lower()
+    data_rights_path = os.getenv("DATA_RIGHTS_STORAGE_PATH", "").strip()
+    export_output_path = os.getenv("EXPORT_OUTPUT_PATH", "").strip()
 
     checks = [
         _check("ENVIRONMENT valid", env in {"development", "staging", "production"}, f"ENVIRONMENT={env or 'unset'}", critical=True),
         _check("SECRET_KEY set for production", (not is_prod) or (len(secret) >= 32 and secret != DEFAULT_DEV_SECRET), "SECRET_KEY secure in production", critical=True),
         _check("Storage backend selected", use_postgres or use_fs, f"USE_POSTGRESQL={use_postgres}, USE_FILESYSTEM_FALLBACK={use_fs}", critical=True),
+        _check("No filesystem fallback in production", (not is_prod) or (not use_fs), f"USE_FILESYSTEM_FALLBACK={use_fs}", critical=True),
         _check("DATABASE_URL when postgres", (not use_postgres) or bool(db_url), f"DATABASE_URL {'present' if db_url else 'missing'}", critical=True),
         _check("DEBUG disabled in production", (not is_prod) or (not debug), f"DEBUG={debug}", critical=True),
         _check("TESTING flag disabled in production", (not is_prod) or (not testing), f"TESTING={testing}", critical=True),
         _check("Auth security persistence configured", (not is_prod) or bool(auth_path), f"AUTH_SECURITY_STATE_PATH={'set' if auth_path else 'unset'}", critical=True),
         _check("Audit persistence configured", (not is_prod) or bool(audit_path), f"AUDIT_LOG_PATH={'set' if audit_path else 'unset'}", critical=True),
+        _check("Data-rights persistence configured", (not is_prod) or bool(data_rights_path), f"DATA_RIGHTS_STORAGE_PATH={'set' if data_rights_path else 'unset'}", critical=True),
         _check("Privacy policy version configured", (not is_prod) or bool(privacy_policy_version), f"PRIVACY_POLICY_VERSION={privacy_policy_version or 'unset'}", critical=True),
         _check("Terms version configured", (not is_prod) or bool(terms_version), f"TERMS_VERSION={terms_version or 'unset'}", critical=True),
         _check("Consent enforcement enabled", (not is_prod) or consent_enforcement, f"CONSENT_ENFORCEMENT_ENABLED={consent_enforcement}", critical=True),
         _check("Data export feature flag explicit", (not is_prod) or (data_export_enabled in {'true','false','1','0','yes','no','on','off'}), f"DATA_EXPORT_ENABLED={data_export_enabled or 'unset'}", critical=True),
+        _check("Export output path is ephemeral in production", (not is_prod) or (not export_output_path or export_output_path.startswith('/tmp')), f"EXPORT_OUTPUT_PATH={export_output_path or 'unset'}"),
         _check("Admin bootstrap mode configured", (not is_prod) or (admin_bootstrap_mode in {'cli','disabled'}), f"ADMIN_BOOTSTRAP_MODE={admin_bootstrap_mode or 'unset'}", critical=True),
         _check("Admin bootstrap secret configured", (not is_prod) or (len(admin_bootstrap_secret) >= 32 and admin_bootstrap_secret.lower() not in {'changeme','default','admin-bootstrap-secret'}), "ADMIN_BOOTSTRAP_SECRET secure", critical=True),
         _check("CORS basic sanity", (not is_prod) or (cors_origins not in {"", "*"}), f"CORS_ALLOWED_ORIGINS={cors_origins or 'unset'}"),

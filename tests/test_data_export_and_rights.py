@@ -79,7 +79,10 @@ def test_readiness_check_privacy_export_config():
     from scripts.preprod_readiness_check import run
     os.environ['ENVIRONMENT'] = 'production'
     os.environ['SECRET_KEY'] = 'x'*32
-    os.environ['USE_FILESYSTEM_FALLBACK'] = '1'
+    os.environ['USE_POSTGRESQL'] = 'true'
+    os.environ['USE_FILESYSTEM_FALLBACK'] = '0'
+    os.environ['DATABASE_URL'] = 'postgresql://x'
+    os.environ['DATA_RIGHTS_STORAGE_PATH'] = '/tmp/c'
     os.environ['AUTH_SECURITY_STATE_PATH'] = '/tmp/a'
     os.environ['AUDIT_LOG_PATH'] = '/tmp/b'
     os.environ['PRIVACY_POLICY_VERSION'] = 'v1'
