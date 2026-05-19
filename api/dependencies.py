@@ -68,6 +68,14 @@ def require_therapist(request: Request) -> AuthContext:
     return current
 
 
+
+
+def require_admin(request: Request) -> AuthContext:
+    current = get_current_user(request)
+    if current.role != "admin":
+        raise AuthenticationError("Admin role required")
+    return current
+
 def require_client(request: Request) -> AuthContext:
     current = get_current_user(request)
     if current.role != "client":

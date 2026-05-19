@@ -14,3 +14,17 @@ def audit_log_event(event_type:str, actor_username:str|None=None, target_usernam
 
 def log_event(event_type:str, actor:str|None=None, payload:dict|None=None)->None:
     audit_log_event(event_type=event_type, actor_username=actor, metadata=payload or {})
+
+
+def get_events(limit:int=50, offset:int=0)->list[dict]:
+    if not os.path.exists(AUDIT_LOG_PATH):
+        return []
+    with open(AUDIT_LOG_PATH,'r',encoding='utf-8') as h:
+        rows=[line.strip() for line in h if line.strip()]
+    events=[]
+    for row in rows[::-1]:
+        try:
+            events.append(json.loads(row))
+        except Exception:
+            continue
+    return events[offset:offset+limit]

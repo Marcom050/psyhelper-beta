@@ -5,6 +5,7 @@ from starlette.responses import JSONResponse
 from api.dependencies import get_current_user, parse_body
 from api.exceptions import APIValidationError, AuthenticationError
 from api.schemas.auth import AccessTokenResponse, AuthResponse, LoginRequest, RefreshRequest, SignupRequest, UserResponse
+from api.schemas.common import success_response
 from api.security import create_access_token, create_refresh_token, verify_refresh_token
 from core.settings import SETTINGS
 from database.audit_log import audit_log_event
@@ -73,8 +74,25 @@ async def me(request: Request):
     response = UserResponse(username=current.username, role=current.role, metadata=current.metadata, profile=current.profile)
     return JSONResponse(response.model_dump())
 
+
+
+async def onboarding_therapist(request: Request):
+    body = await parse_body(request, SignupRequest)
+    username = auth_service.normalize_username(body.username)
+    if auth_service.user_exists(username):
+        raise APIValidationError("User already exists")
+    auth_service.create_user(username, body.password, role="therapist", subscription_status="trialing", email=body.email, profile=body.profile)
+    metadata = auth_service.load_user_metadata(username)
+    metadata["trial_days"] = SETTINGS.beta_trial_days
+    metadata["billing_status"] = "trialing"
+    auth_service.save_user_metadata(username, metadata)
+    family_id = f"fam-{username}"
+    refresh_token = create_refresh_token(username, family_id=family_id)
+    audit_log_event("onboarding_therapist", actor_username=username, tenant_id=metadata.get("tenant_id"), metadata={"path":"/v1/onboarding/therapist"})
+    return JSONResponse(success_response({"username": username, "access_token": create_access_token(username), "refresh_token": refresh_token, "metadata": metadata}))
 router.add_api_route("/auth/signup", signup, methods=["POST"])
 router.add_api_route("/auth/login", login, methods=["POST"])
 router.add_api_route("/auth/refresh", refresh, methods=["POST"])
 router.add_api_route('/auth/logout', logout, methods=['POST'])
+router.add_api_route("/v1/onboarding/therapist", onboarding_therapist, methods=["POST"] )
 router.add_api_route("/me", me, methods=["GET"])
