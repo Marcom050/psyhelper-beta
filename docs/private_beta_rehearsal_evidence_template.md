@@ -54,3 +54,9 @@
 - Security/privacy reviewer:
 - Timestamp:
 - Notes:
+
+## Report handoff
+- Convert captured smoke evidence JSON into a review draft (optional):
+  - `python scripts/generate_private_beta_report.py --evidence /tmp/psyhelper-smoke-evidence.json --output /tmp/private-beta-report.md`
+- Use that summary plus this evidence sheet to complete `docs/private_beta_go_no_go_report_template.md`.
+- Any rehearsal issues should be tracked in `docs/private_beta_staging_issue_log_template.md`.

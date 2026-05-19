@@ -76,3 +76,8 @@ Define the minimum validation bar before inviting the first trusted therapist in
 - Admin bootstrap left enabled without compensating controls.
 - Audit/data-rights persistence unavailable for beta workflows.
 - Synthetic data safeguards not followed.
+
+## Rehearsal reporting artifacts
+- Fill `docs/private_beta_go_no_go_report_template.md` after each controlled staging rehearsal.
+- Track defects in `docs/private_beta_staging_issue_log_template.md` and link issue IDs in the go/no-go report.
+- Use `python scripts/generate_private_beta_report.py --evidence <path>.json` to create a markdown summary draft from smoke evidence JSON.

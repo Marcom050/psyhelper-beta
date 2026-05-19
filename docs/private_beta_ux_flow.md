@@ -50,3 +50,7 @@ Rendere la prima esperienza del terapeuta in private beta più chiara, con navig
 ## Note pianificazione futura (non implementate)
 - Definire user flow mobile therapist-first coerente con RBAC attuale.
 - Mappare subset di schermate Streamlit da portare in frontend moderno in sprint separata.
+
+## Vincolo lingua private beta
+- Tutto il testo visibile ai terapeuti/clienti nella UI Streamlit deve restare in italiano (disclaimer, warning, stati vuoti, etichette e guidance).
+- Materiale tecnico interno (script CLI, commit, test, runbook) può restare in inglese.
