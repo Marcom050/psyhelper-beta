@@ -1,53 +1,81 @@
 # Operational runbook - controlled private beta
 
-## Pre-deploy checklist
-- Confirm `.env.production.example` values are populated in hosting secrets (no default secrets).
-- Run `pytest -q`.
-- Run `python scripts/preprod_readiness_check.py` in production-like env.
-- Confirm PostgreSQL reachable and schema bootstrap succeeds.
-- Confirm audit/auth/data-rights paths are persistent or moved to managed persistence.
+## 1) Pre-deploy checklist
+- Confirm deployment target and rollback owner for this release window.
+- Confirm production-like secret values are set (no placeholders, no defaults).
+- Confirm `ENVIRONMENT` explicitly set (`staging` or `production`).
+- Run:
+  - `pytest -q`
+  - `python scripts/preprod_readiness_check.py`
+  - `python scripts/smoke_test_private_beta.py --dry-run`
+- Confirm API and Streamlit entrypoints are unchanged or reviewed.
+- Confirm managed PostgreSQL availability and credentials.
+- Confirm incident channel and on-call contact for first beta window.
 
-## Post-deploy smoke test
-- Run `python scripts/smoke_test_private_beta.py --base-url <api-url>` if API reachable.
-- If not, run `python scripts/smoke_test_private_beta.py` and execute manual flow checklist.
+## 2) Deploy checklist
+- Deploy backend API (`api/app.py`, `app`) if separate.
+- Deploy Streamlit app (`psyhelper_streamlit.py`).
+- Confirm secrets are loaded and no missing-key startup errors.
+- Confirm CORS configuration matches Streamlit origin.
+- Confirm admin bootstrap mode is intended for this window (`cli` for controlled bootstrap or `disabled`).
 
-## First admin creation
-- Preferred: one-time CLI bootstrap (`ADMIN_BOOTSTRAP_MODE=cli`) in controlled secure terminal.
-- After bootstrap, set `ADMIN_BOOTSTRAP_MODE=disabled` and rotate bootstrap secret.
+## 3) Post-deploy smoke checklist
+- Run HTTP smoke against deployed API:
+  - `python scripts/smoke_test_private_beta.py --base-url https://<api-host>`
+- Run/print manual checklist:
+  - `python scripts/smoke_test_private_beta.py --manual-checklist`
+- Record smoke evidence: timestamp, operator, environment, pass/fail details.
 
-## Invite first therapist
-- Admin creates therapist account under correct tenant.
-- Therapist performs first login and consent acceptance.
+## 4) First admin bootstrap
+- Use one-time secure bootstrap path only in controlled terminal/session.
+- Create first admin and verify login.
+- Immediately set `ADMIN_BOOTSTRAP_MODE=disabled` and rotate bootstrap secret.
 
-## Suspend user/tenant
-- Set account metadata status to suspended via admin tooling.
-- Record action in audit log with reason and timestamp.
+## 5) First therapist onboarding
+- Admin creates therapist account in intended tenant.
+- Therapist performs first login and policy/consent path.
+- Verify therapist cannot access other tenant data.
 
-## Data export
-- Use privacy/data-rights service endpoints or admin tooling.
-- Ensure exports are delivered securely and removed from temporary storage after delivery.
+## 6) First client test flow (synthetic data only)
+- Create synthetic client profile.
+- Record one mood entry.
+- Create one homework assignment and one submission.
+- Validate report/chat routes if enabled.
 
-## Delete request handling
-- Process as governed delete request (no hard-delete automation for clinical records).
-- Mark lifecycle status and maintain legal/audit trace.
+## 7) Data export flow
+- Trigger self/data-rights export for synthetic account.
+- Verify exported package integrity.
+- Verify secure delivery path and temporary-file cleanup.
 
-## Manual rollback
-- Roll back app to previous known-good commit.
-- Re-run smoke tests and readiness check.
-- Verify DB schema remains additive and compatible.
+## 8) Delete/data-rights request handling
+- Track request in governed workflow (ticket + audit trace).
+- Do not hard-delete clinical records automatically.
+- Confirm request status transitions and reviewer accountability.
 
-## Audit/logs
-- Review `AUDIT_LOG_PATH` output and platform logs daily during beta.
-- Escalate unusual auth failures, role changes, and export/delete operations.
+## 9) Tenant/user suspension sanity
+- Suspend a synthetic user/tenant via admin path.
+- Verify blocked access after suspension.
+- Verify action is captured in audit/platform logs.
 
-## Incident response
-- Contain: suspend affected account/tenant.
-- Preserve evidence: snapshot logs/audit trails.
-- Notify stakeholders per beta incident policy.
-- Recover service and document postmortem.
+## 10) Audit/log review
+- Review auth failures, admin role changes, exports, and suspension actions.
+- Ensure suspicious access or repeated failures are escalated.
 
-## Declared beta limits
-- Controlled private beta only.
-- No automatic clinical hard-delete.
-- No billing production flows.
-- Streamlit hosting limitations for sensitive data persistence must be acknowledged.
+## 11) Rollback procedure
+- Roll back Streamlit/API to previous known-good commit.
+- Verify service restoration.
+- Re-run smoke + manual checklist before reopening access.
+- Document incident and rollback rationale.
+
+## 12) Incident response basics
+- Contain: disable affected account/tenant/API key.
+- Preserve logs and audit artifacts.
+- Notify stakeholders.
+- Patch/redeploy, then run smoke validation.
+- Capture postmortem action items.
+
+## 13) Beta limitations and caveats
+- Controlled private beta only; not full clinical compliance attestation.
+- Streamlit Cloud has ephemeral filesystem constraints.
+- Sensitive persistence must be explicit (managed DB + durable audit strategy).
+- Authenticated end-to-end flows still require supervised manual validation.
