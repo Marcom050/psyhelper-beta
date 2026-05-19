@@ -373,7 +373,27 @@ def render_homework_answers(submission):
     for question, answer in answer_items:
         st.markdown(f"**{question}**")
         st.write(answer)
+
+
+def render_sticky_chat_input():
+    st.markdown(
+        """
+<style>
+div[data-testid="stChatInput"] {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: linear-gradient(to top, #ffffff 72%, rgba(255, 255, 255, 0));
+  padding-top: 0.75rem;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 def show_chat_tab():
+    render_sticky_chat_input()
     st.markdown(f"<p class='subtitle'>Ciao {session_adapter.get_profile().get('nome', session_adapter.get_username())}</p>", unsafe_allow_html=True)
 
     for msg in session_adapter.get_messages():
@@ -832,9 +852,23 @@ def show_therapist_dashboard():
         events = build_timeline_events(selected_wellness)
         if not events:
             st.info("La timeline si popolerà con diario, homework ed eventi.")
-        for event in events[:30]:
-            st.markdown(f"**{event.get('data', '—')} · {event.get('tipo', 'Evento')}**")
-            st.write(f"{event.get('titolo', '')} — {event.get('dettaglio', '')}")
+        else:
+            visible_events = events[:80]
+            st.caption(f"Mostro {len(visible_events)} eventi più recenti, raggruppati per mese.")
+            timeline_df = pd.DataFrame(visible_events)
+            timeline_df["data"] = timeline_df["data"].fillna("—")
+            timeline_df["month_group"] = pd.to_datetime(timeline_df["data"], errors="coerce").dt.strftime("%Y-%m")
+            timeline_df["month_group"] = timeline_df["month_group"].fillna("Senza data")
+            timeline_df["giorno"] = pd.to_datetime(timeline_df["data"], errors="coerce").dt.strftime("%d/%m/%Y")
+            timeline_df["giorno"] = timeline_df["giorno"].fillna(timeline_df["data"])
+
+            for month, month_df in timeline_df.groupby("month_group", sort=False):
+                month_label = "Senza data" if month == "Senza data" else datetime.strptime(month, "%Y-%m").strftime("%B %Y").title()
+                with st.expander(f"{month_label} · {len(month_df)} eventi", expanded=(month == timeline_df.iloc[0]["month_group"])):
+                    compact_df = month_df[["giorno", "tipo", "titolo", "dettaglio"]].rename(
+                        columns={"giorno": "Data", "tipo": "Tipo", "titolo": "Titolo", "dettaglio": "Dettaglio"}
+                    )
+                    st.dataframe(compact_df, use_container_width=True, hide_index=True)
         with st.form("manual_timeline_event"):
             event_title = st.text_input("Aggiungi evento/progresso/ricaduta")
             event_detail = st.text_area("Dettaglio")
