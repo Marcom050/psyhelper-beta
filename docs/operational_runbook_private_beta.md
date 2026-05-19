@@ -65,3 +65,10 @@
 - Sensitive persistence must be explicit (managed DB + durable audit strategy).
 - Authenticated end-to-end flows still require supervised manual validation.
 - Invite first trusted therapist only after successful rehearsal + explicit go decision.
+
+## 8) Decision documentation
+- After rehearsal execution, generate an evidence summary draft (optional):
+  - `python scripts/generate_private_beta_report.py --evidence /tmp/psyhelper-smoke-evidence.json`
+- Complete `docs/private_beta_go_no_go_report_template.md` with readiness/smoke/manual outcomes.
+- Log each defect in `docs/private_beta_staging_issue_log_template.md` with launch-blocking yes/no.
+- Validate `docs/first_trusted_therapist_invite_checklist.md` before inviting first trusted therapist.
