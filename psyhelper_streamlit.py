@@ -98,6 +98,16 @@ EMPTY_STATE_MESSAGES = {
     "exports": "Nessuna richiesta export/data-rights visibile in questa area beta.",
 }
 
+CHAT_UI_SESSION_KEYS = [
+    "messages",
+    "chat_messages",
+    "conversation",
+    "current_chat",
+    "selected_client_chat",
+    "chat_input_draft",
+    "chat_input_box",
+]
+
 SENSITIVE_KEY_FRAGMENTS = ("token", "secret", "password", "authorization", "cookie", "api_key")
 LOW_VALUE_METADATA_KEYS = ("created_at", "updated_at", "id", "internal_id")
 
@@ -259,6 +269,8 @@ def sanitize_session_metadata(data):
 
 def clear_visible_chat_session(persist=False):
     session_adapter.set_messages([])
+    session_adapter.set_selected_patient_username(None)
+    session_adapter.clear_keys(CHAT_UI_SESSION_KEYS)
     if persist and session_adapter.get_username():
         save_user_data(session_adapter.get_username())
 
@@ -448,21 +460,19 @@ def render_homework_answers(submission):
         st.write(answer)
 
 
-def render_sticky_chat_input():
+def render_chat_input_styles():
     st.markdown(
         """
 <style>
 div[data-testid="stChatInput"] {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
-  background: linear-gradient(to top, var(--background-color, #ffffff) 72%, rgba(255, 255, 255, 0));
-  padding-top: 0.5rem;
-  border-top: 0;
-  box-shadow: none;
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 div[data-testid="stChatInput"] textarea {
   border: 1px solid rgba(148, 163, 184, 0.45) !important;
+  border-radius: 0.75rem !important;
+  background: var(--background-color, #ffffff) !important;
   box-shadow: none !important;
 }
 </style>
@@ -472,7 +482,7 @@ div[data-testid="stChatInput"] textarea {
 
 
 def show_chat_tab():
-    render_sticky_chat_input()
+    render_chat_input_styles()
     st.subheader("💬 Chat di supporto")
     st.caption(f"Ciao {compact_display_name(session_adapter.get_profile(), session_adapter.get_username())}.")
 
@@ -483,16 +493,16 @@ def show_chat_tab():
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    if user_input := st.chat_input("Descrivi cosa stai provando o quale esperienza vuoi approfondire..."):
+    if user_input := st.chat_input(
+        "Descrivi cosa stai provando o quale esperienza vuoi approfondire...",
+        key="chat_input_box",
+    ):
         session_adapter.get_messages().append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
-        with st.chat_message("assistant"):
-            with st.spinner("Sto pensando..."):
-                reply = get_response(user_input)
-                st.markdown(reply)
-                session_adapter.get_messages().append({"role": "assistant", "content": reply})
+        with st.spinner("Sto pensando..."):
+            reply = get_response(user_input)
+        session_adapter.get_messages().append({"role": "assistant", "content": reply})
         save_user_data(session_adapter.get_username())
+        st.rerun()
 
 
 def show_diary_tab():

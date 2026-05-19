@@ -80,7 +80,8 @@ class ChatHTTPMigrationTest(unittest.TestCase):
     def test_chat_ux_regression_keeps_existing_streamlit_flow(self):
         source = Path("psyhelper_streamlit.py").read_text()
 
-        self.assertIn('st.chat_input("Descrivi cosa stai provando o quale esperienza vuoi approfondire...")', source)
+        self.assertIn('if user_input := st.chat_input(', source)
+        self.assertIn('"Descrivi cosa stai provando o quale esperienza vuoi approfondire..."', source)
         self.assertIn('session_adapter.get_messages().append({"role": "user", "content": user_input})', source)
         self.assertIn('with st.spinner("Sto pensando..."):', source)
         self.assertIn('session_adapter.get_messages().append({"role": "assistant", "content": reply})', source)

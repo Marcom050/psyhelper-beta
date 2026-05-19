@@ -56,6 +56,10 @@ class SessionAdapter:
     def _pop(self, key: str, default: Any = None) -> Any:
         return self._session_state.pop(key, default)
 
+    def clear_keys(self, keys: list[str]) -> None:
+        for key in keys:
+            self._pop(key, None)
+
     def get_session_data(self) -> AppSessionData:
         return AppSessionData(
             username=self.get_username(),
