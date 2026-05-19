@@ -25,6 +25,10 @@ def verify_access_token(token:str)->dict[str,Any]:
     if p.get('typ')!='access': raise AuthenticationError('Invalid access token')
     return p
 
+
+def decode_token(token:str)->dict[str,Any]:
+    return _decode_token(token)
+
 def verify_refresh_token(token:str)->dict[str,Any]:
     p=_decode_token(token)
     if p.get('typ')!='refresh': raise AuthenticationError('Invalid refresh token')
@@ -63,3 +67,5 @@ def _decode_hs256(token,key):
     if int(payload.get('exp',0))<now or int(payload.get('nbf',0))>now: raise AuthenticationError('Expired token')
     if payload.get('iss')!=SETTINGS.token_issuer: raise AuthenticationError('Invalid token issuer')
     return payload
+
+__all__ = ["AuthContext", "create_access_token", "create_refresh_token", "verify_access_token", "verify_refresh_token", "auth_context_for_username", "decode_token"]
