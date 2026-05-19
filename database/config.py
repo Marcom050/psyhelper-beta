@@ -1,15 +1,8 @@
 """Database backend feature flags and configuration."""
 
-import os
+from core.settings import SETTINGS
 
-
-def _env_flag(name, default=False):
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-USE_POSTGRESQL = _env_flag("USE_POSTGRESQL", False)
-DATABASE_URL = os.getenv("DATABASE_URL", "")
-USE_FILESYSTEM_FALLBACK = _env_flag("USE_FILESYSTEM_FALLBACK", True)
+USE_POSTGRESQL = SETTINGS.use_postgresql
+DATABASE_URL = SETTINGS.database_url
+USE_FILESYSTEM_FALLBACK = SETTINGS.use_filesystem_fallback
+STRICT_PRODUCTION_MODE = SETTINGS.strict_production_mode

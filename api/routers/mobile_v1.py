@@ -5,69 +5,53 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from api.dependencies import account_bundle, get_current_user, parse_body
+from api.schemas.common import success_response
 from api.schemas.wellness import MoodEntryRequest
 from services import auth_service
 
 router = APIRouter()
 
+def _page(items, limit, offset):
+    total=len(items)
+    return {"items": items[offset:offset+limit], "limit": limit, "offset": offset, "total": total}
 
 async def me(_request: Request):
     current = get_current_user(_request)
-    return JSONResponse({"username": current.username, "role": current.role, "metadata": current.metadata})
-
+    return JSONResponse(success_response({"username": current.username, "role": current.role, "metadata": current.metadata}))
 
 async def get_profile(request: Request):
     current = get_current_user(request)
-    return JSONResponse({"profile": account_bundle(current.username)["profile"]})
-
+    return JSONResponse(success_response({"profile": account_bundle(current.username)["profile"]}))
 
 async def patch_profile(request: Request):
     current = get_current_user(request)
-    payload = await request.json()
-    profile_updates = payload.get("profile", {}) if isinstance(payload, dict) else {}
-    bundle = account_bundle(current.username)
-    bundle["profile"] = {**bundle["profile"], **profile_updates}
+    payload = await request.json(); profile_updates = payload.get("profile", {}) if isinstance(payload, dict) else {}
+    bundle = account_bundle(current.username); bundle["profile"] = {**bundle["profile"], **profile_updates}
     auth_service.save_account_bundle(current.username, bundle["profile"], bundle["messages"], bundle["wellness"])
-    return JSONResponse({"profile": bundle["profile"]})
-
+    return JSONResponse(success_response({"profile": bundle["profile"]}))
 
 async def chat_history(request: Request):
-    current = get_current_user(request)
-    bundle = account_bundle(current.username)
-    limit = int(request.query_params.get("limit", 50))
-    offset = int(request.query_params.get("offset", 0))
-    return JSONResponse({"items": bundle["messages"][offset : offset + limit], "limit": limit, "offset": offset})
-
+    current = get_current_user(request); bundle = account_bundle(current.username)
+    limit = int(request.query_params.get("limit", 50)); offset = int(request.query_params.get("offset", 0))
+    return JSONResponse(success_response(_page(bundle["messages"], limit, offset)))
 
 async def create_chat_message(request: Request):
-    current = get_current_user(request)
-    payload = await request.json()
-    content = str(payload.get("content", "")).strip()
-    bundle = account_bundle(current.username)
-    bundle["messages"].append({"role": "user", "content": content})
+    current = get_current_user(request); payload = await request.json(); content = str(payload.get("content", "")).strip()
+    bundle = account_bundle(current.username); bundle["messages"].append({"role": "user", "content": content})
     auth_service.save_account_bundle(current.username, bundle["profile"], bundle["messages"], bundle["wellness"])
-    return JSONResponse({"ok": True})
-
+    return JSONResponse(success_response({"ok": True}))
 
 async def list_mood_entries(request: Request):
-    current = get_current_user(request)
-    bundle = account_bundle(current.username)
-    limit = int(request.query_params.get("limit", 50))
-    offset = int(request.query_params.get("offset", 0))
-    entries = bundle["wellness"].get("mood_entries", [])
-    return JSONResponse({"items": entries[offset : offset + limit], "limit": limit, "offset": offset})
-
+    current = get_current_user(request); bundle = account_bundle(current.username)
+    limit = int(request.query_params.get("limit", 50)); offset = int(request.query_params.get("offset", 0)); entries = bundle["wellness"].get("mood_entries", [])
+    return JSONResponse(success_response(_page(entries, limit, offset)))
 
 async def create_mood_entry(request: Request):
-    current = get_current_user(request)
-    body = await parse_body(request, MoodEntryRequest)
-    bundle = account_bundle(current.username)
-    entry = body.model_dump()
-    entry.update(body.model_extra or {})
+    current = get_current_user(request); body = await parse_body(request, MoodEntryRequest)
+    bundle = account_bundle(current.username); entry = body.model_dump(); entry.update(body.model_extra or {})
     bundle["wellness"].setdefault("mood_entries", []).append(entry)
     auth_service.save_account_bundle(current.username, bundle["profile"], bundle["messages"], bundle["wellness"])
-    return JSONResponse({"mood_entry": entry})
-
+    return JSONResponse(success_response({"mood_entry": entry}))
 
 router.add_api_route("/v1/me", me, methods=["GET"])
 router.add_api_route("/v1/me/profile", get_profile, methods=["GET"])
