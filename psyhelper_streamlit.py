@@ -182,7 +182,11 @@ def use_http_api():
 
 
 def api_client():
-    return PsyHelperAPIClient(api_client_config())
+    return PsyHelperAPIClient(
+        api_client_config(),
+        access_token=session_adapter.get_access_token(),
+        refresh_token=session_adapter.get_refresh_token(),
+    )
 
 
 def show_api_error(error):
@@ -891,6 +895,7 @@ def render_login_form():
                     session_adapter.set_logged_in(True)
                     session_adapter.set_username(login_payload["username"])
                     session_adapter.set_user_metadata(login_payload["metadata"])
+                    session_adapter.set_auth_tokens(login_payload.get("access_token"), login_payload.get("refresh_token"))
                     session_adapter.set_profile(login_payload["profile"])
                     session_adapter.set_scroll_to_top(True)
                     load_user_data(login_payload["username"])

@@ -24,11 +24,26 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1)
 
 
+class RefreshRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: str = Field(min_length=1)
+
+
+class AccessTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 class UserResponse(BaseModel):
     username: str
+    role: str | None = None
     metadata: dict[str, Any]
     profile: dict[str, Any]
 
 
 class AuthResponse(UserResponse):
     authenticated: bool = True
+    access_token: str | None = None
+    refresh_token: str | None = None
+    token_type: str = "bearer"

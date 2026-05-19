@@ -97,22 +97,53 @@ def _parse_timeout(value: float | int | str | None) -> float:
 class PsyHelperAPIClient:
     """Centralized synchronous API client for the first migrated UI flows."""
 
-    def __init__(self, config: APIClientConfig | None = None, session: requests.Session | None = None):
+    def __init__(
+        self,
+        config: APIClientConfig | None = None,
+        session: requests.Session | None = None,
+        *,
+        access_token: str | None = None,
+        refresh_token: str | None = None,
+    ):
         self.config = config or APIClientConfig.from_values()
         self.session = session or requests.Session()
+        self.access_token = access_token
+        self.refresh_token = refresh_token
+
+    def set_auth_tokens(self, access_token: str | None, refresh_token: str | None = None) -> None:
+        self.access_token = access_token
+        if refresh_token is not None:
+            self.refresh_token = refresh_token
 
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/health")
 
     def login(self, username: str, password: str) -> dict[str, Any]:
-        return self._request(
+        payload = self._request(
             "POST",
             "/auth/login",
             json={"username": username, "password": password},
             response_model=AuthResponse,
         )
+        self.set_auth_tokens(payload.get("access_token"), payload.get("refresh_token"))
+        return payload
 
-    def me(self, username: str) -> dict[str, Any]:
+    def refresh_access_token(self) -> str:
+        if not self.refresh_token:
+            raise APIUnauthorizedError(401, "Missing refresh token", {})
+        payload = self._request(
+            "POST",
+            "/auth/refresh",
+            json={"refresh_token": self.refresh_token},
+            skip_refresh=True,
+        )
+        access_token = str(payload.get("access_token") or "")
+        if not access_token:
+            raise APIResponseValidationError("Refresh response missing access token")
+        self.access_token = access_token
+        return access_token
+
+    def me(self, username: str | None = None) -> dict[str, Any]:
         return self._request("GET", "/me", username=username, response_model=UserResponse)
 
     def get_wellness(self, username: str) -> dict[str, Any]:
@@ -206,6 +237,20 @@ class PsyHelperAPIClient:
             response_model=ClinicalReportResponse,
         )
 
+
+    def list_my_clients(self) -> dict[str, Any]:
+        return self._request("GET", "/therapists/me/clients")
+
+    def create_my_client(self, username: str, password: str, profile: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"username": username, "password": password}
+        if profile is not None:
+            payload["profile"] = profile
+        return self._request("POST", "/therapists/me/clients", json=payload)
+
+    def get_my_client(self, username: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        return self._request("GET", f"/therapists/me/clients/{safe_username}")
+
     def _request(
         self,
         method: str,
@@ -214,10 +259,13 @@ class PsyHelperAPIClient:
         username: str | None = None,
         json: dict[str, Any] | None = None,
         response_model: Type[ResponseModel] | None = None,
+        skip_refresh: bool = False,
     ) -> dict[str, Any]:
         url = f"{self.config.base_url}{path}"
         headers = {"Accept": "application/json"}
-        if username:
+        if self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
+        elif username:
             headers["X-Username"] = username
 
         try:
@@ -234,6 +282,10 @@ class PsyHelperAPIClient:
         except requests.RequestException as exc:
             LOGGER.warning("API unreachable: %s %s (%s)", method, url, exc)
             raise APIConnectionError("API unreachable") from exc
+
+        if response.status_code == 401 and not skip_refresh and self.refresh_token and path != "/auth/refresh":
+            self.refresh_access_token()
+            return self._request(method, path, username=username, json=json, response_model=response_model, skip_refresh=True)
 
         if response.status_code >= 400:
             self._raise_http_error(response)

@@ -4,9 +4,10 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import current_username, parse_body
+from api.dependencies import get_current_user, parse_body
 from api.exceptions import APIValidationError, AuthenticationError
-from api.schemas.auth import AuthResponse, LoginRequest, SignupRequest, UserResponse
+from api.schemas.auth import AccessTokenResponse, AuthResponse, LoginRequest, RefreshRequest, SignupRequest, UserResponse
+from api.security import create_access_token, create_refresh_token, verify_refresh_token
 from services import auth_service
 
 router = APIRouter()
@@ -34,7 +35,7 @@ async def signup(request: Request):
     )
     bundle = auth_service.load_account_bundle(username)
     metadata = auth_service.load_user_metadata(username)
-    response = AuthResponse(username=username, metadata=metadata, profile=bundle["profile"])
+    response = AuthResponse(username=username, role=metadata.get("role"), metadata=metadata, profile=bundle["profile"])
     return JSONResponse(response.model_dump())
 
 
@@ -45,17 +46,38 @@ async def login(request: Request):
         raise AuthenticationError("Invalid credentials")
     bundle = auth_service.load_account_bundle(username)
     metadata = auth_service.load_user_metadata(username)
-    response = AuthResponse(username=username, metadata=metadata, profile=bundle["profile"])
+    response = AuthResponse(
+        username=username,
+        role=metadata.get("role"),
+        metadata=metadata,
+        profile=bundle["profile"],
+        access_token=create_access_token(username),
+        refresh_token=create_refresh_token(username),
+    )
+    return JSONResponse(response.model_dump())
+
+
+async def refresh(request: Request):
+    body = await parse_body(request, RefreshRequest)
+    payload = verify_refresh_token(body.refresh_token)
+    username = auth_service.normalize_username(payload.get("sub", ""))
+    if not auth_service.user_exists(username):
+        raise AuthenticationError("Unknown user")
+    response = AccessTokenResponse(access_token=create_access_token(username))
     return JSONResponse(response.model_dump())
 
 
 async def me(request: Request):
-    username = current_username(request)
-    bundle = auth_service.load_account_bundle(username)
-    metadata = auth_service.load_user_metadata(username)
-    response = UserResponse(username=username, metadata=metadata, profile=bundle["profile"])
+    current = get_current_user(request)
+    response = UserResponse(
+        username=current.username,
+        role=current.role,
+        metadata=current.metadata,
+        profile=current.profile,
+    )
     return JSONResponse(response.model_dump())
 
 router.add_api_route("/auth/signup", signup, methods=["POST"])
 router.add_api_route("/auth/login", login, methods=["POST"])
+router.add_api_route("/auth/refresh", refresh, methods=["POST"])
 router.add_api_route("/me", me, methods=["GET"])
