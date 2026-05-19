@@ -12,7 +12,7 @@ app = importlib.import_module("psyhelper_streamlit")
 def test_beta_disclaimer_lines_present():
     lines = app.beta_disclaimer_lines()
     assert len(lines) >= 4
-    assert any("private beta" in line.lower() for line in lines)
+    assert any("beta commerciale controllata" in line.lower() for line in lines)
 
 
 def test_empty_state_messages_have_expected_keys():

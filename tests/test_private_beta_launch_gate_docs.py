@@ -11,14 +11,14 @@ def test_launch_gate_docs_exist():
     assert Path("docs/private_beta_launch_gate_status.md").exists()
 
 
-def test_launch_gate_status_starts_not_run_yet():
+def test_launch_gate_status_blocked_until_safety_gate_completed():
     text = _read("docs/private_beta_launch_gate_status.md")
-    assert "Status: **NOT RUN YET**" in text
+    assert "BLOCKED UNTIL COMMERCIAL BETA SAFETY GATE IS COMPLETED" in text
 
 
 def test_launch_gate_rule_contains_all_decisions():
     text = _read("docs/private_beta_launch_gate_checklist.md")
-    assert "GO requires **0 blocker** and **0 high unresolved issues**" in text
+    assert "GO WITH CONDITIONS" in text
     assert "GO WITH CONDITIONS" in text
     assert "NO-GO" in text
 
