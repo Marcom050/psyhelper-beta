@@ -4,28 +4,18 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import COPYRIGHT_POLICY, groq_api_key, parse_body
-from api.exceptions import AuthenticationError, APIValidationError
+from api.dependencies import COPYRIGHT_POLICY, groq_api_key, parse_body, require_same_user_or_owner
+from api.exceptions import APIValidationError
 from api.schemas.chat import ChatMessageRequest, ChatMessageResponse
-from services import auth_service
 from services.chat_service import DEFAULT_SESSION_ID, ChatContext, get_response as get_chat_response
 
-
-def _assert_can_chat(request: Request, username: str) -> str:
-    requested = auth_service.normalize_username(username)
-    authenticated = auth_service.normalize_username(request.headers.get("x-username", ""))
-    if not authenticated:
-        raise AuthenticationError("Missing X-Username header")
-    if requested != authenticated:
-        raise AuthenticationError("X-Username must match chat username")
-    return requested
 
 router = APIRouter()
 
 
 async def create_chat_message(request: Request):
     body = await parse_body(request, ChatMessageRequest)
-    username = _assert_can_chat(request, body.username)
+    username, _current = require_same_user_or_owner(request, body.username)
     api_key = groq_api_key()
     if not api_key:
         raise APIValidationError("GROQ_API_KEY is not configured")

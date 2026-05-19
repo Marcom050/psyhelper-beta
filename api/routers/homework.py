@@ -6,8 +6,8 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import account_bundle, current_username, parse_body
-from api.exceptions import APIValidationError, AuthenticationError
+from api.dependencies import account_bundle, current_username, parse_body, require_same_user_or_owner
+from api.exceptions import APIValidationError
 from api.schemas.homework import (
     HomeworkAssignmentRequest,
     HomeworkAssignmentResponse,
@@ -16,14 +16,6 @@ from api.schemas.homework import (
     HomeworkSubmissionResponse,
 )
 from services import auth_service, homework_service
-
-
-def _assert_can_access(request: Request, username: str) -> str:
-    requested = auth_service.normalize_username(username)
-    authenticated = current_username(request)
-    if requested != authenticated:
-        raise AuthenticationError("X-Username must match requested client")
-    return requested
 
 
 def _homework_response(username: str, wellness: dict) -> HomeworkResponse:
@@ -36,13 +28,13 @@ router = APIRouter()
 
 
 async def get_homework(request: Request):
-    username = _assert_can_access(request, request.path_params["username"])
+    username, _current = require_same_user_or_owner(request, request.path_params["username"])
     response = _homework_response(username, account_bundle(username)["wellness"])
     return JSONResponse(response.model_dump())
 
 
 async def create_homework_assignment(request: Request):
-    username = _assert_can_access(request, request.path_params["username"])
+    username, _current = require_same_user_or_owner(request, request.path_params["username"])
     body = await parse_body(request, HomeworkAssignmentRequest)
     try:
         assignment = homework_service.create_assignment(
@@ -64,7 +56,7 @@ async def create_homework_assignment(request: Request):
 
 async def create_homework_submission(request: Request):
     body = await parse_body(request, HomeworkSubmissionRequest)
-    username = _assert_can_access(request, body.username)
+    username, _current = require_same_user_or_owner(request, body.username)
     try:
         submission = homework_service.create_submission(body.assignment_id, body.template, body.prompt, body.answer)
     except ValueError as exc:

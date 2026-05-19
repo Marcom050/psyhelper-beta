@@ -64,6 +64,8 @@ class SessionAdapterTest(unittest.TestCase):
         self.assertFalse(data.analytics_consent)
         self.assertFalse(data.beta_disclaimer_accepted)
         self.assertFalse(data.scroll_to_top)
+        self.assertIsNone(adapter.get_access_token())
+        self.assertIsNone(adapter.get_refresh_token())
 
     def test_reset_for_logout_preserves_existing_key_names_and_default_shapes(self):
         state = {
@@ -74,6 +76,8 @@ class SessionAdapterTest(unittest.TestCase):
             "wellness": {"mood_entries": [{"umore": "Ansioso"}]},
             "user_metadata": {"role": "client"},
             "scroll_to_top": False,
+            "access_token": "access",
+            "refresh_token": "refresh",
         }
         adapter = self.make_adapter(state)
 
@@ -86,6 +90,8 @@ class SessionAdapterTest(unittest.TestCase):
         self.assertEqual(state["messages"], [])
         self.assertEqual(state["wellness"], {"mood_entries": [], "homework_assignments": [], "homework_submissions": [], "timeline_events": []})
         self.assertTrue(state["scroll_to_top"])
+        self.assertIsNone(adapter.get_access_token())
+        self.assertIsNone(adapter.get_refresh_token())
 
     def test_load_user_session_updates_only_session_state_from_persistence_bundle(self):
         state = {}
@@ -118,6 +124,15 @@ class SessionAdapterTest(unittest.TestCase):
                 "wellness": state["wellness"],
             },
         )
+
+    def test_auth_tokens_are_stored_for_streamlit_api_compatibility(self):
+        state = {}
+        adapter = self.make_adapter(state)
+
+        adapter.set_auth_tokens("access", "refresh")
+
+        self.assertEqual(adapter.get_access_token(), "access")
+        self.assertEqual(adapter.get_refresh_token(), "refresh")
 
     def test_no_direct_session_state_access_outside_adapter(self):
         forbidden = "st." + "session_state"

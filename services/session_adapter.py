@@ -81,6 +81,8 @@ class SessionAdapter:
         self._setdefault("analytics_consent", False)
         self._setdefault("beta_disclaimer_accepted", False)
         self._setdefault("scroll_to_top", False)
+        self._setdefault("access_token", None)
+        self._setdefault("refresh_token", None)
         if not isinstance(self.get_wellness(), dict):
             self.set_wellness(self._default_wellness_factory())
         self._ensure_wellness_schema(self.get_wellness())
@@ -111,6 +113,17 @@ class SessionAdapter:
         self.set_messages([])
         self.set_wellness(self._default_wellness_factory())
         self.set_scroll_to_top(True)
+        self.set_auth_tokens(None, None)
+
+    def get_access_token(self) -> str | None:
+        return self._get("access_token")
+
+    def get_refresh_token(self) -> str | None:
+        return self._get("refresh_token")
+
+    def set_auth_tokens(self, access_token: str | None, refresh_token: str | None) -> None:
+        self._set("access_token", access_token)
+        self._set("refresh_token", refresh_token)
 
     def get_profile(self) -> dict[str, Any]:
         return self._get("profile", {})

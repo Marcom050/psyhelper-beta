@@ -1,4 +1,4 @@
-"""Small backend-side dependencies for the temporary HTTP API."""
+"""Backend-side dependencies and auth/RBAC helpers for the HTTP API."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 from starlette.requests import Request
 
 from api.exceptions import APIValidationError, AuthenticationError, NotFoundError
+from api.security import AuthContext, auth_context_for_username, verify_access_token
 from services import auth_service
 
 
@@ -27,13 +28,70 @@ def active_subscription_statuses() -> set[str]:
     return {status.strip().lower() for status in configured.split(",") if status.strip()}
 
 
+def use_legacy_header_auth() -> bool:
+    return os.getenv("USE_LEGACY_HEADER_AUTH", "false").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def get_current_user(request: Request) -> AuthContext:
+    """Validate Bearer auth and return a typed current-user context.
+
+    Temporary X-Username compatibility is available only when
+    USE_LEGACY_HEADER_AUTH=true and is disabled by default.
+    """
+
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() == "bearer" and token:
+        payload = verify_access_token(token.strip())
+        return auth_context_for_username(str(payload.get("sub", "")))
+
+    if use_legacy_header_auth():
+        username = auth_service.normalize_username(request.headers.get("x-username", ""))
+        if username:
+            return auth_context_for_username(username)
+
+    raise AuthenticationError("Missing bearer token")
+
+
 def current_username(request: Request) -> str:
-    username = auth_service.normalize_username(request.headers.get("x-username", ""))
-    if not username:
-        raise AuthenticationError("Missing X-Username header")
-    if not auth_service.user_exists(username):
-        raise AuthenticationError("Unknown user")
-    return username
+    return get_current_user(request).username
+
+
+def require_therapist(request: Request) -> AuthContext:
+    current = get_current_user(request)
+    if current.role != "therapist":
+        raise AuthenticationError("Therapist role required")
+    return current
+
+
+def require_client(request: Request) -> AuthContext:
+    current = get_current_user(request)
+    if current.role != "client":
+        raise AuthenticationError("Client role required")
+    return current
+
+
+def require_active_therapist(request: Request) -> AuthContext:
+    current = require_therapist(request)
+    if current.subscription_status.lower() not in active_subscription_statuses():
+        raise AuthenticationError("Active therapist subscription required")
+    return current
+
+
+def require_same_user_or_owner(request: Request, username: str) -> tuple[str, AuthContext]:
+    requested = auth_service.normalize_username(username)
+    if not requested or not auth_service.user_exists(requested):
+        raise NotFoundError("User not found")
+    current = get_current_user(request)
+    if current.username == requested:
+        return requested, current
+    if current.role == "therapist":
+        requested_metadata = auth_service.load_user_metadata(requested)
+        requested_role = requested_metadata.get("role")
+        owner = auth_service.normalize_username(requested_metadata.get("therapist_username") or "")
+        if requested_role == "client" and owner == current.username:
+            return requested, current
+    raise AuthenticationError("Not authorized for requested user")
 
 
 def account_bundle(username: str) -> dict[str, Any]:

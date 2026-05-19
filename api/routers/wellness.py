@@ -4,30 +4,22 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import account_bundle, current_username, parse_body
-from api.exceptions import AuthenticationError
+from api.dependencies import account_bundle, parse_body, require_same_user_or_owner
 from api.schemas.wellness import MoodEntryRequest, MoodEntryResponse, WellnessResponse
 from services import auth_service
 
-
-def _assert_can_access(request: Request, username: str) -> str:
-    requested = auth_service.normalize_username(username)
-    authenticated = current_username(request)
-    if requested != authenticated:
-        raise AuthenticationError("X-Username must match requested client")
-    return requested
 
 router = APIRouter()
 
 
 async def get_wellness(request: Request):
-    username = _assert_can_access(request, request.path_params["username"])
+    username, _current = require_same_user_or_owner(request, request.path_params["username"])
     response = WellnessResponse(username=username, wellness=account_bundle(username)["wellness"])
     return JSONResponse(response.model_dump())
 
 
 async def create_mood_entry(request: Request):
-    username = _assert_can_access(request, request.path_params["username"])
+    username, _current = require_same_user_or_owner(request, request.path_params["username"])
     body = await parse_body(request, MoodEntryRequest)
     bundle = account_bundle(username)
     wellness = bundle["wellness"]

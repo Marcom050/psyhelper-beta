@@ -4,18 +4,9 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import account_bundle, current_username
-from api.exceptions import AuthenticationError
+from api.dependencies import account_bundle, require_same_user_or_owner
 from api.schemas.reports import ClinicalReportResponse, WeeklyRecapResponse
-from services import auth_service, report_service
-
-
-def _assert_can_access(request: Request, username: str) -> str:
-    requested = auth_service.normalize_username(username)
-    authenticated = current_username(request)
-    if requested != authenticated:
-        raise AuthenticationError("X-Username must match requested client")
-    return requested
+from services import report_service
 
 
 def _clinical_payload(report: report_service.ClinicalReport) -> dict:
@@ -31,7 +22,7 @@ router = APIRouter()
 
 
 async def weekly_recap(request: Request):
-    username = _assert_can_access(request, request.path_params["username"])
+    username, _current = require_same_user_or_owner(request, request.path_params["username"])
     bundle = account_bundle(username)
     report = report_service.clinical_snapshot(bundle["wellness"], bundle["messages"])
     recap = report_service.weekly_recap(report)
@@ -40,7 +31,7 @@ async def weekly_recap(request: Request):
 
 
 async def clinical_report(request: Request):
-    username = _assert_can_access(request, request.path_params["username"])
+    username, _current = require_same_user_or_owner(request, request.path_params["username"])
     bundle = account_bundle(username)
     report = report_service.clinical_snapshot(bundle["wellness"], bundle["messages"])
     response = ClinicalReportResponse(username=username, report=_clinical_payload(report))

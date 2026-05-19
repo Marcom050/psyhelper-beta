@@ -154,6 +154,61 @@ class PsyHelperAPIClientTest(unittest.TestCase):
         with self.assertRaises(APIUnauthorizedError):
             client_403.chat_message("giulia", "Ciao", {}, {})
 
+
+    def test_bearer_token_header_and_refresh_retry(self):
+        session = Mock()
+        session.request = Mock(
+            side_effect=[
+                FakeResponse(status_code=401, payload={"error": {"message": "Expired"}}),
+                FakeResponse(payload={"access_token": "new-access", "token_type": "bearer"}),
+                FakeResponse(payload={"username": "giulia", "metadata": {"role": "client"}, "profile": {}}),
+            ]
+        )
+        config = APIClientConfig(base_url="http://api.local", timeout_seconds=2.5, use_http_api=True)
+        client = PsyHelperAPIClient(config, session=session, access_token="old-access", refresh_token="refresh-token")
+
+        payload = client.me("giulia")
+
+        self.assertEqual(payload["username"], "giulia")
+        self.assertEqual(client.access_token, "new-access")
+        first_headers = session.request.call_args_list[0].kwargs["headers"]
+        refresh_call = session.request.call_args_list[1]
+        retry_headers = session.request.call_args_list[2].kwargs["headers"]
+        self.assertEqual(first_headers["Authorization"], "Bearer old-access")
+        self.assertEqual(refresh_call.args[:2], ("POST", "http://api.local/auth/refresh"))
+        self.assertEqual(retry_headers["Authorization"], "Bearer new-access")
+
+    def test_login_stores_tokens_for_later_requests(self):
+        client, session = self.make_client(
+            FakeResponse(
+                payload={
+                    "username": "giulia",
+                    "authenticated": True,
+                    "access_token": "access",
+                    "refresh_token": "refresh",
+                    "token_type": "bearer",
+                    "metadata": {"role": "client"},
+                    "profile": {},
+                }
+            )
+        )
+
+        client.login("giulia", "secret")
+
+        self.assertEqual(client.access_token, "access")
+        self.assertEqual(client.refresh_token, "refresh")
+
+
+    def test_therapist_api_client_methods_use_bearer_token(self):
+        client, session = self.make_client(FakeResponse(payload={"clients": []}))
+        client.set_auth_tokens("access")
+
+        payload = client.list_my_clients()
+
+        self.assertEqual(payload, {"clients": []})
+        self.assertEqual(session.request.call_args.args[:2], ("GET", "http://api.local/therapists/me/clients"))
+        self.assertEqual(session.request.call_args.kwargs["headers"]["Authorization"], "Bearer access")
+
     def test_timeout_handling(self):
         client, _session = self.make_client(side_effect=requests.Timeout("slow"))
 
