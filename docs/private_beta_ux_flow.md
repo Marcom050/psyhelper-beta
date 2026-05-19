@@ -54,3 +54,12 @@ Rendere la prima esperienza del terapeuta in private beta più chiara, con navig
 ## Vincolo lingua private beta
 - Tutto il testo visibile ai terapeuti/clienti nella UI Streamlit deve restare in italiano (disclaimer, warning, stati vuoti, etichette e guidance).
 - Materiale tecnico interno (script CLI, commit, test, runbook) può restare in inglese.
+
+## UX polish sprint: chiarezza terapeuta + riduzione clutter
+- **Vincolo lingua:** tutta la UI visibile a terapeuti/clienti resta in italiano (etichette, warning, stati vuoti, onboarding, navigazione).
+- **Principio guida:** ridurre elementi ripetuti o tecnici nel flusso principale; mostrare prima azioni e dati utili alla seduta.
+- **Chat session cleanup:** la chat visibile in sessione Streamlit viene azzerata su logout/reset sessione e tramite azione esplicita “Pulisci chat corrente”, senza cancellare i record persistiti lato backend.
+- **Diario semplificato:** il campo “risposta alternativa CBT” è rimosso dal flusso UI standard per mantenere la compilazione essenziale.
+- **Igiene metadati:** in aree utente standard non vanno mostrati token/secret/password, né metadati low-value (es. `created_at`, `internal_id`) salvo contesti admin/debug separati.
+- **Workaround chat input:** applicata una rifinitura CSS a basso rischio per ridurre bordo/outline bianco del `st.chat_input`; limite noto: lo stile finale dipende dal tema Streamlit/browser.
+- **Stato mobile:** app mobile non avviata in questa sprint (solo Streamlit private beta).

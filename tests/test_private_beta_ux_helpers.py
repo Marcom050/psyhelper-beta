@@ -1,3 +1,4 @@
+from pathlib import Path
 import importlib
 
 import streamlit as st
@@ -40,3 +41,28 @@ def test_role_navigation_hides_admin_for_non_admin_roles():
     assert all("admin" not in item.lower() for item in therapist_nav)
     assert all("admin" not in item.lower() for item in client_nav)
     assert any("admin" in item.lower() for item in app.role_nav_sections("admin"))
+
+
+def test_sanitize_session_metadata_hides_low_value_fields():
+    payload = {"role": "therapist", "created_at": "2026-01-01", "internal_id": "abc", "email": "t@example.com"}
+    sanitized = app.sanitize_session_metadata(payload)
+    assert sanitized == {"role": "therapist", "email": "t@example.com"}
+
+
+def test_clear_visible_chat_session_clears_messages_without_persistence_by_default(monkeypatch):
+    app.session_adapter.set_messages([{"role": "user", "content": "ciao"}])
+
+    called = {"saved": False}
+    def fake_save(username):
+        called["saved"] = True
+
+    monkeypatch.setattr(app, "save_user_data", fake_save)
+    app.clear_visible_chat_session(persist=False)
+
+    assert app.session_adapter.get_messages() == []
+    assert called["saved"] is False
+
+
+def test_diary_ui_no_cbt_alternative_response_field():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8").lower()
+    assert "risposta alternativa cbt" not in source

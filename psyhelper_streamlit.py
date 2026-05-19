@@ -99,6 +99,7 @@ EMPTY_STATE_MESSAGES = {
 }
 
 SENSITIVE_KEY_FRAGMENTS = ("token", "secret", "password", "authorization", "cookie", "api_key")
+LOW_VALUE_METADATA_KEYS = ("created_at", "updated_at", "id", "internal_id")
 
 
 def secret_get(key, default=None):
@@ -240,6 +241,26 @@ def redact_sensitive_mapping(data):
             continue
         safe[key] = value
     return safe
+
+
+def compact_display_name(profile, fallback):
+    return profile.get("nome") or fallback
+
+
+def sanitize_session_metadata(data):
+    safe = {}
+    for key, value in redact_sensitive_mapping(data).items():
+        lowered = str(key).lower()
+        if any(low in lowered for low in LOW_VALUE_METADATA_KEYS):
+            continue
+        safe[key] = value
+    return safe
+
+
+def clear_visible_chat_session(persist=False):
+    session_adapter.set_messages([])
+    if persist and session_adapter.get_username():
+        save_user_data(session_adapter.get_username())
 
 
 def role_nav_sections(role):
@@ -435,8 +456,14 @@ div[data-testid="stChatInput"] {
   position: sticky;
   bottom: 0;
   z-index: 10;
-  background: linear-gradient(to top, #ffffff 72%, rgba(255, 255, 255, 0));
-  padding-top: 0.75rem;
+  background: linear-gradient(to top, var(--background-color, #ffffff) 72%, rgba(255, 255, 255, 0));
+  padding-top: 0.5rem;
+  border-top: 0;
+  box-shadow: none;
+}
+div[data-testid="stChatInput"] textarea {
+  border: 1px solid rgba(148, 163, 184, 0.45) !important;
+  box-shadow: none !important;
 }
 </style>
 """,
@@ -446,7 +473,11 @@ div[data-testid="stChatInput"] {
 
 def show_chat_tab():
     render_sticky_chat_input()
-    st.markdown(f"<p class='subtitle'>Ciao {session_adapter.get_profile().get('nome', session_adapter.get_username())}</p>", unsafe_allow_html=True)
+    st.subheader("💬 Chat di supporto")
+    st.caption(f"Ciao {compact_display_name(session_adapter.get_profile(), session_adapter.get_username())}.")
+
+    if not session_adapter.get_messages():
+        st.info(empty_state_message("chat_messages"))
 
     for msg in session_adapter.get_messages():
         with st.chat_message(msg["role"]):
@@ -482,7 +513,6 @@ def show_diary_tab():
             need = st.text_input("Bisogno emerso", placeholder="Es. sicurezza, riposo, chiarezza, supporto...")
         automatic_thought = st.text_area("Pensiero automatico", placeholder="Che cosa ti sei detto/a in quel momento?")
         behavior = st.text_area("Comportamento o impulso", placeholder="Che cosa hai fatto o avresti voluto fare?")
-        balanced_response = st.text_area("Risposta alternativa CBT", placeholder="Quale interpretazione più equilibrata potresti provare?")
         note = st.text_area("Nota per il professionista", placeholder="Elementi che vorresti portare in seduta.")
 
         if st.form_submit_button("Salva scheda", use_container_width=True):
@@ -498,7 +528,6 @@ def show_diary_tab():
                 "bisogno": need,
                 "pensiero_automatico": automatic_thought,
                 "comportamento": behavior,
-                "risposta_alternativa": balanced_response,
                 "nota_professionista": note,
             }
             if use_http_api():
@@ -731,7 +760,7 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
                 session_adapter.set_selected_patient_username(client["username"])
                 st.rerun()
             st.caption(
-                f"@{client['username']} · ultima attività: {snapshot['last_activity']} · "
+                f"Ultima attività: {snapshot['last_activity']} · "
                 f"alert: {len(snapshot['alerts'])} · homework: {snapshot['homework_completed']}/{snapshot['homework_total']}"
             )
 
@@ -808,7 +837,7 @@ def show_therapist_dashboard():
             show_patient_selector_dialog(clients, snapshots, overview_rows)
     with active_col:
         st.info(
-            f"Profilo attivo: **{selected_patient_name}** (`@{selected_username}`) · "
+            f"Profilo attivo: **{selected_patient_name}** · "
             f"ultima attività: {selected_snapshot['last_activity']} · "
             f"alert: {len(selected_snapshot['alerts'])} · "
             f"homework: {selected_snapshot['homework_completed']}/{selected_snapshot['homework_total']}"
@@ -959,6 +988,8 @@ def show_therapist_dashboard():
         )
 
 def reset_session_for_logout():
+    clear_visible_chat_session(persist=False)
+    session_adapter.set_selected_patient_username(None)
     session_adapter.reset_for_logout()
 
 
@@ -1129,9 +1160,8 @@ def render_client_footer_actions():
     st.divider()
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("Nuova sessione"):
-            session_adapter.set_messages([])
-            save_user_data(session_adapter.get_username())
+        if st.button("Pulisci chat corrente"):
+            clear_visible_chat_session(persist=True)
             session_adapter.set_scroll_to_top(True)
             st.rerun()
     with col2:
@@ -1148,7 +1178,7 @@ def render_authenticated_app():
 
     current_metadata = session_adapter.get_user_metadata()
     current_role = current_metadata.get("role", "client")
-    safe_metadata = redact_sensitive_mapping(current_metadata)
+    safe_metadata = sanitize_session_metadata(current_metadata)
     st.sidebar.markdown("### Navigazione")
     st.sidebar.caption(f"Ruolo attivo: **{current_role}**")
     st.sidebar.radio("Sezioni disponibili", role_nav_sections(current_role), index=0, disabled=True)
