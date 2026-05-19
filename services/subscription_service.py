@@ -1,10 +1,12 @@
 """Subscription and beta-trial business logic for PsyHelper."""
 
 from datetime import datetime, timedelta
+from typing import Any
 
-from services.auth_service import load_user_metadata
+from services.auth_service import load_user_metadata, resolve_tenant_owner
 
 BETA_TRIAL_DAYS = 7
+ACTIVE_BILLING_STATUSES = {"trialing", "active"}
 
 
 def parse_iso_datetime(value):
@@ -29,19 +31,43 @@ def is_trial_expired(metadata):
         return False
     if metadata.get("subscription_status", "inactive").lower() != "trialing":
         return False
-    return datetime.utcnow() >= trial_expires_at(metadata.get("created_at"))
+    expires_at = parse_iso_datetime(metadata.get("subscription_expires_at")) or trial_expires_at(metadata.get("created_at"))
+    return datetime.utcnow() >= expires_at
+
+
+def subscription_state_for(username: str, repository=None) -> dict[str, Any]:
+    """Return tenant-owned subscription state for a therapist or inherited client."""
+
+    metadata = load_user_metadata(username, repository=repository)
+    owner_username = resolve_tenant_owner(metadata, username)
+    owner_metadata = metadata
+    inherited = False
+    if metadata.get("role") == "client" and owner_username:
+        owner_metadata = load_user_metadata(owner_username, repository=repository)
+        inherited = True
+
+    status = str(owner_metadata.get("subscription_status") or "inactive").lower()
+    billing_status = str(owner_metadata.get("billing_status") or status).lower()
+    if status == "trialing" and is_trial_expired(owner_metadata):
+        billing_status = "past_due"
+    return {
+        "tenant_id": resolve_tenant_owner(owner_metadata, owner_username) or owner_username,
+        "owner_username": owner_username,
+        "inherited": inherited,
+        "subscription_status": status,
+        "subscription_plan": owner_metadata.get("subscription_plan"),
+        "subscription_started_at": owner_metadata.get("subscription_started_at"),
+        "subscription_expires_at": owner_metadata.get("subscription_expires_at") or (
+            trial_expires_at(owner_metadata.get("created_at")).isoformat(timespec="seconds") if status == "trialing" else None
+        ),
+        "billing_status": billing_status,
+        "trial_days_remaining": trial_days_remaining(owner_metadata.get("created_at")) if status == "trialing" else 0,
+    }
 
 
 def is_subscription_active_for(username, active_subscription_statuses, repository=None):
-    metadata = load_user_metadata(username, repository=repository)
-    if metadata.get("role") == "client":
-        therapist_username = metadata.get("therapist_username")
-        return bool(
-            therapist_username
-            and is_subscription_active_for(therapist_username, active_subscription_statuses, repository=repository)
-        )
-
-    subscription_status = metadata.get("subscription_status", "inactive").lower()
-    if subscription_status == "trialing":
-        return not is_trial_expired(metadata)
-    return subscription_status in active_subscription_statuses
+    state = subscription_state_for(username, repository=repository)
+    status = state.get("subscription_status", "inactive")
+    if status == "trialing":
+        return state.get("billing_status") != "past_due"
+    return status in active_subscription_statuses and state.get("billing_status") in ACTIVE_BILLING_STATUSES

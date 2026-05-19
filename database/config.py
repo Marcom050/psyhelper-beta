@@ -12,3 +12,4 @@ def _env_flag(name, default=False):
 
 USE_POSTGRESQL = _env_flag("USE_POSTGRESQL", False)
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+USE_FILESYSTEM_FALLBACK = _env_flag("USE_FILESYSTEM_FALLBACK", True)

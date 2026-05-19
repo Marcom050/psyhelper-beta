@@ -5,6 +5,7 @@ to PostgreSQL, Supabase, or any external database.
 """
 
 import hashlib
+import logging
 import os
 import re
 from datetime import datetime
@@ -18,6 +19,7 @@ from database.json_storage import (
     validate_json_safe,
 )
 from database.interfaces.account_repository_interface import AccountRepository
+from database.tenant_metadata import normalize_tenant_metadata, resolve_tenant_id, resolve_tenant_owner
 from database.wellness_repository import (
     default_wellness_data,
     ensure_wellness_schema,
@@ -30,6 +32,7 @@ PASSWORD_HASH_FILENAME = "password.txt"
 ARGON2_PREFIX = "$argon2"
 LEGACY_SHA256_HEX_LENGTH = 64
 _password_hasher = PasswordHasher()
+logger = logging.getLogger(__name__)
 os.makedirs(USERS_DIR, exist_ok=True)
 
 
@@ -84,7 +87,7 @@ def user_exists(username):
 
 
 def default_user_metadata(role="client", therapist_username=None, subscription_status="inactive", email=None):
-    return {
+    metadata = {
         "role": role,
         "therapist_username": normalize_username(therapist_username) if therapist_username else None,
         "subscription_status": subscription_status,
@@ -92,6 +95,7 @@ def default_user_metadata(role="client", therapist_username=None, subscription_s
         "created_at": datetime.utcnow().isoformat(timespec="seconds"),
         "beta_disclaimer_accepted_at": None,
     }
+    return normalize_tenant_metadata(metadata)
 
 
 def metadata_path(account_dir):
@@ -138,12 +142,21 @@ def _is_iso_string_or_none(value):
     return True
 
 
-def normalize_user_metadata(metadata):
+def normalize_user_metadata(metadata, username=None):
     defaults = default_user_metadata()
     if not isinstance(metadata, dict):
         metadata = {}
 
-    normalized = {**defaults, **metadata}
+    merged = {**defaults, **metadata}
+    if "billing_status" not in metadata:
+        merged.pop("billing_status", None)
+    if "subscription_plan" not in metadata:
+        merged.pop("subscription_plan", None)
+    if "subscription_started_at" not in metadata:
+        merged.pop("subscription_started_at", None)
+    if "subscription_expires_at" not in metadata:
+        merged.pop("subscription_expires_at", None)
+    normalized = normalize_tenant_metadata(merged, username=username)
     if not isinstance(normalized.get("role"), str):
         normalized["role"] = defaults["role"]
     if not (isinstance(normalized.get("therapist_username"), str) or normalized.get("therapist_username") is None):
@@ -168,7 +181,7 @@ def load_user_metadata(username):
     json_path = metadata_json_path(account_dir)
     if os.path.exists(json_path):
         try:
-            return normalize_user_metadata(load_json_file(json_path))
+            return normalize_user_metadata(load_json_file(json_path), username=username)
         except Exception:
             return default_user_metadata()
 
@@ -178,7 +191,7 @@ def load_user_metadata(username):
 
 def save_user_metadata(username, metadata):
     os.makedirs(user_dir(username), exist_ok=True)
-    atomic_write_json(metadata_json_path(user_dir(username)), normalize_user_metadata(metadata))
+    atomic_write_json(metadata_json_path(user_dir(username)), normalize_user_metadata(metadata, username=username))
 
 
 def normalize_profile(profile):
@@ -245,11 +258,14 @@ def create_user(
     atomic_write_json(profile_json_path(account_dir), normalize_profile(profile or {}))
     atomic_write_json(messages_json_path(account_dir), normalize_messages([]))
     save_wellness(account_dir, default_wellness_data())
-    metadata = default_user_metadata(
-        role=role,
-        therapist_username=therapist_username,
-        subscription_status=subscription_status,
-        email=email,
+    metadata = normalize_user_metadata(
+        default_user_metadata(
+            role=role,
+            therapist_username=therapist_username,
+            subscription_status=subscription_status,
+            email=email,
+        ),
+        username=username,
     )
     if beta_disclaimer_accepted_at:
         metadata["beta_disclaimer_accepted_at"] = beta_disclaimer_accepted_at
@@ -379,11 +395,14 @@ def save_therapist_notes(therapist_username, notes):
 def client_accounts_for(therapist_username):
     clients = []
     therapist_username = normalize_username(therapist_username)
+    if not os.path.isdir(USERS_DIR):
+        return clients
+    logger.warning("Filesystem client scan fallback used for therapist=%s", therapist_username)
     for account_name in sorted(os.listdir(USERS_DIR)):
         if not user_exists(account_name):
             continue
         metadata = load_user_metadata(account_name)
-        if metadata.get("role") == "client" and metadata.get("therapist_username") == therapist_username:
+        if metadata.get("role") == "client" and resolve_tenant_id(metadata, account_name) == therapist_username:
             profile = load_account_bundle(account_name)["profile"]
             clients.append({
                 "username": account_name,
@@ -435,3 +454,29 @@ class FilesystemAccountRepository(AccountRepository):
 
     def client_accounts_for(self, therapist_username):
         return client_accounts_for(therapist_username)
+
+    def get_clients_for_tenant(self, tenant_id):
+        return client_accounts_for(tenant_id)
+
+    def get_tenant_owner(self, tenant_id):
+        tenant_id = normalize_username(tenant_id)
+        metadata = load_user_metadata(tenant_id)
+        if metadata.get("role") == "therapist" and resolve_tenant_owner(metadata, tenant_id) == tenant_id:
+            return {"username": tenant_id, "metadata": metadata, "profile": load_account_bundle(tenant_id)["profile"]}
+        return None
+
+    def is_same_tenant(self, user_a, user_b):
+        metadata_a = load_user_metadata(user_a)
+        metadata_b = load_user_metadata(user_b)
+        tenant_a = resolve_tenant_id(metadata_a, user_a)
+        tenant_b = resolve_tenant_id(metadata_b, user_b)
+        same = bool(tenant_a and tenant_b and tenant_a == tenant_b)
+        if not same:
+            logger.warning("Tenant access denied user_a=%s user_b=%s tenant_a=%s tenant_b=%s", user_a, user_b, tenant_a, tenant_b)
+        return same
+
+    def user_exists(self, username):
+        return user_exists(username)
+
+    def verify_password(self, username, password):
+        return verify_password(username, password)

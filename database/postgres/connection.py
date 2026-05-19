@@ -11,9 +11,14 @@ SCHEMA_STATEMENTS = (
     CREATE TABLE IF NOT EXISTS accounts (
         username TEXT PRIMARY KEY,
         profile JSONB NOT NULL DEFAULT '{}'::jsonb,
-        metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        password_hash TEXT
     )
     """,
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS password_hash TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_accounts_metadata_tenant_id ON accounts ((metadata->>'tenant_id'))",
+    "CREATE INDEX IF NOT EXISTS idx_accounts_metadata_role ON accounts ((metadata->>'role'))",
+    "CREATE INDEX IF NOT EXISTS idx_accounts_metadata_therapist_username ON accounts ((metadata->>'therapist_username'))",
     """
     CREATE TABLE IF NOT EXISTS messages (
         username TEXT PRIMARY KEY,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Type
 
@@ -11,6 +12,8 @@ from starlette.requests import Request
 from api.exceptions import APIValidationError, AuthenticationError, NotFoundError
 from api.security import AuthContext, auth_context_for_username, verify_access_token
 from services import auth_service
+
+logger = logging.getLogger(__name__)
 
 
 COPYRIGHT_POLICY = os.getenv(
@@ -88,9 +91,10 @@ def require_same_user_or_owner(request: Request, username: str) -> tuple[str, Au
     if current.role == "therapist":
         requested_metadata = auth_service.load_user_metadata(requested)
         requested_role = requested_metadata.get("role")
-        owner = auth_service.normalize_username(requested_metadata.get("therapist_username") or "")
+        owner = auth_service.resolve_tenant_owner(requested_metadata, requested)
         if requested_role == "client" and owner == current.username:
             return requested, current
+    logger.warning("Invalid tenant access attempt actor=%s target=%s", current.username, requested)
     raise AuthenticationError("Not authorized for requested user")
 
 

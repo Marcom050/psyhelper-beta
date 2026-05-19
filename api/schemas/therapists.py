@@ -17,3 +17,17 @@ class TherapistClientResponse(BaseModel):
     metadata: dict[str, Any]
     profile: dict[str, Any]
     wellness: dict[str, Any] | None = None
+
+
+class TherapistDashboardResponse(BaseModel):
+    tenant: dict[str, Any]
+    subscription: dict[str, Any]
+    stats: dict[str, Any]
+
+
+class TherapistClientSnapshotResponse(BaseModel):
+    profile: dict[str, Any]
+    metadata: dict[str, Any]
+    wellness_summary: dict[str, Any]
+    homework_summary: dict[str, Any]
+    recent_mood_trends: list[dict[str, Any]]
