@@ -55,3 +55,10 @@ Usare il flusso admin/backend già esistente per aggiornare metadata subscriptio
 - Salvo diverso accordo scritto, la disdetta dopo attivazione ha effetto al termine del periodo già pagato.
 - Dopo disdetta, l'account può essere impostato in sola lettura o disattivato secondo processo operativo.
 - Policy operativa preliminare: validazione legale necessaria prima di rollout commerciale ampio.
+
+
+## Commercial beta acceptance gate (therapist paid activation)
+
+Per `therapist` con stato `trialing/active`, la creazione/onboarding richiede `commercial_terms_acceptance` completa.
+Persistiamo: `accepted_at`, `terms_version`, `policy_text`, checkbox obbligatorie, `ip` e `user_agent` (se presenti).
+In assenza di accettazione valida l'attivazione pagante viene bloccata con errore di validazione.

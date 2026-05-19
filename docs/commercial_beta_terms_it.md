@@ -78,3 +78,10 @@ PsyHelper non gestisce emergenze cliniche.
 In caso di emergenza, rischio immediato o necessità clinica urgente, il professionista deve usare i propri canali professionali, sanitari o di emergenza.
 PsyHelper non sostituisce il giudizio clinico del professionista.
 L'uso improprio di PsyHelper, la gestione delle emergenze e la gestione delle crisi cliniche restano sotto la responsabilità del professionista curante, entro i limiti consentiti dalla legge applicabile e dai termini di servizio effettivi.
+
+
+## Gate tecnico obbligatorio (account terapeuta pagante)
+
+Prima della creazione/attivazione di un account terapeuta pagante viene mostrata una modale/blocco obbligatorio con checkbox separate per: accettazione termini, regole trial/pagamento/disdetta/rimborsi, responsabilità professionale, conferma di procedere. Senza accettazione esplicita completa il flusso viene interrotto.
+
+Versione tracciata lato backend: `COMMERCIAL_BETA_TERMS_VERSION = 2026-05-19`.

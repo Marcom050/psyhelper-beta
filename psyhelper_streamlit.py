@@ -1088,6 +1088,15 @@ def render_therapist_signup_form():
             elif len(new_password) < 8:
                 st.error("La password deve avere almeno 8 caratteri")
             else:
+                st.markdown("### Termini commerciali obbligatori (beta)")
+                st.info(COMMERCIAL_BETA_TERMS_IT)
+                c1 = st.checkbox("Dichiaro di aver letto e accettato i termini commerciali della beta.")
+                c2 = st.checkbox("Comprendo le regole di trial, pagamento, disdetta e rimborsi.")
+                c3 = st.checkbox("Comprendo che PsyHelper non sostituisce il mio giudizio professionale e che resto responsabile del rapporto con i miei pazienti/clienti.")
+                c4 = st.checkbox("Confermo di voler procedere con l’attivazione dell’account terapeuta pagante.")
+                if not all([c1,c2,c3,c4]):
+                    st.warning("Per procedere devi selezionare tutte le checkbox obbligatorie.")
+                    return
                 create_user(
                     normalized_username,
                     new_password,

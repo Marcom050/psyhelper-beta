@@ -77,3 +77,9 @@ Compilare questo documento solo con evidenze reali. Nessun campo può essere mar
 - Signed by:
 - Date:
 - Conditions (if GO WITH CONDITIONS):
+
+
+## Stato gate legale/commerciale
+
+- Implementazione tecnica del gate termini commerciali: **COMPLETATA** (raccolta consenso + audit).
+- Stato launch gate complessivo: **NO-GO / BLOCKED** fino a evidenze reali, validazione legale e sign-off formale.
