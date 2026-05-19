@@ -74,6 +74,8 @@ def test_clear_chat_button_label_is_italian_and_uses_shared_cleanup_path():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert 'if st.button("Pulisci chat corrente"):' in source
     assert "clear_visible_chat_session(persist=True)" in source
+    assert "def reset_session_for_logout():" in source
+    assert "clear_visible_chat_session(persist=True)" in source
 
 
 def test_runtime_session_adapter_exposes_clear_keys():
@@ -116,3 +118,37 @@ def test_clear_visible_chat_session_compatibility_without_clear_keys(monkeypatch
 def test_diary_ui_no_cbt_alternative_response_field():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8").lower()
     assert "risposta alternativa cbt" not in source
+
+
+def test_logout_cleanup_persists_and_prevents_chat_rehydration(monkeypatch):
+    saved_messages = [{"role": "user", "content": "messaggio vecchio"}]
+    app.session_adapter.set_username("cliente-test")
+    app.session_adapter.set_logged_in(True)
+    app.session_adapter.set_messages(saved_messages.copy())
+    app.session_adapter._set("chat_messages", saved_messages.copy())
+    app.session_adapter._set("current_chat", "stale")
+    app.session_adapter.set_selected_patient_username("cliente-abc")
+
+    persisted_bundle = {"messages": saved_messages.copy()}
+
+    def fake_save(username):
+        assert username == "cliente-test"
+        persisted_bundle["messages"] = app.session_adapter.get_messages().copy()
+
+    def fake_load(username):
+        assert username == "cliente-test"
+        app.session_adapter.set_messages(persisted_bundle["messages"].copy())
+
+    monkeypatch.setattr(app, "save_user_data", fake_save)
+    monkeypatch.setattr(app, "load_user_data", fake_load)
+
+    app.reset_session_for_logout()
+    assert app.session_adapter.get_messages() == []
+    assert app.session_adapter.get_selected_patient_username() is None
+    assert app.session_adapter._get("chat_messages") is None
+    assert app.session_adapter._get("current_chat") is None
+    assert persisted_bundle["messages"] == []
+
+    app.session_adapter.set_username("cliente-test")
+    app.load_user_data("cliente-test")
+    assert app.session_adapter.get_messages() == []
