@@ -39,6 +39,35 @@ SCHEMA_STATEMENTS = (
         notes JSONB NOT NULL DEFAULT '{}'::jsonb
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS clinical_records (
+        id TEXT PRIMARY KEY,
+        entity_type TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        owner_username TEXT NOT NULL,
+        lifecycle_status TEXT NOT NULL,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_clinical_records_tenant_entity ON clinical_records (tenant_id, entity_type)",
+    "CREATE INDEX IF NOT EXISTS idx_clinical_records_tenant_status ON clinical_records (tenant_id, lifecycle_status)",
+    "CREATE INDEX IF NOT EXISTS idx_clinical_records_owner ON clinical_records (owner_username)",
+    "CREATE INDEX IF NOT EXISTS idx_clinical_records_created_at ON clinical_records (created_at)",
+    """
+    CREATE TABLE IF NOT EXISTS analytics_snapshots (
+        id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        therapist_username TEXT NOT NULL,
+        snapshot_date DATE NOT NULL,
+        metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_analytics_snapshots_tenant_date ON analytics_snapshots (tenant_id, snapshot_date)",
 )
 
 
