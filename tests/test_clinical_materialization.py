@@ -30,7 +30,7 @@ def _headers(client: TestClient, username: str, password: str = "secret"):
 
 
 def _create_therapist_and_client(client: TestClient, therapist="therapist_a", c="client_a"):
-    assert client.post("/auth/signup", json={"username": therapist, "password": "secret", "role": "therapist", "subscription_status": "active"}).status_code == 200
+    assert client.post("/auth/signup", json={"username": therapist, "password": "secret", "role": "therapist", "subscription_status": "active", "commercial_terms_acceptance": {"accepted": True, "checkboxes": {"terms": True, "privacy": True, "billing": True}, "terms_version": "2026-01", "privacy_policy_version": "2026-01", "accepted_at": "2026-01-01T00:00:00Z", "policy_text": "commercial beta terms"}}).status_code == 200
     h = _headers(client, therapist)
     assert client.post(f"/therapists/me/clients", headers=h, json={"username": c, "password": "secret", "profile": {"nome": "Client"}}).status_code == 200
     return h
