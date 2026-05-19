@@ -1,8 +1,10 @@
 """Minimal PostgreSQL connection-pool support for JSONB repositories."""
 
 from contextlib import contextmanager
+import time
 
 from database import config
+from core.settings import SETTINGS
 
 _POOL = None
 
@@ -55,7 +57,7 @@ def get_pool():
             from psycopg_pool import ConnectionPool
         except ImportError as exc:
             raise RuntimeError("Install psycopg_pool/psycopg to enable PostgreSQL persistence") from exc
-        _POOL = ConnectionPool(conninfo=get_database_url(), min_size=1, max_size=10, open=True)
+        _POOL = ConnectionPool(conninfo=get_database_url(), min_size=1, max_size=10, open=True, kwargs={"connect_timeout": SETTINGS.db_connect_timeout_sec})
     return _POOL
 
 
@@ -81,3 +83,12 @@ def reset_pool():
     if _POOL is not None:
         _POOL.close()
         _POOL = None
+
+
+def db_healthcheck() -> float:
+    start = time.perf_counter()
+    with connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    return round((time.perf_counter() - start) * 1000, 2)

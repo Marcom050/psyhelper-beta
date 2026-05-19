@@ -1,24 +1,16 @@
-"""Append-only JSON audit log foundation."""
-
 from __future__ import annotations
-
-import json
-import logging
-import os
+import json, logging, os
 from datetime import datetime, timezone
+from uuid import uuid4
+logger=logging.getLogger(__name__)
+AUDIT_LOG_PATH=os.getenv("AUDIT_LOG_PATH", os.path.expanduser("~/psyhelper_data/audit_log.jsonl"))
 
-logger = logging.getLogger(__name__)
-AUDIT_LOG_PATH = os.getenv("AUDIT_LOG_PATH", os.path.expanduser("~/psyhelper_data/audit_log.jsonl"))
-
-
-def log_event(event_type: str, actor: str | None = None, payload: dict | None = None) -> None:
+def audit_log_event(event_type:str, actor_username:str|None=None, target_username:str|None=None, tenant_id:str|None=None, ip:str|None=None, metadata:dict|None=None)->str:
     os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
-    event = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "event_type": event_type,
-        "actor": actor,
-        "payload": payload or {},
-    }
-    with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, ensure_ascii=False) + "\n")
-    logger.info("audit_event=%s actor=%s", event_type, actor)
+    event={"event_id":str(uuid4()),"timestamp":datetime.now(timezone.utc).isoformat(),"event_type":event_type,"actor_username":actor_username,"target_username":target_username,"tenant_id":tenant_id,"ip":ip,"metadata":metadata or {}}
+    with open(AUDIT_LOG_PATH,'a',encoding='utf-8') as h: h.write(json.dumps(event,ensure_ascii=False)+'\n')
+    logger.info("audit_event=%s actor=%s target=%s",event_type,actor_username,target_username)
+    return event["event_id"]
+
+def log_event(event_type:str, actor:str|None=None, payload:dict|None=None)->None:
+    audit_log_event(event_type=event_type, actor_username=actor, metadata=payload or {})

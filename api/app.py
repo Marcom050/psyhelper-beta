@@ -1,15 +1,22 @@
 """FastAPI application exposing the minimal PsyHelper HTTP API boundary."""
 
+import time
 from fastapi import FastAPI
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from api.exceptions import APIError
 from api.routers import auth, chat, homework, reports, therapists, wellness, mobile_v1
+from database.postgres.connection import db_healthcheck
 
 
 async def health(_request: Request):
     return JSONResponse({"status": "ok"})
+
+
+async def health_db(_request: Request):
+    latency = db_healthcheck()
+    return JSONResponse({"status": "ok", "database": "postgresql", "latency_ms": latency})
 
 
 async def api_error_handler(_request: Request, exc: APIError):
@@ -26,16 +33,9 @@ async def unhandled_error_handler(_request: Request, exc: Exception):
     )
 
 
-app = FastAPI(
-    debug=False,
-    routes=[],
-    exception_handlers={
-        APIError: api_error_handler,
-        Exception: unhandled_error_handler,
-    },
-)
-
+app = FastAPI(debug=False,routes=[],exception_handlers={APIError: api_error_handler, Exception: unhandled_error_handler})
 app.add_route("/health", health, methods=["GET"])
+app.add_route("/health/db", health_db, methods=["GET"])
 app.include_router(auth.router)
 app.include_router(wellness.router)
 app.include_router(homework.router)
