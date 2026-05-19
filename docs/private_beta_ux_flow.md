@@ -58,8 +58,9 @@ Rendere la prima esperienza del terapeuta in private beta più chiara, con navig
 ## UX polish sprint: chiarezza terapeuta + riduzione clutter
 - **Vincolo lingua:** tutta la UI visibile a terapeuti/clienti resta in italiano (etichette, warning, stati vuoti, onboarding, navigazione).
 - **Principio guida:** ridurre elementi ripetuti o tecnici nel flusso principale; mostrare prima azioni e dati utili alla seduta.
-- **Chat session cleanup:** la chat visibile in sessione Streamlit viene azzerata su logout/reset sessione e tramite azione esplicita “Pulisci chat corrente”, senza cancellare i record persistiti lato backend.
+- **Chat session cleanup:** la chat visibile in sessione Streamlit viene azzerata su logout/reset sessione e tramite azione esplicita “Pulisci chat corrente”, con pulizia solo UI/session-state (nessuna cancellazione dei record clinici persistiti lato backend).
 - **Diario semplificato:** il campo “risposta alternativa CBT” è rimosso dal flusso UI standard per mantenere la compilazione essenziale.
 - **Igiene metadati:** in aree utente standard non vanno mostrati token/secret/password, né metadati low-value (es. `created_at`, `internal_id`) salvo contesti admin/debug separati.
-- **Workaround chat input:** applicata una rifinitura CSS a basso rischio per ridurre bordo/outline bianco del `st.chat_input`; limite noto: lo stile finale dipende dal tema Streamlit/browser.
+- **Input chat bottom-native:** i messaggi vengono renderizzati sopra il `st.chat_input` e l’input resta nel comportamento bottom nativo di Streamlit; applicata solo una rifinitura CSS minima per coerenza visiva.
+- **Limite noto Streamlit:** il posizionamento/stile finale dell’input può variare leggermente in base a tema e browser e non replica in modo pixel-perfect il layout ChatGPT.
 - **Stato mobile:** app mobile non avviata in questa sprint (solo Streamlit private beta).

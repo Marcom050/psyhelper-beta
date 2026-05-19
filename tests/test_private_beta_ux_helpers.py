@@ -51,6 +51,9 @@ def test_sanitize_session_metadata_hides_low_value_fields():
 
 def test_clear_visible_chat_session_clears_messages_without_persistence_by_default(monkeypatch):
     app.session_adapter.set_messages([{"role": "user", "content": "ciao"}])
+    app.session_adapter.set_selected_patient_username("cliente-demo")
+    app.session_adapter._set("chat_messages", [{"role": "assistant", "content": "stale"}])
+    app.session_adapter._set("chat_input_box", "bozza")
 
     called = {"saved": False}
     def fake_save(username):
@@ -60,7 +63,16 @@ def test_clear_visible_chat_session_clears_messages_without_persistence_by_defau
     app.clear_visible_chat_session(persist=False)
 
     assert app.session_adapter.get_messages() == []
+    assert app.session_adapter.get_selected_patient_username() is None
+    assert app.session_adapter._get("chat_messages") is None
+    assert app.session_adapter._get("chat_input_box") is None
     assert called["saved"] is False
+
+
+def test_clear_chat_button_label_is_italian_and_uses_shared_cleanup_path():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert 'if st.button("Pulisci chat corrente"):' in source
+    assert "clear_visible_chat_session(persist=True)" in source
 
 
 def test_diary_ui_no_cbt_alternative_response_field():
