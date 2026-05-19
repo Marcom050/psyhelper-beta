@@ -24,8 +24,11 @@ def _parse(value: Any) -> datetime | None:
 
 def resolve_effective_subscription(username: str, repository=None) -> dict[str, Any]:
     metadata = auth_service.load_user_metadata(username, repository=repository)
-    owner = auth_service.resolve_tenant_owner(metadata, username)
-    owner_metadata = metadata if owner == username else auth_service.load_user_metadata(owner, repository=repository)
+    owner = auth_service.resolve_tenant_owner(metadata, username) or username
+    if metadata.get("role") == "client" and owner == username:
+        owner_metadata = {**metadata, "subscription_status": "trialing", "billing_status": "trialing"}
+    else:
+        owner_metadata = metadata if owner == username else auth_service.load_user_metadata(owner, repository=repository)
     status = str(owner_metadata.get("billing_status") or owner_metadata.get("subscription_status") or "trialing").lower()
 
     now = _now()

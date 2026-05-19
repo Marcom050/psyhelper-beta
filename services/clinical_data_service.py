@@ -11,7 +11,7 @@ def _tenant_for(username: str):
 
 
 def create_clinical_record(*, entity_type, entity_id, owner_username, subject_username, lifecycle_status, payload, metadata):
-    tenant_id = _tenant_for(owner_username) or _tenant_for(subject_username)
+    tenant_id = _tenant_for(owner_username) or _tenant_for(subject_username) or owner_username or subject_username
     if not tenant_id:
         raise ValueError('tenant_id is required')
     repo = get_clinical_repository()
@@ -28,9 +28,9 @@ def create_clinical_record(*, entity_type, entity_id, owner_username, subject_us
 
 
 def update_snapshot_for_therapist(therapist_username: str):
-    tenant_id = _tenant_for(therapist_username)
+    tenant_id = _tenant_for(therapist_username) or therapist_username
     if not tenant_id:
-        raise ValueError('tenant_id is required')
+        return None
     metrics = therapist_overview(therapist_username, allow_snapshot_fallback=False)
     return get_clinical_repository().upsert_analytics_snapshot(
         tenant_id=tenant_id,
