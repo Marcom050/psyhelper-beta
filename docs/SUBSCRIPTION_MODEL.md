@@ -14,12 +14,13 @@
 ## Read-only mode
 In `past_due` e `canceled` l'utente può consultare dati consentiti ma non creare/modificare nuovi contenuti clinici/operativi.
 
-## Workflow manuale primo cliente pagante
-1. Emissione richiesta pagamento manuale (€29,90/mese).
-2. Verifica conferma pagamento (es. bonifico/accordo fatturazione).
-3. Admin autorizzato aggiorna stato subscription su account (`active` o stato appropriato).
-4. Registrare evidenza in audit interno: chi, quando, stato precedente, stato nuovo, motivo.
-5. Comunicare al terapeuta esito attivazione e data rinnovo.
+## Workflow manuale primo cliente pagante (obbligatorio in beta controllata)
+1. Il terapeuta conferma adesione al piano **€29,90/mese**.
+2. Pagamento e fatturazione vengono gestiti manualmente (es. bonifico/fattura).
+3. Marco verifica l'incasso o la conferma amministrativa del pagamento.
+4. Solo dopo verifica, admin autorizzato imposta lo stato subscription su `active` (o stato appropriato).
+5. Registrare evidenza in audit interno: chi, quando, account/tenant, stato precedente, stato nuovo, motivo.
+6. Inviare al terapeuta istruzioni di onboarding e conferma attivazione.
 
 ## Chi può attivare/disattivare
 - Solo admin autorizzati.
@@ -28,9 +29,10 @@ In `past_due` e `canceled` l'utente può consultare dati consentiti ma non crear
 ## Audit richiesto
 Ogni attivazione/disattivazione deve lasciare traccia verificabile (timestamp, attore, tenant/account, motivazione).
 
-## Pagamento fallito
+## Pagamento fallito o non regolarizzato
 - Impostare `grace_period` con comunicazione al terapeuta.
 - Se non regolarizzato entro finestra definita, passare a `past_due` (read-only).
+- Mantenere tracciabilità audit del cambio stato.
 - Comunicare sempre prossimi passi e canale supporto.
 
 ## Messaggio al terapeuta (template sintetico)

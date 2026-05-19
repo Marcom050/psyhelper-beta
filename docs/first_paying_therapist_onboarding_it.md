@@ -1,6 +1,13 @@
 # First paying therapist onboarding package (Italia)
 
-**Stato:** DRAFT — do not send until launch gate is signed off.
+**Stato:** **DRAFT — non inviare finché il launch gate non è firmato.**
+
+## Checklist pre-invio (obbligatoria)
+- [ ] Contatto supporto compilato e verificato.
+- [ ] Backup/restore validato con evidenze reali.
+- [ ] Test attivazione manuale billing completato.
+- [ ] Launch gate firmato (decisione GO/GO WITH CONDITIONS).
+- [ ] Documenti legali/privacy rivisti almeno a livello operativo.
 
 ## Messaggio invito (bozza)
 Ciao <NOME>,
