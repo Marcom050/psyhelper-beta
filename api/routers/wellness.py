@@ -6,7 +6,7 @@ from starlette.responses import JSONResponse
 
 from api.dependencies import account_bundle, enforce_subscription_read_access, enforce_subscription_write_access, enforce_tenant_access, get_current_active_context, parse_body, require_same_user_or_owner
 from api.schemas.wellness import MoodEntryRequest, MoodEntryResponse, WellnessResponse
-from services import auth_service
+from services import auth_service, clinical_data_service
 
 
 router = APIRouter()
@@ -33,6 +33,9 @@ async def create_mood_entry(request: Request):
     entry.update(body.model_extra or {})
     wellness.setdefault("mood_entries", []).append(entry)
     auth_service.save_account_bundle(username, bundle["profile"], bundle["messages"], wellness)
+    owner = auth_service.resolve_tenant_owner(auth_service.load_user_metadata(username), username) or username
+    clinical_data_service.create_clinical_record(entity_type="mood_entry", entity_id=str(len(wellness.get("mood_entries", []))), owner_username=owner, subject_username=username, lifecycle_status="active", payload=entry, metadata={"source": "api"})
+    clinical_data_service.update_snapshot_for_therapist(owner)
     response = MoodEntryResponse(username=username, mood_entry=entry, wellness=wellness)
     return JSONResponse(response.model_dump())
 

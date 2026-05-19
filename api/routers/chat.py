@@ -8,6 +8,7 @@ from api.dependencies import COPYRIGHT_POLICY, enforce_subscription_write_access
 from api.exceptions import APIValidationError
 from api.schemas.chat import ChatMessageRequest, ChatMessageResponse
 from services.chat_service import DEFAULT_SESSION_ID, ChatContext, get_response as get_chat_response
+from services import auth_service, clinical_data_service
 
 
 router = APIRouter()
@@ -35,6 +36,9 @@ async def create_chat_message(request: Request):
         copyright_policy=COPYRIGHT_POLICY,
         session_id=body.session_id or DEFAULT_SESSION_ID,
     )
+    owner = auth_service.resolve_tenant_owner(auth_service.load_user_metadata(username), username) or username
+    clinical_data_service.create_clinical_record(entity_type="chat_message", entity_id=str(body.session_id or DEFAULT_SESSION_ID), owner_username=owner, subject_username=username, lifecycle_status="active", payload={"user_input": body.user_input, "content": response.content}, metadata={"source": "api"})
+    clinical_data_service.update_snapshot_for_therapist(owner)
     payload = ChatMessageResponse(username=username, content=response.content)
     return JSONResponse(payload.model_dump())
 
