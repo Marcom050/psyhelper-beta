@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import timezone
 from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -6,27 +6,18 @@ from api.dependencies import get_current_user, parse_body
 from api.exceptions import APIValidationError, AuthenticationError
 from api.schemas.auth import AccessTokenResponse, AuthResponse, LoginRequest, RefreshRequest, SignupRequest, UserResponse
 from api.schemas.common import success_response
-from api.security import create_access_token, create_refresh_token, verify_refresh_token
+from api.security import create_access_token, create_refresh_token, verify_refresh_token, decode_token
 from core.settings import SETTINGS
 from database.audit_log import audit_log_event
+from database.auth_security_repository import get_auth_security_repository
 from services import auth_service
 
 router = APIRouter()
-_failed={}; _revoked_refresh=set(); _refresh_family={}
 
-def _now(): return datetime.now(timezone.utc)
-def _login_limited(username:str)->bool:
-    x=_failed.get(username,{"count":0,"lock_until":None,"window_start":_now()})
-    if x.get('lock_until') and x['lock_until']>_now(): return True
-    return False
 
-def _record_failure(username:str):
-    x=_failed.setdefault(username,{"count":0,"lock_until":None,"window_start":_now()})
-    if (_now()-x['window_start']).total_seconds()>SETTINGS.login_rate_limit_window_sec: x['count']=0; x['window_start']=_now()
-    x['count']+=1
-    if x['count']>=SETTINGS.login_rate_limit_attempts: x['lock_until']=_now()+timedelta(seconds=SETTINGS.login_lockout_sec)
+def _security_repo():
+    return get_auth_security_repository()
 
-def _reset_failures(username:str): _failed.pop(username,None)
 
 async def signup(request: Request):
     body = await parse_body(request, SignupRequest); username = auth_service.normalize_username(body.username)
@@ -38,42 +29,59 @@ async def signup(request: Request):
     response = AuthResponse(username=username, role=metadata.get("role"), metadata=metadata, profile=bundle["profile"])
     return JSONResponse(response.model_dump())
 
+
 async def login(request: Request):
     body = await parse_body(request, LoginRequest); username = auth_service.normalize_username(body.username)
-    if _login_limited(username): raise AuthenticationError("Account temporarily locked")
+    security = _security_repo()
+    if security.is_locked(username):
+        audit_log_event("lockout_denied", actor_username=username, ip=request.client.host if request.client else None, metadata={"path": "/auth/login"}, severity="warning")
+        raise AuthenticationError("Account temporarily locked")
     if not username or not auth_service.verify_password(username, body.password):
-        _record_failure(username or body.username); audit_log_event("login_failure", actor_username=username or body.username, ip=request.client.host if request.client else None, metadata={"path":"/auth/login"}); raise AuthenticationError("Invalid credentials")
-    _reset_failures(username); md=auth_service.load_user_metadata(username)
+        security.record_login_failure(username or body.username)
+        audit_log_event("login_failure", actor_username=username or body.username, ip=request.client.host if request.client else None, metadata={"path": "/auth/login"}, severity="warning")
+        raise AuthenticationError("Invalid credentials")
+    security.reset_login_failures(username); md=auth_service.load_user_metadata(username)
     if SETTINGS.strict_production_mode and not md.get('tenant_id'): raise AuthenticationError('Missing tenant_id')
-    family_id = _refresh_family.get(username)
-    if not family_id: family_id = f"fam-{username}"
-    _refresh_family[username]=family_id
+    family_id = security.get_refresh_family(username) or f"fam-{username}"
+    security.set_refresh_family(username, family_id)
     refresh_token=create_refresh_token(username, family_id=family_id)
     audit_log_event("login_success", actor_username=username, tenant_id=md.get('tenant_id'), ip=request.client.host if request.client else None, metadata={"path":"/auth/login"})
     bundle = auth_service.load_account_bundle(username)
     response = AuthResponse(username=username, role=md.get("role"), metadata=md, profile=bundle["profile"], access_token=create_access_token(username), refresh_token=refresh_token)
     return JSONResponse(response.model_dump())
 
+
 async def refresh(request: Request):
     body = await parse_body(request, RefreshRequest)
-    if body.refresh_token in _revoked_refresh: raise AuthenticationError('Refresh token revoked')
+    security = _security_repo()
+    if security.is_token_revoked(body.refresh_token):
+        audit_log_event("refresh_reuse_detected", ip=request.client.host if request.client else None, metadata={"path": "/auth/refresh"}, severity="critical")
+        raise AuthenticationError('Refresh token revoked')
     payload = verify_refresh_token(body.refresh_token); username = auth_service.normalize_username(payload.get("sub", ""))
     if not auth_service.user_exists(username): raise AuthenticationError("Unknown user")
-    _revoked_refresh.add(body.refresh_token)
+    if security.get_refresh_family(username) and payload.get("family_id") != security.get_refresh_family(username):
+        security.record_login_failure(username)
+        audit_log_event("refresh_family_mismatch", actor_username=username, metadata={"path": "/auth/refresh"}, severity="critical")
+        raise AuthenticationError("Refresh token family mismatch")
+    security.revoke_token(body.refresh_token, int(payload.get("exp", 0)))
     new_refresh = create_refresh_token(username, family_id=payload.get('family_id'))
     audit_log_event("token_refresh", actor_username=username, metadata={"path":"/auth/refresh"})
     response = {"access_token": create_access_token(username), "refresh_token": new_refresh, "token_type":"bearer"}
     return JSONResponse(response)
 
+
 async def logout(request: Request):
-    body=await parse_body(request, RefreshRequest); _revoked_refresh.add(body.refresh_token)
+    body=await parse_body(request, RefreshRequest)
+    payload = verify_refresh_token(body.refresh_token)
+    _security_repo().revoke_token(body.refresh_token, int(payload.get("exp", 0)))
+    audit_log_event("logout", actor_username=auth_service.normalize_username(payload.get("sub", "")), metadata={"path": "/auth/logout"})
     return JSONResponse({"success":True})
+
 
 async def me(request: Request):
     current = get_current_user(request)
     response = UserResponse(username=current.username, role=current.role, metadata=current.metadata, profile=current.profile)
     return JSONResponse(response.model_dump())
-
 
 
 async def onboarding_therapist(request: Request):
@@ -87,6 +95,7 @@ async def onboarding_therapist(request: Request):
     metadata["billing_status"] = "trialing"
     auth_service.save_user_metadata(username, metadata)
     family_id = f"fam-{username}"
+    _security_repo().set_refresh_family(username, family_id)
     refresh_token = create_refresh_token(username, family_id=family_id)
     audit_log_event("onboarding_therapist", actor_username=username, tenant_id=metadata.get("tenant_id"), metadata={"path":"/v1/onboarding/therapist"})
     return JSONResponse(success_response({"username": username, "access_token": create_access_token(username), "refresh_token": refresh_token, "metadata": metadata}))

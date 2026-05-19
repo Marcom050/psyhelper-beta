@@ -10,10 +10,11 @@ from pydantic import BaseModel, ValidationError
 from starlette.requests import Request
 
 from api.exceptions import APIValidationError, AuthenticationError, NotFoundError
-from api.security import AuthContext, auth_context_for_username, verify_access_token
+from api.security import AuthContext, auth_context_for_username, verify_access_token, decode_token
 from services import auth_service
 from services import subscription_access
 from database.audit_log import log_event
+from database.auth_security_repository import get_auth_security_repository
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,13 @@ def get_current_user(request: Request) -> AuthContext:
     authorization = request.headers.get("authorization", "")
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() == "bearer" and token:
-        payload = verify_access_token(token.strip())
+        stripped = token.strip()
+        payload = verify_access_token(stripped)
+        token_payload = decode_token(stripped)
+        if get_auth_security_repository().is_token_revoked(stripped):
+            raise AuthenticationError("Token revoked")
+        if token_payload.get("typ") != "access":
+            raise AuthenticationError("Invalid access token")
         return auth_context_for_username(str(payload.get("sub", "")))
 
     if use_legacy_header_auth():
