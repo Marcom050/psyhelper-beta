@@ -82,6 +82,24 @@ L'autore declina ogni tipo di responsabilità per qualsiasi uso improprio dell'a
 Questa applicazione è protetta dalla normativa sul diritto d’autore ai sensi della Legge sul diritto d'autore e successive modifiche. Tutti i diritti sono riservati. È vietata la riproduzione, distribuzione, modifica, pubblicazione, comunicazione o condivisione totale o parziale dell’applicazione e dei suoi contenuti senza preventiva autorizzazione del titolare dei diritti, salvo i casi consentiti dalla legge.
 """
 
+PRIVATE_BETA_BANNER = (
+    "🔬 **Private beta controllata** · Usa solo dati sintetici/test salvo autorizzazione esplicita. "
+    "Non usare per emergenze e non sostituisce il giudizio professionale. "
+    "Governance privacy/clinica in validazione; revisione compliance-legale non conclusa."
+)
+
+EMPTY_STATE_MESSAGES = {
+    "clients": "Non hai ancora creato profili paziente. Inizia da **➕ Crea nuovo paziente** per configurare il primo caso di test.",
+    "mood_entries": "Nessuna scheda CBT disponibile. Chiedi al paziente di compilare il diario per vedere trend e insight.",
+    "homework_assigned": "Nessun homework assegnato. Usa il pannello di assegnazione per aggiungere il primo compito.",
+    "homework_submissions": "Nessuna risposta homework ricevuta. Dopo l'assegnazione, le risposte compariranno qui.",
+    "reports": "Nessun report disponibile con i dati attuali. Aggiungi diario/homework per generare un riepilogo utile.",
+    "chat_messages": "Nessun messaggio ancora presente. Inizia una conversazione guidata dalla tab Chat.",
+    "exports": "Nessuna richiesta export/data-rights visibile in questa area beta.",
+}
+
+SENSITIVE_KEY_FRAGMENTS = ("token", "secret", "password", "authorization", "cookie", "api_key")
+
 
 def secret_get(key, default=None):
     try:
@@ -149,6 +167,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 render_analytics_banner()
+st.info(PRIVATE_BETA_BANNER)
 
 GROQ_API_KEY = secret_get("GROQ_API_KEY", "")
 if not GROQ_API_KEY:
@@ -198,6 +217,39 @@ def show_api_error(error):
         st.error("Risorsa non trovata nel backend API.")
     else:
         st.error("Backend API non raggiungibile. Riprova tra poco o disattiva USE_HTTP_API per il fallback locale.")
+
+
+def beta_disclaimer_lines():
+    return [
+        "PsyHelper è in **private beta controllata**.",
+        "Usa solo **dati sintetici/test** salvo autorizzazione esplicita.",
+        "Non usare in situazioni di emergenza; non sostituisce il giudizio professionale.",
+        "La governance dei dati sensibili è in corso e la review compliance-legale non è conclusa.",
+    ]
+
+
+def empty_state_message(key):
+    return EMPTY_STATE_MESSAGES.get(key, "Nessun dato disponibile in questa sezione.")
+
+
+def redact_sensitive_mapping(data):
+    safe = {}
+    for key, value in (data or {}).items():
+        lowered = str(key).lower()
+        if any(fragment in lowered for fragment in SENSITIVE_KEY_FRAGMENTS):
+            continue
+        safe[key] = value
+    return safe
+
+
+def role_nav_sections(role):
+    therapist_sections = ["🏠 Dashboard terapeuta", "👥 Pazienti", "📚 Homework", "🗓️ Timeline", "🔒 Note private", "📄 Recap"]
+    admin_sections = ["🛠️ Beta ops / Admin"]
+    if role == "therapist":
+        return therapist_sections
+    if role == "admin":
+        return therapist_sections + admin_sections
+    return ["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"]
 
 def scroll_to_top():
     st.html(
@@ -693,8 +745,8 @@ def show_therapist_dashboard():
     subscription_status = metadata.get("subscription_status", "inactive")
     subscription_active = has_active_subscription(username)
 
-    st.header("👩‍⚕️ Dashboard terapeuta intelligente")
-    st.caption("Focus clinico: overview pazienti, insight automatici, aderenza, alert e organizzazione del materiale per la seduta.")
+    st.header("👩‍⚕️ Dashboard terapeuta · Private Beta")
+    st.caption("Flusso consigliato: 1) crea/seleziona paziente · 2) verifica trend e homework · 3) prepara recap pre-seduta.")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Accesso", "Attivo" if subscription_active else "Bloccato")
@@ -717,7 +769,7 @@ def show_therapist_dashboard():
 
     clients = client_accounts_for(username)
     if not clients:
-        st.info("Non hai ancora creato profili paziente. Usa il pulsante ➕ Crea nuovo paziente per aggiungere il primo profilo.")
+        st.info(empty_state_message("clients"))
         return
 
     overview_rows = []
@@ -784,7 +836,7 @@ def show_therapist_dashboard():
     with detail_tabs[1]:
         df = selected_snapshot["scope_df"]
         if df.empty:
-            st.info("Nessuna scheda recente.")
+            st.info(empty_state_message("mood_entries"))
         else:
             chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
             fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
@@ -834,7 +886,7 @@ def show_therapist_dashboard():
             if assignments:
                 st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
             else:
-                st.info("Nessun homework assegnato.")
+                st.info(empty_state_message("homework_assigned"))
 
         if submissions:
             st.markdown("#### Ultime risposte")
@@ -845,7 +897,7 @@ def show_therapist_dashboard():
                     st.markdown(f"**{submission.get('template', 'Homework')} · {submission.get('submitted_at', '—')}**")
                     render_homework_answers(submission)
         else:
-            st.info("Il paziente non ha ancora inviato risposte agli homework.")
+            st.info(empty_state_message("homework_submissions"))
 
     with detail_tabs[3]:
         st.markdown("### Timeline terapeutica condivisa")
@@ -917,7 +969,7 @@ def logout_button():
 
 
 def render_login_form():
-    st.caption("I clienti non si registrano da soli: ricevono l'account dal proprio psicologo abbonato.")
+    st.caption("Private beta: i clienti non si registrano da soli; ricevono credenziali dal professionista.")
     with st.form("login"):
         username = st.text_input("Nome utente")
         password = st.text_input("Password", type="password")
@@ -1096,6 +1148,15 @@ def render_authenticated_app():
 
     current_metadata = session_adapter.get_user_metadata()
     current_role = current_metadata.get("role", "client")
+    safe_metadata = redact_sensitive_mapping(current_metadata)
+    st.sidebar.markdown("### Navigazione")
+    st.sidebar.caption(f"Ruolo attivo: **{current_role}**")
+    st.sidebar.radio("Sezioni disponibili", role_nav_sections(current_role), index=0, disabled=True)
+    with st.sidebar.expander("Note private beta", expanded=False):
+        for line in beta_disclaimer_lines():
+            st.markdown(f"- {line}")
+    with st.sidebar.expander("Contesto sessione (safe)", expanded=False):
+        st.json(safe_metadata)
 
     if current_role == "therapist":
         show_therapist_dashboard()
