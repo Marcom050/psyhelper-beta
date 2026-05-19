@@ -47,6 +47,12 @@
 - Problemi riscontrati e mitigazioni:
 - Link/percorso artifact e log:
 
+## Escalation e contatto incidenti (beta commerciale controllata)
+- Contatto supporto/escalation: **m.maskaro74@gmail.com** (Responsabile: **Marco Mascaro**).
+- Tempo di risposta previsto: entro **1 giorno lavorativo** durante la beta commerciale controllata.
+- Per bug bloccanti, problemi login/accesso, errori dati o sospetti incidenti sicurezza/privacy, inviare email immediata con descrizione problema, data/ora approssimative, account/tenant coinvolto, passaggi riproduzione e screenshot utili senza dati clinici non necessari.
+- In caso di issue critica, Marco può sospendere temporaneamente accessi, impostare read-only o interrompere il beta test fino a verifica completata.
+
 ## Stato evidenze attuale
 - Evidenze backup/restore: **PENDING (nessun dato fittizio ammesso)**.
 
