@@ -15,6 +15,19 @@ class SignupRequest(BaseModel):
     profile: dict[str, Any] | None = None
     email: str | None = None
     beta_disclaimer_accepted_at: str | None = None
+    commercial_terms_acceptance: CommercialTermsAcceptanceRequest | None = None
+
+
+class CommercialTermsAcceptanceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    accepted: bool = False
+    terms_version: str
+    policy_text: str
+    checkbox_terms: bool = False
+    checkbox_billing_rules: bool = False
+    checkbox_professional_responsibility: bool = False
+    checkbox_confirm_paid_activation: bool = False
 
 
 class LoginRequest(BaseModel):

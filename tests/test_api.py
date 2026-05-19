@@ -12,6 +12,16 @@ from database import account_repository, filesystem_account_repository
 from services.chat_service import ChatResponse
 
 
+COMMERCIAL_ACCEPTANCE_PAYLOAD = {
+    "accepted": True,
+    "terms_version": "2026-05-19",
+    "policy_text": "Piano: €29,90/mese. Trial iniziale di 24 ore.\nSe la disdetta avviene entro 24 ore non viene effettuato il primo addebito.\nIn fase beta la fatturazione/pagamento è gestita manualmente.\nDopo un pagamento già effettuato, la disdetta ha effetto a fine periodo già pagato.\nDopo il pagamento non sono previsti rimborsi, salvo obblighi di legge o accordo scritto.\nDopo cancellazione/disdetta l'account può passare in sola lettura o essere disattivato.\nPrima della disattivazione definitiva potrebbe essere necessario richiedere/exportare i dati disponibili.\nPsyHelper è una piattaforma di supporto operativo e non sostituisce il giudizio professionale del terapeuta.\nIl terapeuta resta responsabile del rapporto clinico/professionale con i propri pazienti/clienti.\nIl trattamento dei dati deve avvenire nel rispetto della documentazione privacy e degli accordi applicabili.",
+    "checkbox_terms": True,
+    "checkbox_billing_rules": True,
+    "checkbox_professional_responsibility": True,
+    "checkbox_confirm_paid_activation": True,
+}
+
 class PsyHelperAPITest(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -206,6 +216,36 @@ class PsyHelperAPITest(unittest.TestCase):
         self.assertEqual(other_client_response.status_code, 401)
         therapist_endpoint_response = self.client.get("/therapists/me/clients/clienta", headers=client_headers)
         self.assertEqual(therapist_endpoint_response.status_code, 401)
+
+
+    def test_paid_therapist_onboarding_requires_explicit_commercial_acceptance(self):
+        payload = {
+            "username": "thera_paid",
+            "password": "secret",
+            "role": "therapist",
+            "profile": {"nome": "Thera"},
+        }
+        denied = self.client.post("/v1/onboarding/therapist", json=payload)
+        self.assertEqual(denied.status_code, 422, denied.text)
+
+        accepted = dict(payload)
+        accepted["commercial_terms_acceptance"] = dict(COMMERCIAL_ACCEPTANCE_PAYLOAD)
+        ok = self.client.post("/v1/onboarding/therapist", json=accepted, headers={"User-Agent": "pytest-agent"})
+        self.assertEqual(ok.status_code, 200, ok.text)
+        metadata = ok.json()["data"]["metadata"]
+        self.assertEqual(metadata["commercial_terms_acceptance"]["terms_version"], "2026-05-19")
+        self.assertEqual(metadata["commercial_terms_acceptance"]["user_agent"], "pytest-agent")
+
+    def test_paid_therapist_onboarding_blocks_if_any_checkbox_missing(self):
+        payload = {
+            "username": "thera_blocked",
+            "password": "secret",
+            "role": "therapist",
+            "profile": {"nome": "Thera"},
+            "commercial_terms_acceptance": {**COMMERCIAL_ACCEPTANCE_PAYLOAD, "checkbox_terms": False},
+        }
+        blocked = self.client.post("/v1/onboarding/therapist", json=payload)
+        self.assertEqual(blocked.status_code, 422, blocked.text)
 
     def test_legacy_header_auth_requires_explicit_flag(self):
         self.signup()
