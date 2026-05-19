@@ -471,20 +471,29 @@ def render_chat_input_styles():
     st.markdown(
         """
 <style>
-div[data-testid="stChatInput"] {
+[data-testid="stChatInput"] {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
-  padding: 0 !important;
 }
-div[data-testid="stChatInput"] > div {
+[data-testid="stChatInput"] > div {
+  border: 1px solid rgba(120, 130, 155, 0.35) !important;
+  border-radius: 18px !important;
+  background: rgba(17, 24, 39, 0.92) !important;
+  box-shadow: none !important;
+  padding: 0.2rem 0.45rem !important;
+}
+[data-testid="stChatInput"] textarea {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
-  padding: 0 !important;
+  color: #f3f4f6 !important;
 }
-div[data-testid="stChatInput"] textarea {
-  box-shadow: none !important;
+[data-testid="stChatInput"] textarea::placeholder {
+  color: #9ca3af !important;
+}
+[data-testid="stChatInput"] button {
+  border-radius: 12px !important;
 }
 </style>
 """,
@@ -504,10 +513,7 @@ def show_chat_tab():
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    if user_input := st.chat_input(
-        "Descrivi cosa stai provando o quale esperienza vuoi approfondire...",
-        key="chat_input_box",
-    ):
+    if user_input := st.chat_input("Scrivi un messaggio…", key="chat_input_box"):
         session_adapter.get_messages().append({"role": "user", "content": user_input})
         with st.spinner("Sto pensando..."):
             reply = get_response(user_input)
@@ -1009,8 +1015,7 @@ def show_therapist_dashboard():
         )
 
 def reset_session_for_logout():
-    clear_visible_chat_session(persist=False)
-    session_adapter.set_selected_patient_username(None)
+    clear_visible_chat_session(persist=True)
     session_adapter.reset_for_logout()
 
 
