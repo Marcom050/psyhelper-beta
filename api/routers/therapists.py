@@ -13,6 +13,8 @@ from api.schemas.therapists import (
     TherapistDashboardResponse,
 )
 from services import auth_service, subscription_service
+from services import privacy_service
+from core.settings import SETTINGS
 from services.analytics_service import therapist_overview
 from database.audit_log import log_event
 
@@ -83,7 +85,7 @@ async def my_dashboard(request: Request):
     }
     stats = {
         "total_clients": len(clients),
-        "active_clients": len(clients),
+        "active_clients": len([c for c in clients if privacy_service.has_valid_consent(auth_service.load_user_metadata(c.get("username")))]),
         "recent_activity": 0,
     }
     payload = TherapistDashboardResponse(
@@ -110,6 +112,10 @@ async def create_my_client(request: Request):
     profile = dict(body.profile or {})
     display_name = str(profile.get("nome") or profile.get("name") or client_username)
     auth_service.create_client_account(therapist.username, client_username, body.password, display_name)
+    md = auth_service.load_user_metadata(client_username)
+    md = privacy_service.apply_consent(md, actor=therapist.username, scope="client_onboarding", consent_version=SETTINGS.consent_version, privacy_policy_version=SETTINGS.privacy_policy_version, terms_version=SETTINGS.terms_version)
+    auth_service.save_user_metadata(client_username, md)
+    privacy_service.audit_consent_accepted(actor=therapist.username, target=client_username, tenant_id=md.get("tenant_id"), scope="client_onboarding")
     if profile:
         bundle = auth_service.load_account_bundle(client_username)
         merged_profile = {**bundle["profile"], **profile, "onboarding_completed": bundle["profile"].get("onboarding_completed", False)}

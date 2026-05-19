@@ -11,6 +11,7 @@ from core.settings import SETTINGS
 from database.audit_log import audit_log_event
 from database.auth_security_repository import get_auth_security_repository
 from services import auth_service
+from services import privacy_service
 
 router = APIRouter()
 
@@ -26,6 +27,10 @@ async def signup(request: Request):
     if auth_service.user_exists(username): raise APIValidationError("User already exists")
     auth_service.create_user(username, body.password, role=body.role, therapist_username=body.therapist_username, subscription_status=body.subscription_status, profile=body.profile, email=body.email, beta_disclaimer_accepted_at=body.beta_disclaimer_accepted_at)
     bundle = auth_service.load_account_bundle(username); metadata = auth_service.load_user_metadata(username)
+    if body.role in {"client","therapist"}:
+        metadata = privacy_service.apply_consent(metadata, actor=username, scope=f"{body.role}_signup", consent_version=SETTINGS.consent_version, privacy_policy_version=SETTINGS.privacy_policy_version, terms_version=SETTINGS.terms_version)
+        auth_service.save_user_metadata(username, metadata)
+        privacy_service.audit_consent_accepted(actor=username, target=username, tenant_id=metadata.get("tenant_id"), scope=f"{body.role}_signup")
     response = AuthResponse(username=username, role=metadata.get("role"), metadata=metadata, profile=bundle["profile"])
     return JSONResponse(response.model_dump())
 
@@ -92,6 +97,7 @@ async def onboarding_therapist(request: Request):
     auth_service.create_user(username, body.password, role="therapist", subscription_status="trialing", email=body.email, profile=body.profile)
     metadata = auth_service.load_user_metadata(username)
     metadata["trial_days"] = SETTINGS.beta_trial_days
+    metadata = privacy_service.apply_consent(metadata, actor=username, scope="therapist_onboarding", consent_version=SETTINGS.consent_version, privacy_policy_version=SETTINGS.privacy_policy_version, terms_version=SETTINGS.terms_version)
     metadata["billing_status"] = "trialing"
     auth_service.save_user_metadata(username, metadata)
     family_id = f"fam-{username}"
