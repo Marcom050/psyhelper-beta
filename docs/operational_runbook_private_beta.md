@@ -12,70 +12,56 @@
 - Confirm managed PostgreSQL availability and credentials.
 - Confirm incident channel and on-call contact for first beta window.
 
-## 2) Deploy checklist
+## 2) Deploy selected commit
+- Record selected commit hash.
 - Deploy backend API (`api/app.py`, `app`) if separate.
 - Deploy Streamlit app (`psyhelper_streamlit.py`).
 - Confirm secrets are loaded and no missing-key startup errors.
 - Confirm CORS configuration matches Streamlit origin.
 - Confirm admin bootstrap mode is intended for this window (`cli` for controlled bootstrap or `disabled`).
 
-## 3) Post-deploy smoke checklist
+## 3) Post-deploy smoke checklist + evidence capture
 - Run HTTP smoke against deployed API:
   - `python scripts/smoke_test_private_beta.py --base-url https://<api-host>`
+- Run dry-run evidence capture (offline-safe):
+  - `python scripts/smoke_test_private_beta.py --dry-run --evidence-output /tmp/psyhelper-smoke-evidence.json`
+- Optionally run HTTP evidence capture:
+  - `python scripts/smoke_test_private_beta.py --base-url https://<api-host> --evidence-output /tmp/psyhelper-smoke-http-evidence.json`
 - Run/print manual checklist:
   - `python scripts/smoke_test_private_beta.py --manual-checklist`
-- Record smoke evidence: timestamp, operator, environment, pass/fail details.
+- Fill `docs/private_beta_rehearsal_evidence_template.md` with timestamp, operator, environment, and pass/fail details.
 
-## 4) First admin bootstrap
-- Use one-time secure bootstrap path only in controlled terminal/session.
-- Create first admin and verify login.
+## 4) Synthetic data safety rules (mandatory)
+- Use synthetic tenant/therapist/client identifiers with clear prefixes (`STAGING_SYNTH_`, `TEST_THERAPIST_`, `TEST_CLIENT_`).
+- No real therapist/client names (unless explicit tester consent for therapist display name only).
+- No real clinical histories, phone numbers, addresses, or legal/fiscal identifiers.
+- Use fake email domains where possible.
+- Never reuse production-like secrets.
+- Keep delete/retention handling in governed workflow; do not perform automatic hard-deletes.
+
+## 5) Manual authenticated staging rehearsal
+- Use supervised manual flows only (no automated destructive/authenticated smoke in CI).
+- Admin bootstrap: create first admin, verify login.
 - Immediately set `ADMIN_BOOTSTRAP_MODE=disabled` and rotate bootstrap secret.
-
-## 5) First therapist onboarding
-- Admin creates therapist account in intended tenant.
-- Therapist performs first login and policy/consent path.
-- Verify therapist cannot access other tenant data.
-
-## 6) First client test flow (synthetic data only)
-- Create synthetic client profile.
-- Record one mood entry.
-- Create one homework assignment and one submission.
+- Therapist onboarding/login in synthetic tenant.
+- Create synthetic client, mood entry, homework assignment/submission.
 - Validate report/chat routes if enabled.
-
-## 7) Data export flow
 - Trigger self/data-rights export for synthetic account.
-- Verify exported package integrity.
-- Verify secure delivery path and temporary-file cleanup.
 
-## 8) Delete/data-rights request handling
-- Track request in governed workflow (ticket + audit trace).
-- Do not hard-delete clinical records automatically.
-- Confirm request status transitions and reviewer accountability.
-
-## 9) Tenant/user suspension sanity
-- Suspend a synthetic user/tenant via admin path.
-- Verify blocked access after suspension.
-- Verify action is captured in audit/platform logs.
-
-## 10) Audit/log review
-- Review auth failures, admin role changes, exports, and suspension actions.
+## 6) Audit/log review
+- Review auth failures, admin role changes, exports, suspension actions, and data-rights traces.
 - Ensure suspicious access or repeated failures are escalated.
+- Record audit/log evidence links in the rehearsal template.
 
-## 11) Rollback procedure
-- Roll back Streamlit/API to previous known-good commit.
-- Verify service restoration.
-- Re-run smoke + manual checklist before reopening access.
+## 7) Go/no-go + rollback
+- Decide go/no-go only after evidence template completion.
+- If no-go, execute rollback to previous known-good commit.
+- Re-run smoke + manual checklist after rollback before reopening access.
 - Document incident and rollback rationale.
 
-## 12) Incident response basics
-- Contain: disable affected account/tenant/API key.
-- Preserve logs and audit artifacts.
-- Notify stakeholders.
-- Patch/redeploy, then run smoke validation.
-- Capture postmortem action items.
-
-## 13) Beta limitations and caveats
-- Controlled private beta only; not full clinical compliance attestation.
+## 8) Beta limitations and caveats
+- Controlled private beta staging mode only; not full clinical compliance attestation.
 - Streamlit Cloud has ephemeral filesystem constraints.
 - Sensitive persistence must be explicit (managed DB + durable audit strategy).
 - Authenticated end-to-end flows still require supervised manual validation.
+- Invite first trusted therapist only after successful rehearsal + explicit go decision.

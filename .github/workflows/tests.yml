@@ -29,3 +29,6 @@ jobs:
 
       - name: Private beta smoke dry-run
         run: python scripts/smoke_test_private_beta.py --dry-run
+
+      - name: Private beta smoke dry-run evidence
+        run: python scripts/smoke_test_private_beta.py --dry-run --evidence-output /tmp/psyhelper-smoke-evidence.json

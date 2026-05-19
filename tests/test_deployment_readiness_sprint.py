@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -140,3 +141,49 @@ def test_readiness_check_storage_persistence_requirements():
     assert "[FAIL] Auth security persistence configured" in result.stdout
     assert "[FAIL] Audit persistence configured" in result.stdout
     assert "[FAIL] Data-rights persistence configured" in result.stdout
+
+
+def test_smoke_dry_run_writes_evidence_json(tmp_path):
+    out = tmp_path / "smoke-evidence.json"
+    result = _run_smoke({"ENVIRONMENT": "development"}, "--dry-run", "--evidence-output", str(out))
+    assert result.returncode == 0
+    assert out.exists()
+    payload = json.loads(out.read_text())
+    assert payload["mode"] == "dry-run"
+    assert payload["overall_result"] == "pass"
+
+
+def test_smoke_evidence_json_excludes_obvious_secrets(tmp_path):
+    out = tmp_path / "smoke-evidence.json"
+    result = _run_smoke({"ENVIRONMENT": "development"}, "--dry-run", "--evidence-output", str(out))
+    assert result.returncode == 0
+    raw = out.read_text().lower()
+    for banned in ["token", "password", "secret", "authorization", "bearer "]:
+        assert banned not in raw
+
+
+def test_smoke_invalid_evidence_output_path_fails_clearly(tmp_path):
+    invalid_out = tmp_path / "missing-dir" / "smoke-evidence.json"
+    result = _run_smoke({}, "--dry-run", "--evidence-output", str(invalid_out))
+    assert result.returncode == 2
+    assert "unable to write evidence output" in result.stdout.lower()
+
+
+def test_http_unreachable_still_emits_failure_evidence(tmp_path):
+    out = tmp_path / "smoke-http-evidence.json"
+    result = _run_smoke({}, "--base-url", "http://127.0.0.1:9", "--evidence-output", str(out))
+    assert result.returncode != 0
+    assert out.exists()
+    payload = json.loads(out.read_text())
+    assert payload["mode"] == "http"
+    assert payload["overall_result"] == "fail"
+
+
+def test_manual_checklist_evidence_marks_authenticated_flows_manual(tmp_path):
+    out = tmp_path / "smoke-manual-evidence.json"
+    result = _run_smoke({}, "--manual-checklist", "--evidence-output", str(out))
+    assert result.returncode == 0
+    payload = json.loads(out.read_text())
+    assert payload["overall_result"] == "manual_required"
+    statuses = payload.get("status_per_check", {})
+    assert statuses.get("authenticated_flows") == "manual_required"
