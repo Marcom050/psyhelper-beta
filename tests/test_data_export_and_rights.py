@@ -21,6 +21,7 @@ def test_streamlit_subscription_datetime_fix_still_green():
 
 def test_admin_data_rights_export_flow(tmp_path, monkeypatch):
     monkeypatch.setattr('database.filesystem_account_repository.USERS_DIR', str(tmp_path/'users'))
+    monkeypatch.setattr('database.account_repository.USERS_DIR', str(tmp_path/'users'))
     monkeypatch.setattr(data_rights_service, 'REQUESTS_PATH', str(tmp_path/'requests.json'))
     monkeypatch.setattr('database.audit_log.AUDIT_LOG_PATH', str(tmp_path/'audit.log'))
 
@@ -87,4 +88,5 @@ def test_readiness_check_privacy_export_config():
     os.environ['CORS_ALLOWED_ORIGINS'] = 'https://example.com'
     os.environ['DEBUG'] = '0'
     os.environ['TESTING'] = '0'
+    os.environ['ADMIN_BOOTSTRAP_SECRET'] = 'A'*31 + '1'
     assert run() == 0

@@ -42,6 +42,8 @@ def run() -> int:
     terms_version = os.getenv("TERMS_VERSION", "").strip()
     consent_enforcement = _as_bool("CONSENT_ENFORCEMENT_ENABLED", True)
     data_export_enabled = os.getenv("DATA_EXPORT_ENABLED", "").strip().lower()
+    admin_bootstrap_secret = os.getenv("ADMIN_BOOTSTRAP_SECRET", "").strip()
+    admin_bootstrap_mode = os.getenv("ADMIN_BOOTSTRAP_MODE", "cli").strip().lower()
 
     checks = [
         _check("ENVIRONMENT valid", env in {"development", "staging", "production"}, f"ENVIRONMENT={env or 'unset'}", critical=True),
@@ -56,6 +58,8 @@ def run() -> int:
         _check("Terms version configured", (not is_prod) or bool(terms_version), f"TERMS_VERSION={terms_version or 'unset'}", critical=True),
         _check("Consent enforcement enabled", (not is_prod) or consent_enforcement, f"CONSENT_ENFORCEMENT_ENABLED={consent_enforcement}", critical=True),
         _check("Data export feature flag explicit", (not is_prod) or (data_export_enabled in {'true','false','1','0','yes','no','on','off'}), f"DATA_EXPORT_ENABLED={data_export_enabled or 'unset'}", critical=True),
+        _check("Admin bootstrap mode configured", (not is_prod) or (admin_bootstrap_mode in {'cli','disabled'}), f"ADMIN_BOOTSTRAP_MODE={admin_bootstrap_mode or 'unset'}", critical=True),
+        _check("Admin bootstrap secret configured", (not is_prod) or (len(admin_bootstrap_secret) >= 32 and admin_bootstrap_secret.lower() not in {'changeme','default','admin-bootstrap-secret'}), "ADMIN_BOOTSTRAP_SECRET secure", critical=True),
         _check("CORS basic sanity", (not is_prod) or (cors_origins not in {"", "*"}), f"CORS_ALLOWED_ORIGINS={cors_origins or 'unset'}"),
         _check("pytest config present", Path("pytest.ini").exists(), "pytest.ini found", critical=True),
         _check("Strict production mode", (not is_prod) or strict, f"STRICT_PRODUCTION_MODE={strict}"),

@@ -24,6 +24,17 @@ def _all_usernames() -> list[str]:
         return []
     return sorted([u for u in os.listdir(USERS_DIR) if os.path.isdir(os.path.join(USERS_DIR, u))])
 
+def _count_admins() -> int:
+    count = 0
+    for username in _all_usernames():
+        if auth_service.load_user_metadata(username).get("role") == "admin":
+            count += 1
+    return count
+
+
+def _normalize_role(value: str | None) -> str:
+    return (value or "").strip().lower()
+
 
 async def list_tenants(request: Request):
     admin = require_admin(request)
@@ -79,9 +90,27 @@ async def patch_user_role(request: Request):
     user_id = request.path_params["id"]
     payload = await request.json()
     md = auth_service.load_user_metadata(user_id)
-    md["role"] = str(payload.get("role", md.get("role")))
+    previous_role = _normalize_role(md.get("role"))
+    next_role = _normalize_role(payload.get("role", previous_role))
+    if next_role not in {"client", "therapist", "admin"}:
+        return JSONResponse({"success": False, "error": "Invalid role"}, status_code=400)
+    if previous_role == "admin" and next_role != "admin" and admin.username == user_id and _count_admins() <= 1:
+        return JSONResponse({"success": False, "error": "Cannot self-demote the last admin"}, status_code=400)
+
+    md["role"] = next_role
     auth_service.save_user_metadata(user_id, md)
-    log_event("admin_patch_user_role", actor=admin.username, payload={"target": user_id, "role": md["role"]})
+
+    severity = "high" if next_role == "admin" or previous_role == "admin" else "info"
+    log_event(
+        "admin_role_changed",
+        actor=admin.username,
+        payload={
+            "target": user_id,
+            "from_role": previous_role,
+            "to_role": next_role,
+            "severity": severity,
+        },
+    )
     return JSONResponse(success_response({"username": user_id, "role": md["role"]}))
 
 
