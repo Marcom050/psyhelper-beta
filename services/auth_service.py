@@ -20,6 +20,7 @@ from database.repository_factory import (
     get_wellness_repository,
 )
 from database.wellness_repository import default_wellness_data, ensure_wellness_schema
+from database.tenant_metadata import normalize_tenant_metadata, resolve_tenant_id, resolve_tenant_owner
 
 
 def _account_repository(repository=None):
@@ -93,6 +94,18 @@ def client_accounts_for(therapist_username, repository=None):
     return _account_repository(repository).client_accounts_for(therapist_username)
 
 
+def get_clients_for_tenant(tenant_id, repository=None):
+    return _account_repository(repository).get_clients_for_tenant(tenant_id)
+
+
+def get_tenant_owner(tenant_id, repository=None):
+    return _account_repository(repository).get_tenant_owner(tenant_id)
+
+
+def is_same_tenant(user_a, user_b, repository=None):
+    return _account_repository(repository).is_same_tenant(user_a, user_b)
+
+
 def load_therapist_notes(therapist_username, repository=None):
     return _notes_repository(repository).load_therapist_notes(therapist_username)
 
@@ -107,6 +120,9 @@ def save_wellness_for(username, wellness, repository=None):
 
 __all__ = [
     "client_accounts_for",
+    "get_clients_for_tenant",
+    "get_tenant_owner",
+    "is_same_tenant",
     "create_client_account",
     "create_user",
     "default_user_metadata",
@@ -118,7 +134,10 @@ __all__ = [
     "load_user_metadata",
     "load_therapist_notes",
     "normalize_email",
+    "normalize_tenant_metadata",
     "normalize_username",
+    "resolve_tenant_id",
+    "resolve_tenant_owner",
     "save_account_bundle",
     "save_user_metadata",
     "save_wellness_for",

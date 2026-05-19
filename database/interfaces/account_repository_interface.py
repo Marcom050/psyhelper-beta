@@ -43,3 +43,23 @@ class AccountRepository(ABC):
     @abstractmethod
     def client_accounts_for(self, therapist_username):
         """Return clients associated with ``therapist_username``."""
+
+    def get_clients_for_tenant(self, tenant_id):
+        """Return client accounts owned by ``tenant_id``."""
+        return self.client_accounts_for(tenant_id)
+
+    def get_tenant_owner(self, tenant_id):
+        """Return tenant owner account details when available."""
+        raise NotImplementedError
+
+    def is_same_tenant(self, user_a, user_b):
+        """Return whether two usernames resolve to the same tenant."""
+        raise NotImplementedError
+
+    def user_exists(self, username):
+        """Return whether ``username`` exists in this backend."""
+        raise NotImplementedError
+
+    def verify_password(self, username, password):
+        """Verify a user password against this backend."""
+        raise NotImplementedError

@@ -8,6 +8,8 @@ import tempfile
 import types
 import unittest
 
+from database.tenant_metadata import normalize_tenant_metadata
+
 
 class FakePasswordHasher:
     def hash(self, password):
@@ -105,7 +107,7 @@ class MetadataJsonMigrationTest(unittest.TestCase):
 
         loaded = accounts.load_user_metadata(username)
 
-        self.assertEqual(loaded, metadata)
+        self.assertEqual(loaded, normalize_tenant_metadata(metadata, username=username))
         self.assertFalse(os.path.exists(accounts.metadata_path(accounts.user_dir(username))))
 
     def test_json_takes_precedence_when_json_and_pkl_exist(self):
@@ -131,7 +133,7 @@ class MetadataJsonMigrationTest(unittest.TestCase):
 
         loaded = accounts.load_user_metadata(username)
 
-        self.assertEqual(loaded, json_metadata)
+        self.assertEqual(loaded, normalize_tenant_metadata(json_metadata, username=username))
         self.assertEqual(self.read_json_metadata(username), json_metadata)
 
     def test_metadata_is_merged_with_defaults_without_losing_valid_data(self):
@@ -197,7 +199,7 @@ class MetadataJsonMigrationTest(unittest.TestCase):
 
         self.assertTrue(os.path.exists(accounts.metadata_json_path(accounts.user_dir(username))))
         self.assertFalse(os.path.exists(accounts.metadata_path(accounts.user_dir(username))))
-        self.assertEqual(self.read_json_metadata(username), metadata)
+        self.assertEqual(self.read_json_metadata(username), normalize_tenant_metadata(metadata, username=username))
 
 
 if __name__ == "__main__":

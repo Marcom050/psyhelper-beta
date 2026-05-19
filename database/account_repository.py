@@ -63,7 +63,8 @@ def user_dir(username):
 
 def user_exists(username):
     _sync_users_dir()
-    return _filesystem.user_exists(username)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().user_exists(username)
 
 
 def default_user_metadata(role="client", therapist_username=None, subscription_status="inactive", email=None):
@@ -94,8 +95,8 @@ def messages_json_path(account_dir):
     return _filesystem.messages_json_path(account_dir)
 
 
-def normalize_user_metadata(metadata):
-    return _filesystem.normalize_user_metadata(metadata)
+def normalize_user_metadata(metadata, username=None):
+    return _filesystem.normalize_user_metadata(metadata, username=username)
 
 
 def load_user_metadata(username):
@@ -152,12 +153,21 @@ def create_user(
 
 def create_client_account(therapist_username, client_username, password, display_name):
     _sync_users_dir()
-    return _filesystem.create_client_account(therapist_username, client_username, password, display_name)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().create_user(
+        client_username,
+        password,
+        role="client",
+        therapist_username=therapist_username,
+        subscription_status="covered_by_therapist",
+        profile={"nome": display_name or normalize_username(client_username), "onboarding_completed": False},
+    )
 
 
 def verify_password(username, password):
     _sync_users_dir()
-    return _filesystem.verify_password(username, password)
+    from database.repository_factory import get_account_repository
+    return get_account_repository().verify_password(username, password)
 
 
 def therapist_email_exists(email):
@@ -214,3 +224,21 @@ def client_accounts_for(therapist_username):
     _sync_users_dir()
     from database.repository_factory import get_account_repository
     return get_account_repository().client_accounts_for(therapist_username)
+
+
+def get_clients_for_tenant(tenant_id):
+    _sync_users_dir()
+    from database.repository_factory import get_account_repository
+    return get_account_repository().get_clients_for_tenant(tenant_id)
+
+
+def get_tenant_owner(tenant_id):
+    _sync_users_dir()
+    from database.repository_factory import get_account_repository
+    return get_account_repository().get_tenant_owner(tenant_id)
+
+
+def is_same_tenant(user_a, user_b):
+    _sync_users_dir()
+    from database.repository_factory import get_account_repository
+    return get_account_repository().is_same_tenant(user_a, user_b)
