@@ -270,7 +270,14 @@ def sanitize_session_metadata(data):
 def clear_visible_chat_session(persist=False):
     session_adapter.set_messages([])
     session_adapter.set_selected_patient_username(None)
-    session_adapter.clear_keys(CHAT_UI_SESSION_KEYS)
+    if hasattr(session_adapter, "clear_keys"):
+        session_adapter.clear_keys(CHAT_UI_SESSION_KEYS)
+    else:
+        for key in CHAT_UI_SESSION_KEYS:
+            if hasattr(session_adapter, "_pop"):
+                session_adapter._pop(key, None)
+            elif hasattr(session_adapter, "_set"):
+                session_adapter._set(key, None)
     if persist and session_adapter.get_username():
         save_user_data(session_adapter.get_username())
 
@@ -465,14 +472,18 @@ def render_chat_input_styles():
         """
 <style>
 div[data-testid="stChatInput"] {
-  background: transparent;
+  background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
+  padding: 0 !important;
+}
+div[data-testid="stChatInput"] > div {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
 div[data-testid="stChatInput"] textarea {
-  border: 1px solid rgba(148, 163, 184, 0.45) !important;
-  border-radius: 0.75rem !important;
-  background: var(--background-color, #ffffff) !important;
   box-shadow: none !important;
 }
 </style>

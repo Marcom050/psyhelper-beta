@@ -2,6 +2,7 @@ from pathlib import Path
 import importlib
 
 import streamlit as st
+from services.session_adapter import SessionAdapter
 
 
 st.secrets = {}
@@ -73,6 +74,43 @@ def test_clear_chat_button_label_is_italian_and_uses_shared_cleanup_path():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert 'if st.button("Pulisci chat corrente"):' in source
     assert "clear_visible_chat_session(persist=True)" in source
+
+
+def test_runtime_session_adapter_exposes_clear_keys():
+    adapter = SessionAdapter(session_state={})
+    adapter._set("messages", [1])
+    adapter._set("chat_input_box", "bozza")
+    adapter.clear_keys(["messages", "chat_input_box"])
+    assert adapter._get("messages") is None
+    assert adapter._get("chat_input_box") is None
+
+
+def test_clear_visible_chat_session_compatibility_without_clear_keys(monkeypatch):
+    class LegacyAdapter:
+        def __init__(self):
+            self.storage = {"messages": [{"role": "user", "content": "ciao"}], "chat_input_box": "bozza"}
+            self.selected = "cliente-demo"
+            self.username = "tester"
+
+        def set_messages(self, messages):
+            self.storage["messages"] = messages
+
+        def set_selected_patient_username(self, value):
+            self.selected = value
+
+        def _pop(self, key, default=None):
+            return self.storage.pop(key, default)
+
+        def get_username(self):
+            return self.username
+
+    legacy_adapter = LegacyAdapter()
+    monkeypatch.setattr(app, "session_adapter", legacy_adapter)
+    monkeypatch.setattr(app, "save_user_data", lambda username: None)
+    app.clear_visible_chat_session(persist=True)
+    assert legacy_adapter.storage.get("messages") is None
+    assert legacy_adapter.selected is None
+    assert "chat_input_box" not in legacy_adapter.storage
 
 
 def test_diary_ui_no_cbt_alternative_response_field():
