@@ -131,3 +131,27 @@ def test_backfill_idempotent(tmp_path):
     assert backfill_clinical_records.run("therapist_a", dry_run=False) == 2
     second = FilesystemClinicalRepository().list_clinical_records(tenant_id="therapist_a", entity_type="mood_entry")
     assert len(second) == 2
+
+
+def test_analytics_legacy_fallback_when_snapshot_missing():
+    clients = [
+        {"username": "c_arch", "metadata": {"lifecycle_status": "archived"}},
+        {"username": "c_susp", "metadata": {"lifecycle_status": "suspended"}},
+        {"username": "c_active", "metadata": {}},
+    ]
+
+    def _bundle(username: str):
+        return {"wellness": {"mood_entries": [], "homework_assignments": [], "homework_submissions": []}}
+
+    with patch("services.analytics_service.get_clinical_repository") as gcr, \
+        patch("services.analytics_service.auth_service.load_user_metadata", return_value={"tenant_id": "tenant_a"}), \
+        patch("services.analytics_service.auth_service.resolve_tenant_id", return_value="tenant_a"), \
+        patch("services.analytics_service.auth_service.get_clients_for_tenant", return_value=clients) as gclients, \
+        patch("services.analytics_service.auth_service.load_account_bundle", side_effect=_bundle) as gbundle:
+        gcr.return_value.get_analytics_snapshot.return_value = None
+        out = analytics_service.therapist_overview("therapist_a")
+
+    gclients.assert_called_once_with("therapist_a")
+    loaded_users = [call.args[0] for call in gbundle.call_args_list]
+    assert loaded_users == ["c_susp", "c_active"]
+    assert out["active_clients"] == 2

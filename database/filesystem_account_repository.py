@@ -8,7 +8,7 @@ import hashlib
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError, VerificationError
@@ -92,7 +92,7 @@ def default_user_metadata(role="client", therapist_username=None, subscription_s
         "therapist_username": normalize_username(therapist_username) if therapist_username else None,
         "subscription_status": subscription_status,
         "email": normalize_email(email) if email else "",
-        "created_at": datetime.utcnow().isoformat(timespec="seconds"),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "beta_disclaimer_accepted_at": None,
     }
     return normalize_tenant_metadata(metadata)

@@ -1,6 +1,6 @@
 """Tenant analytics foundation for therapist dashboard."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from services import auth_service
 from datetime import date
@@ -19,7 +19,7 @@ def therapist_overview(therapist_username: str, allow_snapshot_fallback: bool = 
             return snap["metrics"]
     clients = auth_service.get_clients_for_tenant(therapist_username)
     active_clients = 0
-    recent_cutoff = datetime.utcnow() - timedelta(days=14)
+    recent_cutoff = datetime.now(UTC) - timedelta(days=14)
     recent_mood = 0
     pending_homework = 0
     completed_homework = 0
