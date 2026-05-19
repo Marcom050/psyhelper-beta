@@ -8,6 +8,7 @@ from api.dependencies import get_current_user, parse_body
 from api.exceptions import APIValidationError, AuthenticationError
 from api.schemas.auth import AccessTokenResponse, AuthResponse, LoginRequest, RefreshRequest, SignupRequest, UserResponse
 from api.security import create_access_token, create_refresh_token, verify_refresh_token
+from database.audit_log import log_event
 from services import auth_service
 
 router = APIRouter()
@@ -43,7 +44,9 @@ async def login(request: Request):
     body = await parse_body(request, LoginRequest)
     username = auth_service.normalize_username(body.username)
     if not username or not auth_service.verify_password(username, body.password):
+        log_event("login_failure", actor=username or body.username, payload={"path": "/auth/login"})
         raise AuthenticationError("Invalid credentials")
+    log_event("login_success", actor=username, payload={"path": "/auth/login"})
     bundle = auth_service.load_account_bundle(username)
     metadata = auth_service.load_user_metadata(username)
     response = AuthResponse(
@@ -63,6 +66,7 @@ async def refresh(request: Request):
     username = auth_service.normalize_username(payload.get("sub", ""))
     if not auth_service.user_exists(username):
         raise AuthenticationError("Unknown user")
+    log_event("token_refresh", actor=username, payload={"path": "/auth/refresh"})
     response = AccessTokenResponse(access_token=create_access_token(username))
     return JSONResponse(response.model_dump())
 
