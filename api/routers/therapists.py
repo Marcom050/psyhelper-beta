@@ -13,6 +13,8 @@ from api.schemas.therapists import (
     TherapistDashboardResponse,
 )
 from services import auth_service, subscription_service
+from services.analytics_service import therapist_overview
+from database.audit_log import log_event
 
 router = APIRouter()
 
@@ -133,7 +135,31 @@ async def get_my_client_snapshot(request: Request):
         homework_summary=_homework_summary(bundle["wellness"]),
         recent_mood_trends=_recent_mood_trends(bundle["wellness"]),
     )
+    log_event("therapist_reads_client_snapshot", actor=_therapist.username, payload={"client": client_username})
     return JSONResponse(payload.model_dump())
+
+
+async def my_stats(request: Request):
+    therapist = require_active_therapist(request)
+    return JSONResponse({"stats": therapist_overview(therapist.username)})
+
+
+async def my_activity(request: Request):
+    therapist = require_active_therapist(request)
+    stats = therapist_overview(therapist.username)
+    return JSONResponse({"activity": {"recent_activity_timestamp": stats.get("recent_activity_timestamp"), "active_clients": stats.get("active_clients")}})
+
+
+async def my_homework_overview(request: Request):
+    therapist = require_active_therapist(request)
+    stats = therapist_overview(therapist.username)
+    return JSONResponse({"homework_overview": {"pending_homework_count": stats.get("pending_homework_count"), "homework_completion_pct": stats.get("homework_completion_pct")}})
+
+
+async def my_risk_overview(request: Request):
+    therapist = require_active_therapist(request)
+    stats = therapist_overview(therapist.username)
+    return JSONResponse({"risk_overview": {"average_anxiety": stats.get("average_anxiety"), "average_stress": stats.get("average_stress")}})
 
 
 router.add_api_route("/therapists/me/dashboard", my_dashboard, methods=["GET"])
@@ -141,3 +167,7 @@ router.add_api_route("/therapists/me/clients", list_my_clients, methods=["GET"])
 router.add_api_route("/therapists/me/clients", create_my_client, methods=["POST"])
 router.add_api_route("/therapists/me/clients/{client_username}", get_my_client, methods=["GET"])
 router.add_api_route("/therapists/me/clients/{client_username}/snapshot", get_my_client_snapshot, methods=["GET"])
+router.add_api_route("/therapists/me/stats", my_stats, methods=["GET"])
+router.add_api_route("/therapists/me/activity", my_activity, methods=["GET"])
+router.add_api_route("/therapists/me/homework-overview", my_homework_overview, methods=["GET"])
+router.add_api_route("/therapists/me/risk-overview", my_risk_overview, methods=["GET"])
