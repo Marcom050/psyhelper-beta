@@ -1,37 +1,24 @@
-# Private beta launch gate status
+# Commercial beta launch gate status
 
-Status: **NOT RUN YET**
+## Current status
+**BLOCKED UNTIL COMMERCIAL BETA SAFETY GATE IS COMPLETED**
 
-> This is a placeholder. The real controlled staging rehearsal has not been executed/recorded in this file yet.
+## Required before first paying therapist
+- `pytest -q`: **PENDING EXECUTION/RECORDING**
+- `python scripts/preprod_readiness_check.py`: **PENDING EXECUTION/RECORDING**
+- `python scripts/smoke_test_private_beta.py --dry-run`: **PENDING EXECUTION/RECORDING**
+- Backup/restore test completed with evidence: **PENDING**
+- Manual billing activation tested end-to-end: **PENDING**
+- Support/contact path filled and published: **PENDING**
+- Accepted conditions sign-off (business + ops + legal review pending): **PENDING**
 
-## Latest evaluated commit
-- Commit hash: _TBD_
+## Decision field
+- GO
+- GO WITH CONDITIONS
+- NO-GO
 
-## Environment
-- Name: _TBD_
-- Staging URL: `<STAGING_URL>`
+## Decision (current)
+**NO-GO (default until all required evidence is complete).**
 
-## Automated checks
-- `pytest -q`: _NOT RUN YET_
-- `python -m py_compile psyhelper_streamlit.py`: _NOT RUN YET_
-- `python scripts/preprod_readiness_check.py`: _NOT RUN YET_
-- `python scripts/smoke_test_private_beta.py --dry-run`: _NOT RUN YET_
-- `python scripts/smoke_test_private_beta.py --base-url <STAGING_URL>`: _NOT RUN YET_
-
-## Manual checks
-- Manual controlled-beta checklist: _NOT RUN YET_
-- Therapist flow (synthetic only): _NOT RUN YET_
-- Client/mood/homework/chat/export/audit/tenant checks: _NOT RUN YET_
-
-## Issue summary
-- Blocker: _TBD_
-- High: _TBD_
-- Medium: _TBD_
-- Low: _TBD_
-
-## Decision
-- _NOT RUN YET_
-
-## Next action
-- Execute the staging rehearsal commands in `docs/private_beta_rehearsal_commands.md`.
-- Capture evidence and fill go/no-go report artifacts before any therapist invite.
+## Notes
+Nessuna evidenza fittizia deve essere inserita. Compilare solo risultati reali eseguiti.

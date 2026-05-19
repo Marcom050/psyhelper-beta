@@ -74,28 +74,29 @@ Se l'utente fornisce personalmente un breve estratto, puoi commentarlo o trasfor
 """
 
 BETA_DISCLAIMER_TEXT = """
-Questa è una versione di prova di PsyHelper, concessa esclusivamente per finalità di beta test.
-Non deve essere usata con clienti reali, non deve trattare dati personali, sanitari, clinici o comunque riferibili a clienti/pazienti reali e non sostituisce strumenti professionali validati o obblighi deontologici, legali e privacy.
+PsyHelper è in **beta commerciale controllata**. L'uso è consentito solo a professionisti autorizzati con account attivo.
 
-L'autore declina ogni tipo di responsabilità per qualsiasi uso improprio dell'applicazione, dei suoi contenuti o delle indicazioni generate.
+Il professionista resta responsabile delle decisioni cliniche, del rispetto degli obblighi deontologici e degli adempimenti privacy/legal applicabili.
+PsyHelper non è un servizio di emergenza e non sostituisce il giudizio clinico.
 
-Questa applicazione è protetta dalla normativa sul diritto d’autore ai sensi della Legge sul diritto d'autore e successive modifiche. Tutti i diritti sono riservati. È vietata la riproduzione, distribuzione, modifica, pubblicazione, comunicazione o condivisione totale o parziale dell’applicazione e dei suoi contenuti senza preventiva autorizzazione del titolare dei diritti, salvo i casi consentiti dalla legge.
+Inserisci solo dati strettamente necessari, evita dati non pertinenti e segui le procedure privacy indicate nella documentazione operativa.
+Le limitazioni note della beta commerciale sono documentate e il supporto è disponibile tramite il canale indicato dal team PsyHelper.
 """
 
 PRIVATE_BETA_BANNER = (
-    "🔬 **Private beta controllata** · Usa solo dati sintetici/test salvo autorizzazione esplicita. "
+    "🔬 **Beta commerciale controllata** · Accesso riservato a professionisti autorizzati con account attivo. "
     "Non usare per emergenze e non sostituisce il giudizio professionale. "
-    "Governance privacy/clinica in validazione; revisione compliance-legale non conclusa."
+    "Inserisci solo dati necessari e segui obblighi privacy/legal; limitazioni note e supporto sono documentati."
 )
 
 EMPTY_STATE_MESSAGES = {
-    "clients": "Non hai ancora creato profili paziente. Inizia da **➕ Crea nuovo paziente** per configurare il primo caso di test.",
+    "clients": "Non hai ancora creato profili paziente. Inizia da **➕ Crea nuovo paziente** per configurare il primo caso.",
     "mood_entries": "Nessuna scheda CBT disponibile. Chiedi al paziente di compilare il diario per vedere trend e insight.",
     "homework_assigned": "Nessun homework assegnato. Usa il pannello di assegnazione per aggiungere il primo compito.",
     "homework_submissions": "Nessuna risposta homework ricevuta. Dopo l'assegnazione, le risposte compariranno qui.",
     "reports": "Nessun report disponibile con i dati attuali. Aggiungi diario/homework per generare un riepilogo utile.",
     "chat_messages": "Nessun messaggio ancora presente. Inizia una conversazione guidata dalla tab Chat.",
-    "exports": "Nessuna richiesta export/data-rights visibile in questa area beta.",
+    "exports": "Nessuna richiesta export/data-rights visibile in questa area.",
 }
 
 CHAT_UI_SESSION_KEYS = [
@@ -157,11 +158,11 @@ def render_analytics_banner():
 st.title("🧠 PsyHelper")
 
 if not session_adapter.is_beta_disclaimer_accepted():
-    st.warning("Prima di usare o creare un account devi accettare le condizioni della versione di prova.")
-    st.markdown("### Scarico di responsabilità e diritto d'autore")
+    st.warning("Prima di usare o creare un account devi accettare le condizioni della beta commerciale controllata.")
+    st.markdown("### Condizioni d'uso beta commerciale controllata")
     st.info(BETA_DISCLAIMER_TEXT)
     accepted = st.checkbox(
-        "Ho letto e accetto: userò PsyHelper solo per beta test, senza clienti reali, senza dati di clienti/pazienti reali e assumendomi la responsabilità di non farne uso improprio.",
+        "Ho letto e accetto: userò PsyHelper solo come professionista autorizzato con account attivo, non lo userò per emergenze, inserirò solo dati necessari e resterò responsabile delle decisioni cliniche e degli obblighi privacy/legal.",
         key="beta_disclaimer_acceptance_checkbox",
     )
     if st.button("Accetta e continua", use_container_width=True, disabled=not accepted):
@@ -232,10 +233,10 @@ def show_api_error(error):
 
 def beta_disclaimer_lines():
     return [
-        "PsyHelper è in **private beta controllata**.",
-        "Usa solo **dati sintetici/test** salvo autorizzazione esplicita.",
+        "PsyHelper è in **beta commerciale controllata**.",
+        "Uso consentito solo a professionisti autorizzati con account attivo.",
         "Non usare in situazioni di emergenza; non sostituisce il giudizio professionale.",
-        "La governance dei dati sensibili è in corso e la review compliance-legale non è conclusa.",
+        "Inserisci solo dati necessari, segui obblighi privacy/legal e consulta limitazioni note/supporto.",
     ]
 
 
@@ -1026,7 +1027,7 @@ def logout_button():
 
 
 def render_login_form():
-    st.caption("Private beta: i clienti non si registrano da soli; ricevono credenziali dal professionista.")
+    st.caption("Beta commerciale controllata: i clienti non si registrano da soli; ricevono credenziali dal professionista autorizzato.")
     with st.form("login"):
         username = st.text_input("Nome utente")
         password = st.text_input("Password", type="password")
@@ -1059,7 +1060,7 @@ def render_login_form():
 
 def render_therapist_signup_form():
     st.info(
-        f"Crea l'account professionista per una prova beta di {BETA_TRIAL_DAYS} giorni. "
+        f"Crea l'account professionista per una prova iniziale di {BETA_TRIAL_DAYS} giorni. "
         "Ogni email può creare un solo account psicologo e l'app non deve essere usata con clienti reali."
     )
     with st.form("therapist_signup"):
@@ -1099,7 +1100,7 @@ def render_therapist_signup_form():
                     ),
                 )
                 st.success(
-                    f"Account professionista creato. La prova beta dura {BETA_TRIAL_DAYS} giorni dalla creazione; "
+                    f"Account professionista creato. La prova iniziale dura {BETA_TRIAL_DAYS} giorni dalla creazione; "
                     "ora effettua il login."
                 )
 
