@@ -43,3 +43,12 @@ def get_notes_repository():
         return PostgresNotesRepository()
     logger.warning("Using filesystem notes repository as source-of-truth (compatibility mode)")
     return FilesystemNotesRepository()
+
+
+def get_clinical_repository():
+    if use_postgresql():
+        from database.postgres.clinical_repository_pg import PostgresClinicalRepository
+        return PostgresClinicalRepository()
+    from database.filesystem_clinical_repository import FilesystemClinicalRepository
+    logger.warning("Using filesystem clinical repository as source-of-truth (compatibility mode)")
+    return FilesystemClinicalRepository()

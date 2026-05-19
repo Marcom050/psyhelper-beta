@@ -3,11 +3,22 @@
 from datetime import datetime, timedelta
 
 from services import auth_service
+from datetime import date
+from database.repository_factory import get_clinical_repository
 
 
-def therapist_overview(therapist_username: str) -> dict:
+def therapist_overview(therapist_username: str, allow_snapshot_fallback: bool = True) -> dict:
+
+    if allow_snapshot_fallback:
+        owner_md = auth_service.load_user_metadata(therapist_username)
+        tenant_id = auth_service.resolve_tenant_id(owner_md, therapist_username)
+        if not tenant_id:
+            raise ValueError("tenant_id is required")
+        snap = get_clinical_repository().get_analytics_snapshot(tenant_id=tenant_id, therapist_username=therapist_username, snapshot_date=date.today().isoformat())
+        if snap and isinstance(snap.get("metrics"), dict):
+            return snap["metrics"]
     clients = auth_service.get_clients_for_tenant(therapist_username)
-    active_clients = len(clients)
+    active_clients = 0
     recent_cutoff = datetime.utcnow() - timedelta(days=14)
     recent_mood = 0
     pending_homework = 0
@@ -16,7 +27,10 @@ def therapist_overview(therapist_username: str) -> dict:
     stress = []
     last_activity = None
     for client in clients:
+        if (client.get("metadata") or {}).get("lifecycle_status", "active") == "archived":
+            continue
         username = client.get("username")
+        active_clients += 1
         bundle = auth_service.load_account_bundle(username)
         wellness = bundle.get("wellness", {})
         mood_entries = wellness.get("mood_entries", [])

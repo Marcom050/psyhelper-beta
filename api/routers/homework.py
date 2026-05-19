@@ -15,7 +15,7 @@ from api.schemas.homework import (
     HomeworkSubmissionRequest,
     HomeworkSubmissionResponse,
 )
-from services import auth_service, homework_service
+from services import auth_service, homework_service, clinical_data_service
 
 
 def _homework_response(username: str, wellness: dict) -> HomeworkResponse:
@@ -56,6 +56,9 @@ async def create_homework_assignment(request: Request):
     wellness = bundle["wellness"]
     wellness.setdefault("homework_assignments", []).append(assignment)
     auth_service.save_account_bundle(username, bundle["profile"], bundle["messages"], wellness)
+    owner = auth_service.resolve_tenant_owner(auth_service.load_user_metadata(username), username) or username
+    clinical_data_service.create_clinical_record(entity_type="homework_assignment", entity_id=assignment.get("id"), owner_username=owner, subject_username=username, lifecycle_status="active", payload=assignment, metadata={"source": "api"})
+    clinical_data_service.update_snapshot_for_therapist(owner)
     response = HomeworkAssignmentResponse(username=username, assignment=assignment, wellness=wellness)
     return JSONResponse(response.model_dump())
 
@@ -74,6 +77,9 @@ async def create_homework_submission(request: Request):
     wellness = bundle["wellness"]
     wellness.setdefault("homework_submissions", []).append(submission)
     auth_service.save_account_bundle(username, bundle["profile"], bundle["messages"], wellness)
+    owner = auth_service.resolve_tenant_owner(auth_service.load_user_metadata(username), username) or username
+    clinical_data_service.create_clinical_record(entity_type="homework_submission", entity_id=submission.get("assignment_id"), owner_username=owner, subject_username=username, lifecycle_status="active", payload=submission, metadata={"source": "api"})
+    clinical_data_service.update_snapshot_for_therapist(owner)
     response = HomeworkSubmissionResponse(username=username, submission=submission, wellness=wellness)
     return JSONResponse(response.model_dump())
 
