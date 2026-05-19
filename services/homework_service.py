@@ -5,7 +5,7 @@ preserves the existing wellness JSON shape used by therapist and client views.
 """
 
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 
 CBT_HOMEWORK_TEMPLATES = {
@@ -140,7 +140,7 @@ def _iso_date(value):
 
 
 def _utc_now(now=None):
-    return now or datetime.utcnow()
+    return now or datetime.now(UTC)
 
 
 def create_assignment(template_name, due_date, assigned_by, prompt=None, now=None):

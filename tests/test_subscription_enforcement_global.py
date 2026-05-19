@@ -34,3 +34,11 @@ def test_enforcement_missing_fails(monkeypatch):
     monkeypatch.setattr("api.dependencies.subscription_access.tenant_access_state", lambda _u: {"can_read": False, "can_write": False})
     with pytest.raises(AuthenticationError):
         enforce_subscription_write_access(Dummy())
+
+
+def test_suspended_tenant_snapshot_read_only(monkeypatch):
+    monkeypatch.setattr("api.dependencies.subscription_access.tenant_access_state", lambda _u: {"can_read": True, "can_write": False})
+    user = Dummy()
+    enforce_subscription_read_access(user)
+    with pytest.raises(AuthenticationError):
+        enforce_subscription_write_access(user)
