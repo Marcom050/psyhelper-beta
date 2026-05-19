@@ -42,6 +42,13 @@ Compilare questo documento solo con evidenze reali. Nessun campo può essere mar
 - Esito test restore (PASS/FAIL):
 - Link evidence/log:
 
+
+## Evidenze policy commerciale (trial/disdetta/rimborsi)
+- Conferma comunicazione trial 24 ore pre-addebito: **PENDING**
+- Conferma raccolta dati contatto + fatturazione alla creazione account: **PENDING**
+- Conferma procedura manuale "no addebito se disdetta entro 24 ore": **PENDING**
+- Conferma policy "no rimborsi post-pagamento salvo legge/accordo scritto": **PENDING**
+
 ## Manual billing activation evidence
 - Terapeuta test (anonimizzato/ID):
 - Conferma accordo piano €29,90/mese:
