@@ -42,7 +42,7 @@ def normalize_tenant_metadata(metadata: dict[str, Any] | None, username: str | N
     data = dict(metadata or {}) if isinstance(metadata, dict) else {}
     normalized_username = normalize_username(username)
     role = str(data.get("role") or "client").strip().lower()
-    if role not in {"therapist", "client"}:
+    if role not in {"therapist", "client", "admin"}:
         role = "client"
 
     therapist_username = normalize_username(data.get("therapist_username")) or None
@@ -53,10 +53,14 @@ def normalize_tenant_metadata(metadata: dict[str, Any] | None, username: str | N
         tenant_id = tenant_id or normalized_username or therapist_username
         tenant_role = TENANT_OWNER_ROLE
         therapist_username = therapist_username or None
-    else:
+    elif role == "client":
         tenant_id = tenant_id or therapist_username
         therapist_username = therapist_username or tenant_id
         tenant_role = TENANT_MEMBER_ROLE
+    else:
+        tenant_id = tenant_id or normalized_username or None
+        therapist_username = None
+        tenant_role = TENANT_OWNER_ROLE
 
     subscription_status = str(data.get("subscription_status") or "inactive").strip().lower()
     if subscription_status not in SUBSCRIPTION_STATUSES:

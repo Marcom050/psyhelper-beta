@@ -25,6 +25,8 @@ async def signup(request: Request):
     if not username: raise APIValidationError("Invalid username")
     if body.email and not auth_service.is_valid_email(body.email): raise APIValidationError("Invalid email")
     if auth_service.user_exists(username): raise APIValidationError("User already exists")
+    if body.role == 'admin':
+        raise APIValidationError('Admin role cannot be created via signup')
     auth_service.create_user(username, body.password, role=body.role, therapist_username=body.therapist_username, subscription_status=body.subscription_status, profile=body.profile, email=body.email, beta_disclaimer_accepted_at=body.beta_disclaimer_accepted_at)
     bundle = auth_service.load_account_bundle(username); metadata = auth_service.load_user_metadata(username)
     if body.role in {"client","therapist"}:
