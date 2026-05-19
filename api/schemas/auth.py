@@ -15,6 +15,7 @@ class SignupRequest(BaseModel):
     profile: dict[str, Any] | None = None
     email: str | None = None
     beta_disclaimer_accepted_at: str | None = None
+    commercial_terms_acceptance: dict[str, Any] | None = None
 
 
 class LoginRequest(BaseModel):

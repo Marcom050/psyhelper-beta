@@ -27,7 +27,7 @@ def test_e2e_clinical_flow(tmp_path):
     _setup(tmp_path)
     c = TestClient(app, raise_server_exceptions=False)
 
-    assert c.post("/auth/signup", json={"username": "thera", "password": "secret", "role": "therapist", "subscription_status": "active"}).status_code == 200
+    assert c.post("/auth/signup", json={"username": "thera", "password": "secret", "role": "therapist", "subscription_status": "active", "commercial_terms_acceptance": {"accepted": True, "checkboxes": {"terms": True, "privacy": True, "billing": True}, "terms_version": "2026-01", "privacy_policy_version": "2026-01", "accepted_at": "2026-01-01T00:00:00Z", "policy_text": "commercial beta terms"}}).status_code == 200
     th = _login(c, "thera")
     assert c.post("/therapists/me/clients", headers=th, json={"username": "client1", "password": "secret", "profile": {"nome": "C1"}}).status_code == 200
 
@@ -44,7 +44,7 @@ def test_e2e_clinical_flow(tmp_path):
     all_types = {r["entity_type"] for r in repo.list_clinical_records(tenant_id="thera")}
     assert {"mood_entry", "homework_assignment", "homework_submission", "chat_message", "report"}.issubset(all_types)
 
-    assert c.post("/auth/signup", json={"username": "other", "password": "secret", "role": "therapist", "subscription_status": "active"}).status_code == 200
+    assert c.post("/auth/signup", json={"username": "other", "password": "secret", "role": "therapist", "subscription_status": "active", "commercial_terms_acceptance": {"accepted": True, "checkboxes": {"terms": True, "privacy": True, "billing": True}, "terms_version": "2026-01", "privacy_policy_version": "2026-01", "accepted_at": "2026-01-01T00:00:00Z", "policy_text": "commercial beta terms"}}).status_code == 200
     oh = _login(c, "other")
     denied = c.get("/clients/client1/clinical-report", headers=oh)
     assert denied.status_code == 401
