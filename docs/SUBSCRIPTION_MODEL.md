@@ -36,7 +36,13 @@ Ogni attivazione/disattivazione deve lasciare traccia verificabile (timestamp, a
 - Comunicare sempre prossimi passi e canale supporto.
 
 ## Messaggio al terapeuta (template sintetico)
-"Il tuo account PsyHelper è in beta commerciale controllata. Lo stato abbonamento è aggiornato a: <stato>. Per supporto amministrativo/contabile contatta: <canale supporto>."
+"Il tuo account PsyHelper è in beta commerciale controllata. Lo stato abbonamento è aggiornato a: <stato>. Per supporto amministrativo/contabile contatta: m.maskaro74@gmail.com."
 
 ## Metodo minimo sicuro attuale
 Usare il flusso admin/backend già esistente per aggiornare metadata subscription dell'account; vietate modifiche dirette non tracciate fuori dal percorso amministrativo autorizzato.
+
+
+## Supporto beta commerciale controllata
+- Canale principale di supporto amministrativo/contabile: **m.maskaro74@gmail.com**.
+- Responsabile supporto: **Marco Mascaro**.
+- Tempo di risposta previsto: entro **1 giorno lavorativo** durante la beta commerciale controllata.

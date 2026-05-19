@@ -10,4 +10,11 @@ Documento operativo preliminare per beta commerciale controllata; da validare le
 - Accessi: consentiti solo a utenti autorizzati con account attivo.
 - Diritti: export/cancellazione/rettifica gestiti tramite processo manuale tracciato.
 - Conservazione: soggetta a policy operative correnti e limiti della fase beta commerciale controllata.
-- Incidenti/supporto: gestiti tramite canale supporto dedicato (da finalizzare prima del GO).
+- Incidenti/supporto: gestiti tramite email **m.maskaro74@gmail.com** (Responsabile supporto: **Marco Mascaro**, risposta prevista entro 1 giorno lavorativo in beta commerciale controllata).
+
+
+## Disclaimer emergenze e responsabilità clinica
+PsyHelper non gestisce emergenze cliniche.
+In caso di emergenza, rischio immediato o necessità clinica urgente, il professionista deve usare i propri canali professionali, sanitari o di emergenza.
+PsyHelper non sostituisce il giudizio clinico del professionista.
+L'uso improprio di PsyHelper, la gestione delle emergenze e la gestione delle crisi cliniche restano sotto la responsabilità del professionista curante, entro i limiti consentiti dalla legge applicabile e dai termini di servizio effettivi.

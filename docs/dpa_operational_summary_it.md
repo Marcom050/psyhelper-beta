@@ -22,3 +22,21 @@ Documento operativo preliminare per beta commerciale controllata; da validare le
 ## Limiti dichiarati
 - Documento non sostituisce un DPA legale completo.
 - Richiesta revisione legale obbligatoria prima di espansione commerciale ampia.
+
+## Supporto beta commerciale controllata
+- Canale principale di supporto: **m.maskaro74@gmail.com**
+- Responsabile supporto: **Marco Mascaro**
+- Tempo di risposta previsto: entro **1 giorno lavorativo** durante la beta commerciale controllata.
+- Per bug bloccanti, problemi di login/accesso, errori sui dati o sospetti incidenti sicurezza/privacy, il professionista deve contattare immediatamente il supporto via email includendo:
+  - descrizione del problema;
+  - data e ora approssimative;
+  - account/tenant coinvolto;
+  - passaggi che hanno portato al problema;
+  - screenshot utili, evitando dati clinici non necessari.
+- In caso di issue critica, Marco può sospendere temporaneamente gli accessi, impostare l'account in modalità read-only o interrompere il test beta fino al completamento delle verifiche.
+
+## Disclaimer emergenze e responsabilità clinica
+PsyHelper non gestisce emergenze cliniche.
+In caso di emergenza, rischio immediato o necessità clinica urgente, il professionista deve usare i propri canali professionali, sanitari o di emergenza.
+PsyHelper non sostituisce il giudizio clinico del professionista.
+L'uso improprio di PsyHelper, la gestione delle emergenze e la gestione delle crisi cliniche restano sotto la responsabilità del professionista curante, entro i limiti consentiti dalla legge applicabile e dai termini di servizio effettivi.

@@ -37,13 +37,16 @@ Possono essere trattati dati account, metadati operativi e dati inseriti dal pro
 Le richieste privacy/data-rights sono gestite tramite processo operativo documentato; i dettagli sono nei documenti privacy e DPA MVP.
 
 ## Processo richiesta export
-Inviare richiesta al canale supporto indicato con identificativo account e perimetro richiesto. Il team conferma presa in carico e tempi stimati.
+Inviare richiesta a **m.maskaro74@gmail.com** con identificativo account e perimetro richiesto. Il team conferma presa in carico e tempi stimati.
 
 ## Processo richiesta cancellazione/disdetta
-Inviare richiesta al supporto con identificativo account. In questa fase beta, la cancellazione può richiedere verifiche manuali e tempi tecnici; eventuali limiti operativi saranno comunicati in trasparenza.
+Inviare richiesta a **m.maskaro74@gmail.com** con identificativo account. In questa fase beta, la cancellazione può richiedere verifiche manuali e tempi tecnici; eventuali limiti operativi saranno comunicati in trasparenza.
 
 ## Supporto/contatti
-Canale supporto operativo: **[DA COMPILARE PRIMA DEL GO-LIVE]**
+Canale supporto operativo: **m.maskaro74@gmail.com**
+
+Responsabile supporto: **Marco Mascaro**.
+Tempo di risposta previsto: entro **1 giorno lavorativo** durante la beta commerciale controllata.
 
 ## Limitazioni note
 - Processo commerciale e billing ancora in parte manuale.
@@ -58,3 +61,9 @@ Termini di cancellazione: **[PLACEHOLDER DA VALIDARE LEGALMENTE]**.
 
 ## Nota legale
 Documento operativo preliminare per beta commerciale controllata; da validare legalmente prima di espansione commerciale ampia.
+
+## Disclaimer emergenze e responsabilità clinica
+PsyHelper non gestisce emergenze cliniche.
+In caso di emergenza, rischio immediato o necessità clinica urgente, il professionista deve usare i propri canali professionali, sanitari o di emergenza.
+PsyHelper non sostituisce il giudizio clinico del professionista.
+L'uso improprio di PsyHelper, la gestione delle emergenze e la gestione delle crisi cliniche restano sotto la responsabilità del professionista curante, entro i limiti consentiti dalla legge applicabile e dai termini di servizio effettivi.

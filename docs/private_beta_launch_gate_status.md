@@ -26,12 +26,13 @@ Compilare questo documento solo con evidenze reali. Nessun campo può essere mar
 - Accepted conditions sign-off (business + ops + legal review pending): **PENDING**
 
 ## Support model (beta commerciale controllata)
-- Canale supporto principale: **[MARCO DEVE INSERIRE EMAIL/CONTATTO PRIMA DEL GO]**
-- Default consigliato: supporto diretto founder via email.
-- Finestra risposta target: entro **1 giorno lavorativo**.
-- Escalation bug bloccante: terapeuta -> canale supporto -> Marco/founder con priorità alta e presa in carico immediata.
-- Escalation incidente dati: segnalazione immediata a Marco/founder, blocco operativo se necessario, triage e registrazione incidente.
-- Disclaimer emergenze: PsyHelper non è un servizio di emergenza; per emergenze cliniche usare i canali professionali/sanitari di emergenza.
+- Canale supporto principale: **m.maskaro74@gmail.com**
+- Responsabile supporto: **Marco Mascaro**
+- Finestra risposta target: entro **1 giorno lavorativo** durante la beta commerciale controllata.
+- Escalation bug bloccante: terapeuta -> canale supporto -> Marco Mascaro con priorità alta e presa in carico immediata.
+- Escalation incidente dati: segnalazione immediata a Marco Mascaro, blocco operativo se necessario, triage e registrazione incidente.
+- In caso di issue critica, Marco può sospendere temporaneamente accessi, impostare read-only o interrompere il beta test fino a verifica completata.
+- Disclaimer emergenze: PsyHelper non gestisce emergenze cliniche; in caso di emergenza o rischio immediato usare i canali professionali/sanitari o di emergenza.
 
 ## Backup/restore evidence
 - Frequenza backup configurata (default: giornaliera):
