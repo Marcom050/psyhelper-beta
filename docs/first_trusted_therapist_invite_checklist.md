@@ -3,13 +3,17 @@
 > Internal launch-readiness checklist. Do not send this document directly to therapists.
 
 ## 1) Prerequisites before invite
-- [ ] A formal GO or GO WITH CONDITIONS decision exists in `docs/private_beta_go_no_go_report_template.md` output.
+- [ ] Launch gate status in `docs/private_beta_launch_gate_status.md` is GO or GO WITH CONDITIONS.
 - [ ] No unresolved blocker issues.
-- [ ] No unresolved high-severity issues.
+- [ ] No unresolved high privacy/security/tenant/data/export issues.
 - [ ] Staging smoke evidence captured and linked.
 - [ ] Manual therapist/client flow validated with synthetic data only.
 - [ ] Italian private beta disclaimer is visible in app onboarding/use flow.
 - [ ] Support/contact path is defined for beta participants.
+- [ ] Therapist understands this is a controlled private beta with limited-scope support.
+- [ ] Do not request real patient data for the first test unless explicitly authorized and legally reviewed.
+- [ ] Feedback collection path is ready (owner, channel, SLA).
+- [ ] Support/rollback contact path is ready and reachable.
 - [ ] Known limitations are documented and internally approved.
 - [ ] Synthetic-data rehearsal execution is complete and archived.
 - [ ] Legal/compliance caveat acknowledged (no claim of full production clinical compliance).
