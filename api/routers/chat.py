@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import COPYRIGHT_POLICY, groq_api_key, parse_body, require_same_user_or_owner
+from api.dependencies import COPYRIGHT_POLICY, enforce_subscription_write_access, enforce_tenant_access, get_current_active_context, groq_api_key, parse_body, require_same_user_or_owner
 from api.exceptions import APIValidationError
 from api.schemas.chat import ChatMessageRequest, ChatMessageResponse
 from services.chat_service import DEFAULT_SESSION_ID, ChatContext, get_response as get_chat_response
@@ -15,6 +15,9 @@ router = APIRouter()
 
 async def create_chat_message(request: Request):
     body = await parse_body(request, ChatMessageRequest)
+    ctx = get_current_active_context(request)
+    enforce_tenant_access(request, ctx["auth"])
+    enforce_subscription_write_access(ctx["auth"])
     username, _current = require_same_user_or_owner(request, body.username)
     api_key = groq_api_key()
     if not api_key:

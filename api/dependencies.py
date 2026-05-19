@@ -12,6 +12,7 @@ from starlette.requests import Request
 from api.exceptions import APIValidationError, AuthenticationError, NotFoundError
 from api.security import AuthContext, auth_context_for_username, verify_access_token
 from services import auth_service
+from services import subscription_access
 from database.audit_log import log_event
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,55 @@ def require_active_therapist(request: Request) -> AuthContext:
     if current.subscription_status.lower() not in active_subscription_statuses():
         raise AuthenticationError("Active therapist subscription required")
     return current
+
+
+def _is_suspended(metadata: dict[str, Any]) -> bool:
+    return str(metadata.get("account_status") or metadata.get("client_status") or "active").lower() in {"suspended", "archived"}
+
+
+def get_current_active_context(request: Request) -> dict[str, Any]:
+    current = get_current_user(request)
+    state = subscription_access.tenant_access_state(current.username)
+    if _is_suspended(current.metadata):
+        raise AuthenticationError("Account suspended")
+    context = {
+        "auth": current,
+        "is_admin": current.role == "admin",
+        "is_therapist": current.role == "therapist",
+        "is_client": current.role == "client",
+        "subscription_state": state["status"],
+        "tenant_access_state": state,
+    }
+    return context
+
+
+def enforce_tenant_access(request: Request, user: AuthContext) -> None:
+    target = request.path_params.get("username") or request.path_params.get("client_username")
+    if not target:
+        return
+    requested = auth_service.normalize_username(target)
+    if not requested or not auth_service.user_exists(requested):
+        raise NotFoundError("User not found")
+    if user.username == requested or user.role == "admin":
+        return
+    requested_metadata = auth_service.load_user_metadata(requested)
+    if user.role == "therapist" and str(requested_metadata.get("role")) == "client":
+        owner = auth_service.resolve_tenant_owner(requested_metadata, requested)
+        if owner == user.username:
+            return
+    raise AuthenticationError("Not authorized for requested tenant resource")
+
+
+def enforce_subscription_read_access(user: AuthContext) -> None:
+    state = subscription_access.tenant_access_state(user.username)
+    if not state["can_read"] and user.role != "admin":
+        raise AuthenticationError("Subscription does not allow read access")
+
+
+def enforce_subscription_write_access(user: AuthContext) -> None:
+    state = subscription_access.tenant_access_state(user.username)
+    if not state["can_write"] and user.role != "admin":
+        raise AuthenticationError("Subscription does not allow write access")
 
 
 def require_same_user_or_owner(request: Request, username: str) -> tuple[str, AuthContext]:

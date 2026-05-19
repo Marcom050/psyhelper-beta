@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import account_bundle, current_username, parse_body, require_same_user_or_owner
+from api.dependencies import account_bundle, current_username, enforce_subscription_read_access, enforce_subscription_write_access, enforce_tenant_access, get_current_active_context, parse_body, require_same_user_or_owner
 from api.exceptions import APIValidationError
 from api.schemas.homework import (
     HomeworkAssignmentRequest,
@@ -28,12 +28,18 @@ router = APIRouter()
 
 
 async def get_homework(request: Request):
+    ctx = get_current_active_context(request)
+    enforce_tenant_access(request, ctx["auth"])
+    enforce_subscription_read_access(ctx["auth"])
     username, _current = require_same_user_or_owner(request, request.path_params["username"])
     response = _homework_response(username, account_bundle(username)["wellness"])
     return JSONResponse(response.model_dump())
 
 
 async def create_homework_assignment(request: Request):
+    ctx = get_current_active_context(request)
+    enforce_tenant_access(request, ctx["auth"])
+    enforce_subscription_write_access(ctx["auth"])
     username, _current = require_same_user_or_owner(request, request.path_params["username"])
     body = await parse_body(request, HomeworkAssignmentRequest)
     try:
@@ -55,6 +61,8 @@ async def create_homework_assignment(request: Request):
 
 
 async def create_homework_submission(request: Request):
+    ctx = get_current_active_context(request)
+    enforce_subscription_write_access(ctx["auth"])
     body = await parse_body(request, HomeworkSubmissionRequest)
     username, _current = require_same_user_or_owner(request, body.username)
     try:

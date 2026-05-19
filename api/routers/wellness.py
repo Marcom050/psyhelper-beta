@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import account_bundle, parse_body, require_same_user_or_owner
+from api.dependencies import account_bundle, enforce_subscription_read_access, enforce_subscription_write_access, enforce_tenant_access, get_current_active_context, parse_body, require_same_user_or_owner
 from api.schemas.wellness import MoodEntryRequest, MoodEntryResponse, WellnessResponse
 from services import auth_service
 
@@ -13,12 +13,18 @@ router = APIRouter()
 
 
 async def get_wellness(request: Request):
+    ctx = get_current_active_context(request)
+    enforce_tenant_access(request, ctx["auth"])
+    enforce_subscription_read_access(ctx["auth"])
     username, _current = require_same_user_or_owner(request, request.path_params["username"])
     response = WellnessResponse(username=username, wellness=account_bundle(username)["wellness"])
     return JSONResponse(response.model_dump())
 
 
 async def create_mood_entry(request: Request):
+    ctx = get_current_active_context(request)
+    enforce_tenant_access(request, ctx["auth"])
+    enforce_subscription_write_access(ctx["auth"])
     username, _current = require_same_user_or_owner(request, request.path_params["username"])
     body = await parse_body(request, MoodEntryRequest)
     bundle = account_bundle(username)
