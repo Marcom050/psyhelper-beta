@@ -22,3 +22,9 @@ def test_streamlit_auth_service_import_contract_is_valid():
     auth_service = importlib.import_module("services.auth_service")
     missing = [name for name in imported_names if not hasattr(auth_service, name)]
     assert not missing, f"Missing names in services.auth_service: {missing}"
+
+
+def test_delete_user_account_is_directly_importable_from_auth_service():
+    from services.auth_service import delete_user_account
+
+    assert callable(delete_user_account)
