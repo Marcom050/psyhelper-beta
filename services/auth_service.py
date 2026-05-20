@@ -119,6 +119,12 @@ def save_wellness_for(username, wellness, repository=None):
 
 
 def delete_user_account(username, repository=None):
+    """Backward-compatible export used by the Streamlit entrypoint.
+
+    The actual deletion workflow remains delegated to the account repository,
+    so tenant/RBAC checks enforced by callers and repository behavior are
+    preserved.
+    """
     return _account_repository(repository).delete_user_account(username)
 
 
