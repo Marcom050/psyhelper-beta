@@ -37,6 +37,7 @@ from services.auth_service import (
     client_accounts_for,
     create_client_account,
     create_user,
+    delete_user_account,
     ensure_wellness_schema,
     is_valid_email,
     load_account_bundle,
@@ -765,6 +766,14 @@ def show_create_patient_dialog(therapist_username):
         st.rerun()
 
 
+def _pending_patient_delete_username() -> str | None:
+    return session_adapter._get("pending_patient_delete_username")
+
+
+def _set_pending_patient_delete(username: str | None) -> None:
+    session_adapter._set("pending_patient_delete_username", username)
+
+
 @st.dialog("👥 Scegli profilo paziente")
 def show_patient_selector_dialog(clients, snapshots, overview_rows):
     st.caption("Seleziona il profilo paziente da aprire nella dashboard. La scheda scelta verrà mostrata a tutta larghezza.")
@@ -784,13 +793,48 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
             snapshot = snapshots[client["username"]]
             is_selected = client["username"] == session_adapter.get_selected_patient_username()
             label = f"{'✅ Profilo attivo' if is_selected else 'Apri profilo'} · {client['nome']}"
-            if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
-                session_adapter.set_selected_patient_username(client["username"])
-                st.rerun()
+            action_col, delete_col = st.columns([4, 1])
+            with action_col:
+                if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
+                    session_adapter.set_selected_patient_username(client["username"])
+                    _set_pending_patient_delete(None)
+                    st.rerun()
+            with delete_col:
+                if st.button("🗑️", key=f"delete_patient_dialog_{client['username']}", help="Elimina profilo", type="secondary"):
+                    _set_pending_patient_delete(client["username"])
+                    st.rerun()
             st.caption(
                 f"Ultima attività: {snapshot['last_activity']} · "
                 f"alert: {len(snapshot['alerts'])} · homework: {snapshot['homework_completed']}/{snapshot['homework_total']}"
             )
+
+    pending_delete_username = _pending_patient_delete_username()
+    if pending_delete_username:
+        if pending_delete_username not in {item["username"] for item in clients}:
+            _set_pending_patient_delete(None)
+        else:
+            pending_client = next(item for item in clients if item["username"] == pending_delete_username)
+            pending_name = pending_client.get("nome") or pending_delete_username
+            st.markdown("### Conferma eliminazione")
+            st.warning(f"Vuoi davvero eliminare definitivamente il profilo di {pending_name}?")
+            st.caption("Questa azione è permanente e non può essere annullata.")
+            confirm_col, cancel_col = st.columns(2)
+            with confirm_col:
+                if st.button("Sì, elimina definitivamente", type="primary", use_container_width=True):
+                    try:
+                        delete_user_account(pending_delete_username)
+                    except Exception:
+                        st.error("Non è stato possibile eliminare il profilo paziente. Riprova o contatta il supporto.")
+                    else:
+                        if session_adapter.get_selected_patient_username() == pending_delete_username:
+                            session_adapter.set_selected_patient_username(None)
+                        _set_pending_patient_delete(None)
+                        st.success("Profilo paziente eliminato definitivamente.")
+                        st.rerun()
+            with cancel_col:
+                if st.button("Annulla", use_container_width=True):
+                    _set_pending_patient_delete(None)
+                    st.rerun()
 
     with st.expander("Mostra tabella riepilogo", expanded=False):
         st.dataframe(pd.DataFrame(overview_rows), use_container_width=True, hide_index=True)

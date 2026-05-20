@@ -8,6 +8,7 @@ import hashlib
 import logging
 import os
 import re
+import shutil
 from datetime import UTC, datetime
 
 from argon2 import PasswordHasher
@@ -480,3 +481,9 @@ class FilesystemAccountRepository(AccountRepository):
 
     def verify_password(self, username, password):
         return verify_password(username, password)
+
+    def delete_user_account(self, username):
+        username = normalize_username(username)
+        account_dir = user_dir(username)
+        if os.path.isdir(account_dir):
+            shutil.rmtree(account_dir)

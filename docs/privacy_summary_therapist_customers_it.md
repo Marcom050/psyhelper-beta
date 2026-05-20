@@ -20,3 +20,6 @@ PsyHelper non gestisce emergenze cliniche.
 In caso di emergenza, rischio immediato o necessità clinica urgente, il professionista deve usare i propri canali professionali, sanitari o di emergenza.
 PsyHelper non sostituisce il giudizio clinico del professionista.
 L'uso improprio di PsyHelper, la gestione delle emergenze e la gestione delle crisi cliniche restano sotto la responsabilità del professionista curante, entro i limiti consentiti dalla legge applicabile e dai termini di servizio effettivi.
+
+## Eliminazione profilo paziente
+Nella beta commerciale controllata, il terapeuta proprietario può eliminare definitivamente un profilo paziente tramite azione dedicata con conferma esplicita. La cancellazione riguarda i dati del profilo paziente nel sistema applicativo (profilo, metadata, messaggi e wellness) e viene tracciata su audit log. Questa funzione non modifica automaticamente eventuali obblighi legali/contrattuali esterni del professionista.

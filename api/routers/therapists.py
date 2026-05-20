@@ -4,7 +4,13 @@ from fastapi import APIRouter
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from api.dependencies import account_bundle, parse_body, require_active_therapist, require_same_user_or_owner
+from api.dependencies import (
+    account_bundle,
+    enforce_subscription_write_access,
+    parse_body,
+    require_active_therapist,
+    require_same_user_or_owner,
+)
 from api.exceptions import APIValidationError
 from api.schemas.therapists import (
     TherapistClientCreateRequest,
@@ -145,6 +151,28 @@ async def get_my_client_snapshot(request: Request):
     return JSONResponse(payload.model_dump())
 
 
+async def delete_my_client(request: Request):
+    therapist = require_active_therapist(request)
+    enforce_subscription_write_access(therapist)
+    client_username, _ = require_same_user_or_owner(request, request.path_params["client_username"])
+    if client_username == therapist.username:
+        log_event("therapist_client_delete_denied", actor=therapist.username, payload={"reason": "self_delete_blocked"})
+        return JSONResponse({"detail": "Operazione non consentita."}, status_code=403)
+    metadata = auth_service.load_user_metadata(client_username)
+    if metadata.get("role") != "client":
+        log_event("therapist_client_delete_denied", actor=therapist.username, payload={"reason": "target_not_client"})
+        return JSONResponse({"detail": "Operazione non consentita."}, status_code=403)
+
+    log_event("therapist_client_delete_requested", actor=therapist.username, payload={"client": client_username})
+    try:
+        auth_service.delete_user_account(client_username)
+    except Exception:
+        log_event("therapist_client_delete_failed", actor=therapist.username, payload={"client": client_username})
+        return JSONResponse({"detail": "Operazione non riuscita."}, status_code=500)
+    log_event("therapist_client_delete_succeeded", actor=therapist.username, payload={"client": client_username})
+    return JSONResponse({"deleted": True})
+
+
 async def my_stats(request: Request):
     therapist = require_active_therapist(request)
     return JSONResponse({"stats": therapist_overview(therapist.username)})
@@ -172,6 +200,7 @@ router.add_api_route("/therapists/me/dashboard", my_dashboard, methods=["GET"])
 router.add_api_route("/therapists/me/clients", list_my_clients, methods=["GET"])
 router.add_api_route("/therapists/me/clients", create_my_client, methods=["POST"])
 router.add_api_route("/therapists/me/clients/{client_username}", get_my_client, methods=["GET"])
+router.add_api_route("/therapists/me/clients/{client_username}", delete_my_client, methods=["DELETE"])
 router.add_api_route("/therapists/me/clients/{client_username}/snapshot", get_my_client_snapshot, methods=["GET"])
 router.add_api_route("/therapists/me/stats", my_stats, methods=["GET"])
 router.add_api_route("/therapists/me/activity", my_activity, methods=["GET"])

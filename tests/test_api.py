@@ -207,6 +207,40 @@ class PsyHelperAPITest(unittest.TestCase):
         therapist_endpoint_response = self.client.get("/therapists/me/clients/clienta", headers=client_headers)
         self.assertEqual(therapist_endpoint_response.status_code, 401)
 
+    def test_therapist_can_delete_owned_client_and_cross_tenant_is_denied(self):
+        self.signup("thera", role="therapist", subscription_status="trialing")
+        self.signup("otherthera", role="therapist", subscription_status="trialing")
+        thera_headers = self.auth_headers("thera")
+        other_headers = self.auth_headers("otherthera")
+        self.client.post(
+            "/therapists/me/clients",
+            headers=thera_headers,
+            json={"username": "clientdel", "password": "clientpass", "profile": {"nome": "Client Del"}},
+        )
+
+        denied = self.client.delete("/therapists/me/clients/clientdel", headers=other_headers)
+        self.assertEqual(denied.status_code, 401)
+
+        deleted = self.client.delete("/therapists/me/clients/clientdel", headers=thera_headers)
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        self.assertEqual(deleted.json()["deleted"], True)
+
+        list_response = self.client.get("/therapists/me/clients", headers=thera_headers)
+        usernames = [item["username"] for item in list_response.json()["clients"]]
+        self.assertNotIn("clientdel", usernames)
+
+    def test_client_role_cannot_delete_patient(self):
+        self.signup("thera", role="therapist", subscription_status="trialing")
+        therapist_headers = self.auth_headers("thera")
+        self.client.post(
+            "/therapists/me/clients",
+            headers=therapist_headers,
+            json={"username": "clientx", "password": "clientpass", "profile": {"nome": "Client X"}},
+        )
+        client_headers = self.auth_headers("clientx", "clientpass")
+        denied = self.client.delete("/therapists/me/clients/clientx", headers=client_headers)
+        self.assertEqual(denied.status_code, 401)
+
     def test_legacy_header_auth_requires_explicit_flag(self):
         self.signup()
         denied = self.client.get("/me", headers={"X-Username": "giulia"})

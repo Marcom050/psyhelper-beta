@@ -120,6 +120,16 @@ def test_diary_ui_no_cbt_alternative_response_field():
     assert "risposta alternativa cbt" not in source
 
 
+def test_patient_delete_confirmation_copy_is_italian():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "Elimina profilo" in source
+    assert "Conferma eliminazione" in source
+    assert "Vuoi davvero eliminare definitivamente il profilo di" in source
+    assert "Questa azione è permanente e non può essere annullata." in source
+    assert "Sì, elimina definitivamente" in source
+    assert "Annulla" in source
+
+
 def test_logout_cleanup_persists_and_prevents_chat_rehydration(monkeypatch):
     saved_messages = [{"role": "user", "content": "messaggio vecchio"}]
     app.session_adapter.set_username("cliente-test")

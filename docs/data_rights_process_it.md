@@ -39,3 +39,10 @@ Documento operativo preliminare per beta commerciale controllata; da validare le
 - In caso di disdetta commerciale, l'account può essere messo in sola lettura o disattivato secondo processo operativo applicabile.
 - Prima della disattivazione definitiva, il professionista può richiedere export dei dati disponibili tramite questo processo.
 - Richieste di cancellazione, limitazione o conservazione dati restano gestite nei limiti tecnici, contrattuali e normativi applicabili.
+
+## Eliminazione profilo paziente (beta controllata)
+- Dalla dashboard terapeuta è disponibile l'azione **Elimina profilo** con doppia conferma esplicita in italiano.
+- L'eliminazione rimuove in modo permanente il record account del paziente (profilo, metadata, messaggi, wellness) dal backend attivo.
+- L'azione è consentita solo a terapeuta proprietario del tenant (o amministratore se già autorizzato dai controlli API), con controlli RBAC e isolamento tenant.
+- Ogni richiesta produce audit event per richiesta, esito positivo o fallimento/negazione.
+- Lo stato di launch gate resta invariato: onboarding primo terapeuta pagante ancora bloccato finché i gate ufficiali non sono verdi.

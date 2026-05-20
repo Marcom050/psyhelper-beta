@@ -118,6 +118,10 @@ def save_wellness_for(username, wellness, repository=None):
     return _wellness_repository(repository).save_wellness(username, wellness)
 
 
+def delete_user_account(username, repository=None):
+    return _account_repository(repository).delete_user_account(username)
+
+
 __all__ = [
     "client_accounts_for",
     "get_clients_for_tenant",
@@ -127,6 +131,7 @@ __all__ = [
     "create_user",
     "default_user_metadata",
     "default_wellness_data",
+    "delete_user_account",
     "ensure_wellness_schema",
     "hash_password",
     "is_valid_email",
