@@ -262,6 +262,17 @@ class PostgresAccountRepository(AccountRepository):
         self._warn_filesystem_fallback("therapist_email_exists")
         return filesystem.therapist_email_exists(email)
 
+    def delete_user_account(self, username):
+        username = filesystem.normalize_username(username)
+        with connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM messages WHERE username = %s", (username,))
+                cursor.execute("DELETE FROM wellness WHERE username = %s", (username,))
+                cursor.execute("DELETE FROM accounts WHERE username = %s", (username,))
+            conn.commit()
+        if self._filesystem_fallback_enabled():
+            filesystem.FilesystemAccountRepository().delete_user_account(username)
+
     def client_accounts_for(self, therapist_username):
         return self.get_clients_for_tenant(therapist_username)
 

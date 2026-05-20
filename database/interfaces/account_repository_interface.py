@@ -63,3 +63,7 @@ class AccountRepository(ABC):
     def verify_password(self, username, password):
         """Verify a user password against this backend."""
         raise NotImplementedError
+
+    def delete_user_account(self, username):
+        """Permanently delete account profile, metadata, messages, and wellness data."""
+        raise NotImplementedError
