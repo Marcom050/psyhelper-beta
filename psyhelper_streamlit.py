@@ -774,6 +774,14 @@ def _set_pending_patient_delete(username: str | None) -> None:
     session_adapter._set("pending_patient_delete_username", username)
 
 
+def _patient_selector_dialog_open() -> bool:
+    return bool(session_adapter._get("patient_selector_dialog_open"))
+
+
+def _set_patient_selector_dialog_open(is_open: bool) -> None:
+    session_adapter._set("patient_selector_dialog_open", bool(is_open))
+
+
 @st.dialog("👥 Scegli profilo paziente")
 def show_patient_selector_dialog(clients, snapshots, overview_rows):
     st.caption("Seleziona il profilo paziente da aprire nella dashboard. La scheda scelta verrà mostrata a tutta larghezza.")
@@ -800,7 +808,7 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
                     _set_pending_patient_delete(None)
                     st.rerun()
             with delete_col:
-                if st.button("🗑️", key=f"delete_patient_dialog_{client['username']}", help="Elimina profilo", type="secondary"):
+                if st.button("🗑️", key=f"delete_client_{client['username']}", help="Elimina profilo", type="secondary"):
                     _set_pending_patient_delete(client["username"])
                     st.rerun()
             st.caption(
@@ -820,7 +828,7 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
             st.caption("Questa azione è permanente e non può essere annullata.")
             confirm_col, cancel_col = st.columns(2)
             with confirm_col:
-                if st.button("Sì, elimina definitivamente", type="primary", use_container_width=True):
+                if st.button("Sì, elimina definitivamente", key=f"confirm_delete_client_{pending_delete_username}", type="primary", use_container_width=True):
                     try:
                         delete_user_account(pending_delete_username)
                     except Exception:
@@ -832,12 +840,17 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
                         st.success("Profilo paziente eliminato definitivamente.")
                         st.rerun()
             with cancel_col:
-                if st.button("Annulla", use_container_width=True):
+                if st.button("Annulla", key=f"cancel_delete_client_{pending_delete_username}", use_container_width=True):
                     _set_pending_patient_delete(None)
                     st.rerun()
 
     with st.expander("Mostra tabella riepilogo", expanded=False):
         st.dataframe(pd.DataFrame(overview_rows), use_container_width=True, hide_index=True)
+
+    if st.button("Chiudi selettore", use_container_width=True):
+        _set_patient_selector_dialog_open(False)
+        _set_pending_patient_delete(None)
+        st.rerun()
 
 
 def show_therapist_dashboard():
@@ -906,6 +919,9 @@ def show_therapist_dashboard():
     selector_col, active_col = st.columns([1, 3], gap="large")
     with selector_col:
         if st.button("👥 Scegli profilo paziente", use_container_width=True):
+            _set_patient_selector_dialog_open(True)
+
+        if _patient_selector_dialog_open():
             show_patient_selector_dialog(clients, snapshots, overview_rows)
     with active_col:
         st.info(

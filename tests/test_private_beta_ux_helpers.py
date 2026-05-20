@@ -130,6 +130,21 @@ def test_patient_delete_confirmation_copy_is_italian():
     assert "Annulla" in source
 
 
+def test_patient_delete_keys_and_pending_state_are_stable():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert 'key=f"delete_client_{client[\'username\']}"' in source
+    assert 'key=f"confirm_delete_client_{pending_delete_username}"' in source
+    assert 'key=f"cancel_delete_client_{pending_delete_username}"' in source
+    assert '_set_pending_patient_delete(client["username"])' in source
+
+
+def test_patient_selector_dialog_open_state_is_persistent():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert 'def _patient_selector_dialog_open() -> bool:' in source
+    assert 'session_adapter._set("patient_selector_dialog_open", bool(is_open))' in source
+    assert 'if _patient_selector_dialog_open():' in source
+
+
 def test_logout_cleanup_persists_and_prevents_chat_rehydration(monkeypatch):
     saved_messages = [{"role": "user", "content": "messaggio vecchio"}]
     app.session_adapter.set_username("cliente-test")
