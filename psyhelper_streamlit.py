@@ -507,6 +507,14 @@ def show_chat_tab():
     render_chat_input_styles()
     st.subheader("💬 Chat di supporto")
     st.caption(f"Ciao {compact_display_name(session_adapter.get_profile(), session_adapter.get_username())}.")
+    st.info(
+        "Ogni paziente è diverso: PsyHelper aiuta il professionista a organizzare e personalizzare il lavoro, senza imporre un approccio unico. "
+        "Il terapeuta mantiene sempre il controllo del percorso clinico."
+    )
+    st.caption(
+        "PsyHelper non sostituisce valutazione clinica, relazione terapeutica o giudizio professionale. "
+        "Non fornisce diagnosi, non gestisce emergenze e non garantisce esiti clinici."
+    )
 
     if not session_adapter.get_messages():
         st.info(empty_state_message("chat_messages"))
@@ -525,24 +533,23 @@ def show_chat_tab():
 
 
 def show_diary_tab():
-    st.subheader("📝 Scheda stati d'animo, trigger e sensazioni")
-    st.caption("Pensata come materiale ordinato da rivedere anche con uno psicologo: emozioni, corpo, pensieri e azioni in un unico schema CBT.")
+    st.subheader("📝 Diario CBT")
+    st.caption("Prima i dati essenziali; i dettagli restano disponibili qui sotto.")
 
     with st.form("mood_entry_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            entry_date = st.date_input("Data", value=date.today())
-            mood = st.selectbox("Stato d'animo prevalente", MOOD_OPTIONS)
-            mood_intensity = st.slider("Intensità dell'emozione (1-10)", 1, 10, 5)
-            anxiety = st.slider("Ansia (0-10)", 0, 10, 4)
-            stress = st.slider("Stress (0-10)", 0, 10, 4)
-        with col2:
+        entry_date = st.date_input("Data", value=date.today())
+        mood = st.selectbox("Stato d'animo prevalente", MOOD_OPTIONS)
+        mood_intensity = st.slider("Intensità dell'emozione (1-10)", 1, 10, 5)
+        anxiety = st.slider("Ansia (0-10)", 0, 10, 4)
+        stress = st.slider("Stress (0-10)", 0, 10, 4)
+
+        with st.expander("Dettagli CBT opzionali (trigger, corpo, pensieri, azioni)", expanded=False):
             trigger = st.text_input("Trigger/situazione", placeholder="Es. discussione, scadenza, luogo, pensiero...")
             sensations = st.multiselect("Sensazioni corporee", SENSATION_OPTIONS)
             need = st.text_input("Bisogno emerso", placeholder="Es. sicurezza, riposo, chiarezza, supporto...")
-        automatic_thought = st.text_area("Pensiero automatico", placeholder="Che cosa ti sei detto/a in quel momento?")
-        behavior = st.text_area("Comportamento o impulso", placeholder="Che cosa hai fatto o avresti voluto fare?")
-        note = st.text_area("Nota per il professionista", placeholder="Elementi che vorresti portare in seduta.")
+            automatic_thought = st.text_area("Pensiero automatico", placeholder="Che cosa ti sei detto/a in quel momento?")
+            behavior = st.text_area("Comportamento o impulso", placeholder="Che cosa hai fatto o avresti voluto fare?")
+            note = st.text_area("Nota per il professionista", placeholder="Elementi che vorresti portare in seduta.")
 
         if st.form_submit_button("Salva scheda", use_container_width=True):
             entry = {
@@ -583,11 +590,10 @@ def show_monitoring_tab():
     latest = df.iloc[-1]
     avg_anxiety = df["ansia"].mean()
     avg_stress = df["stress"].mean()
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Ultima ansia", f"{latest['ansia']}/10")
-    col2.metric("Media ansia", f"{avg_anxiety:.1f}/10")
-    col3.metric("Media stress", f"{avg_stress:.1f}/10")
-    col4.metric("Homework", f"{snapshot['homework_completed']}/{snapshot['homework_total']}")
+    st.metric("Ultima ansia", f"{latest['ansia']}/10")
+    st.metric("Media ansia", f"{avg_anxiety:.1f}/10")
+    st.metric("Media stress", f"{avg_stress:.1f}/10")
+    st.metric("Homework", f"{snapshot['homework_completed']}/{snapshot['homework_total']}")
 
     with st.expander("Insight automatici da portare in seduta", expanded=True):
         for insight in snapshot["insights"]:
@@ -602,13 +608,10 @@ def show_monitoring_tab():
 
     trigger_counts = most_common_values(df["trigger"])
     sensation_counts = most_common_values(df["sensazioni"])
-    col4, col5 = st.columns(2)
-    with col4:
-        st.markdown("**Trigger più ricorrenti**")
-        st.dataframe(trigger_counts.rename("Frequenza"), use_container_width=True)
-    with col5:
-        st.markdown("**Sensazioni più ricorrenti**")
-        st.dataframe(sensation_counts.rename("Frequenza"), use_container_width=True)
+    st.markdown("**Trigger più ricorrenti**")
+    st.dataframe(trigger_counts.rename("Frequenza"), use_container_width=True)
+    st.markdown("**Sensazioni più ricorrenti**")
+    st.dataframe(sensation_counts.rename("Frequenza"), use_container_width=True)
 
 
 def show_homework_tab():
@@ -633,11 +636,8 @@ def show_homework_tab():
         template_name = selected_assignment.get("template")
         template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
         prompt = homework_main_prompt(template_name, selected_assignment)
-        info_col, due_col = st.columns([3, 1])
-        with info_col:
-            st.info(template.get("obiettivo") or "Compito breve assegnato dal terapeuta.")
-        with due_col:
-            st.metric("Scadenza", selected_assignment.get("due_date", "—"))
+        st.info(template.get("obiettivo") or "Compito breve assegnato dal terapeuta.")
+        st.metric("Scadenza", selected_assignment.get("due_date", "—"))
         with st.form("assigned_homework_submission"):
             answer = st.text_area(
                 prompt,
@@ -689,7 +689,11 @@ def show_homework_tab():
     if submissions:
         with st.expander("Storico essenziale homework e note"):
             rows = submitted_homework_rows(submissions, display_defaults=False)
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            for row in rows:
+                with st.container(border=True):
+                    st.markdown(f"**{row.get('template', 'Homework')}** · {row.get('data', 'Data non disponibile')}")
+                    st.write(f"Stato: {row.get('stato', 'n/d')}")
+                    st.write(f"Sintesi: {row.get('risposta', 'n/d')}")
 
 def show_report_tab():
     st.subheader("📋 Resoconto per colloqui psicologici")
@@ -699,7 +703,8 @@ def show_report_tab():
         st.info("Quando avrai salvato alcune schede, qui comparirà un resoconto sintetico esportabile.")
         return
 
-    st.text_area("Resoconto sintetico", value=report["export_text"], height=360)
+    st.caption("Le attività e i materiali sono strumenti di supporto scelti e adattati dal professionista.")
+    st.text_area("Resoconto sintetico", value=report["export_text"], height=320)
     st.download_button("Scarica resoconto .txt", data=report["export_text"], file_name="resoconto_psyhelper.txt", mime="text/plain", use_container_width=True)
 
     with st.expander("Vedi schede dettagliate"):
@@ -1198,16 +1203,13 @@ def render_onboarding_or_stop():
     st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
 
     with st.form("onboarding"):
-        col1, col2 = st.columns(2)
-        with col1:
-            nome = st.text_input("Come ti chiami?", value=session_adapter.get_profile().get("nome", ""))
-            età = st.number_input("Età", 14, 90, 30)
-            umore = st.selectbox("Umore attuale", MOOD_OPTIONS)
-            intensità = st.slider("Intensità del malessere (1-10)", 1, 10, 5)
-        with col2:
-            stress = st.slider("Livello di stress (1-10)", 1, 10, 5)
-            sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"])
-            motivazione = st.slider("Motivazione (1-10)", 1, 10, 7)
+        nome = st.text_input("Come ti chiami?", value=session_adapter.get_profile().get("nome", ""))
+        età = st.number_input("Età", 14, 90, 30)
+        umore = st.selectbox("Umore attuale", MOOD_OPTIONS)
+        intensità = st.slider("Intensità del malessere (1-10)", 1, 10, 5)
+        stress = st.slider("Livello di stress (1-10)", 1, 10, 5)
+        sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"])
+        motivazione = st.slider("Motivazione (1-10)", 1, 10, 7)
         pensieri = st.text_area("Quali pensieri ti occupano di più ultimamente?")
         obiettivi = st.text_area("Cosa vorresti migliorare nel tuo benessere mentale?")
         if st.form_submit_button("Inizia il percorso 💜", use_container_width=True):
@@ -1245,19 +1247,15 @@ def render_client_app_tabs():
 
 def render_client_footer_actions():
     st.divider()
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("Pulisci chat corrente"):
-            clear_visible_chat_session(persist=True)
-            session_adapter.set_scroll_to_top(True)
-            st.rerun()
-    with col2:
-        if st.button("Torna in alto"):
-            scroll_to_top()
-    with col3:
-        if st.button("Logout"):
-            reset_session_for_logout()
-            st.rerun()
+    if st.button("Pulisci chat corrente", use_container_width=True):
+        clear_visible_chat_session(persist=True)
+        session_adapter.set_scroll_to_top(True)
+        st.rerun()
+    if st.button("Torna su", use_container_width=True):
+        scroll_to_top()
+    if st.button("Esci", use_container_width=True):
+        reset_session_for_logout()
+        st.rerun()
 
 
 def render_authenticated_app():

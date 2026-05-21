@@ -120,7 +120,7 @@ class PsyHelperAPITest(unittest.TestCase):
             headers=headers,
             json={
                 "template": "Nota per la seduta",
-                "due_date": "2026-05-20",
+                "due_date": "2026-05-30",
                 "assigned_by": "therapist_a",
                 "prompt": "Scrivi una nota.",
             },
