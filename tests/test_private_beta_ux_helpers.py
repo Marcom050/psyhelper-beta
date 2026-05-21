@@ -72,10 +72,21 @@ def test_clear_visible_chat_session_clears_messages_without_persistence_by_defau
 
 def test_clear_chat_button_label_is_italian_and_uses_shared_cleanup_path():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
-    assert 'if st.button("Pulisci chat corrente"):' in source
+    assert 'if st.button("Pulisci chat corrente", use_container_width=True):' in source
+    assert 'if st.button("Torna su", use_container_width=True):' in source
+    assert 'if st.button("Esci", use_container_width=True):' in source
     assert "clear_visible_chat_session(persist=True)" in source
     assert "def reset_session_for_logout():" in source
     assert "clear_visible_chat_session(persist=True)" in source
+
+
+def test_client_positioning_copy_mentions_personalization_and_therapist_control():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "Ogni paziente è diverso" in source
+    assert "senza imporre un approccio unico" in source
+    assert "Il terapeuta mantiene sempre il controllo del percorso clinico." in source
+    assert "non sostituisce valutazione clinica, relazione terapeutica o giudizio professionale" in source
+    assert "Non fornisce diagnosi, non gestisce emergenze e non garantisce esiti clinici." in source
 
 
 def test_runtime_session_adapter_exposes_clear_keys():
