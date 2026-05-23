@@ -8,6 +8,7 @@ from clients import APIClientConfig, PsyHelperAPIClient
 from clients.exceptions import APIClientError, APIHTTPError, APITimeoutError, APIUnauthorizedError
 from services.chat_service import ChatContext, get_response as get_chat_response
 from services.report_service import (
+    build_pre_session_summary,
     build_timeline_events,
     clinical_snapshot,
     mood_entries_dataframe,
@@ -1077,6 +1078,48 @@ def show_therapist_dashboard():
             st.success("Note private salvate.")
 
     with detail_tabs[5]:
+        st.markdown("### Riepilogo pre-seduta")
+        st.caption("Una vista rapida dei dati recenti del cliente da usare come supporto prima della seduta.")
+        pre_session = build_pre_session_summary(selected_wellness)
+        st.info(pre_session["non_diagnostic_notice"])
+
+        hw = pre_session["homework"]
+        metric_a, metric_b, metric_c, metric_d = st.columns(4)
+        metric_a.metric("Esercizi assegnati", hw["assigned_count"])
+        metric_b.metric("Completati", hw["completed_count"])
+        metric_c.metric("Da completare", hw["pending_count"])
+        metric_d.metric("Scaduti", hw["overdue_count"])
+
+        box_a, box_b = st.columns(2)
+        with box_a:
+            st.markdown("#### Risposte recenti")
+            st.caption("Da riprendere in seduta")
+            if hw["recent_submissions"]:
+                for submission in hw["recent_submissions"]:
+                    with st.container(border=True):
+                        st.markdown(f"**{submission['title']}** · {submission['submitted_at']}")
+                        st.write(submission["snippet"])
+            else:
+                st.info("Non risultano risposte recenti.")
+
+        with box_b:
+            wellness_summary = pre_session["wellness"]
+            st.markdown("#### Wellness recente")
+            st.write(f"Periodo: {pre_session['period_label']}")
+            st.write(f"Compilazioni recenti: {wellness_summary['recent_entries_count']}")
+            st.write(f"Ultimo dato inserito: {wellness_summary['latest_mood'] or 'Non disponibile'}")
+            st.write(f"Andamento recente: {wellness_summary['mood_trend_label']}")
+            if wellness_summary["recent_entries_count"] == 0:
+                st.info("Non ci sono dati wellness recenti.")
+
+        st.markdown("#### Punti da riprendere in seduta")
+        if pre_session["discussion_points"]:
+            for point in pre_session["discussion_points"]:
+                st.write(f"- {point}")
+        else:
+            st.info("Assegna un esercizio o invita il cliente a compilare un check-in per vedere più informazioni qui.")
+
+        st.divider()
         st.markdown("### Riassunto automatico pre-seduta")
         recap_payload = weekly_recap_payload_for(selected_username, selected_snapshot)
         st.text_area("Ultimi 14 giorni", value=recap_payload["display_text"], height=260)

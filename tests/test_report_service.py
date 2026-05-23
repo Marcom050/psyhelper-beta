@@ -6,6 +6,7 @@ from services.report_service import (
     ClinicalReport,
     ReportSection,
     WeeklyRecap,
+    build_pre_session_summary,
     build_timeline_events,
     clinical_snapshot,
     mood_entries_dataframe,
@@ -153,6 +154,41 @@ class ReportServiceTest(unittest.TestCase):
 
     def test_mood_entries_dataframe_handles_empty_wellness(self):
         self.assertTrue(mood_entries_dataframe({}).empty)
+
+    def test_build_pre_session_summary_with_homework_submissions_and_wellness(self):
+        summary = build_pre_session_summary(self.complete_wellness, now=self.now)
+
+        self.assertEqual(summary["period_label"], "Ultimi 7 giorni")
+        self.assertEqual(summary["homework"]["assigned_count"], 2)
+        self.assertEqual(summary["homework"]["completed_count"], 1)
+        self.assertEqual(summary["homework"]["pending_count"], 1)
+        self.assertEqual(summary["homework"]["overdue_count"], 1)
+        self.assertEqual(len(summary["homework"]["recent_submissions"]), 1)
+        self.assertEqual(summary["wellness"]["recent_entries_count"], 1)
+        self.assertEqual(summary["wellness"]["latest_mood"], "Ansioso")
+        self.assertIn("Dato osservabile", " ".join(summary["discussion_points"]))
+
+    def test_build_pre_session_summary_handles_no_data(self):
+        summary = build_pre_session_summary({}, now=self.now)
+        self.assertEqual(summary["homework"]["assigned_count"], 0)
+        self.assertEqual(summary["homework"]["completed_count"], 0)
+        self.assertEqual(summary["wellness"]["recent_entries_count"], 0)
+        self.assertIn("non risultano nuove compilazioni", " ".join(summary["discussion_points"]).lower())
+
+    def test_build_pre_session_summary_handles_partial_data(self):
+        partial_wellness = {
+            "homework_assignments": [{"id": "a1", "template": "Nota per la seduta", "due_date": "2026-05-25"}],
+            "homework_submissions": [],
+            "mood_entries": [{"data": "2026-05-17", "umore": "Speranzoso", "ansia": 4, "stress": 3}],
+        }
+        summary = build_pre_session_summary(partial_wellness, now=self.now)
+        self.assertEqual(summary["homework"]["pending_count"], 1)
+        self.assertEqual(summary["wellness"]["recent_entries_count"], 1)
+        self.assertEqual(summary["wellness"]["mood_trend_label"], "Dati insufficienti per un trend")
+        forbidden = ["diagnosi", "disturbo", "sintomo", "allarme clinico"]
+        joined = " ".join(summary["discussion_points"]).lower()
+        for term in forbidden:
+            self.assertNotIn(term, joined)
 
 
 if __name__ == "__main__":
