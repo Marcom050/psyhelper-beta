@@ -81,3 +81,6 @@ Set these in **Streamlit Cloud → App settings → Secrets** (and equivalent ba
 - Streamlit Cloud filesystem is **ephemeral**; do not depend on local disk for durable sensitive state.
 - Production-like usage requires managed PostgreSQL and explicit persistence strategy for audit/auth/data-rights artifacts.
 - This setup is for **controlled private beta validation**, not full clinical compliance certification.
+
+## Streamlit watcher setting for deploy
+- In deploy environments, Streamlit file watching is disabled via `.streamlit/config.toml` (`[server] fileWatcherType = "none"`) to avoid `OSError: [Errno 24] inotify instance limit reached` on large repositories.
