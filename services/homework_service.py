@@ -10,35 +10,52 @@ from datetime import UTC, date, datetime
 
 CBT_HOMEWORK_TEMPLATES = {
     "Respiro 3 minuti": {
-        "obiettivo": "Ridurre l'attivazione fisica dell'ansia con una pausa breve e ripetibile.",
-        "campi": ["Fallo una volta. Ansia prima/dopo 0-10 e una parola su com'è andata."],
-        "suggerimento": "Adatto per ansia, tensione e momenti di blocco.",
+        "titolo": "Respiro guidato di 3 minuti",
+        "obiettivo": "Un breve esercizio per fermarti, osservare il momento presente e annotare cosa cambia prima e dopo.",
+        "campi": ["Com'era il tuo stato prima dell'esercizio?"],
+        "suggerimento": "Che cosa hai notato durante i 3 minuti? Com'è il tuo stato adesso?",
     },
     "Pensiero più realistico": {
-        "obiettivo": "Allenare una risposta più equilibrata a un pensiero ansioso o insicuro.",
-        "campi": ["Scrivi: pensiero difficile + risposta più realistica."],
-        "suggerimento": "Utile per ruminazione, catastrofismo e autocritica.",
+        "titolo": "Pensiero più realistico",
+        "obiettivo": "Questa scheda ti aiuta a osservare un pensiero difficile e a formulare una versione più equilibrata.",
+        "campi": ["Quale pensiero difficile hai notato?"],
+        "suggerimento": "Quali elementi lo sostengono? Quali elementi lo mettono in dubbio? Quale pensiero alternativo più realistico puoi formulare?",
     },
     "Piccolo passo evitato": {
-        "obiettivo": "Ridurre l'evitamento con un'azione piccola, sicura e concreta.",
-        "campi": ["Fai un passo di 5 minuti che stavi evitando. Scrivi quale."],
-        "suggerimento": "Utile quando ansia o insicurezza portano a rimandare.",
+        "titolo": "Piccolo passo verso una situazione evitata",
+        "obiettivo": "Questa scheda ti aiuta a scegliere un piccolo passo realistico verso qualcosa che tendi a evitare.",
+        "campi": ["Quale situazione o attività hai evitato?"],
+        "suggerimento": "Quale piccolo passo realistico puoi fare? Quanto ti sembra difficile da 0 a 10?",
     },
     "Tempo per le preoccupazioni": {
-        "obiettivo": "Contenere i pensieri ripetitivi dando loro uno spazio limitato.",
-        "campi": ["Dedica 10 minuti alle preoccupazioni. Scrivi solo le 2 principali."],
-        "suggerimento": "Utile per sovrappensieri, stress e rimuginio serale.",
+        "titolo": "Spazio dedicato alle preoccupazioni",
+        "obiettivo": "Questa scheda ti aiuta a raccogliere le preoccupazioni in uno spazio definito, invece di seguirle per tutta la giornata.",
+        "campi": ["Quali preoccupazioni sono emerse?"],
+        "suggerimento": "Quali sono sotto il tuo controllo, anche solo in parte? Cosa puoi lasciare in sospeso per ora?",
     },
     "Azione di cura": {
-        "obiettivo": "Inserire un gesto semplice che sostenga energia, calma o autostima.",
-        "campi": ["Fai una cosa gentile per te. Scrivi cosa e umore dopo 0-10."],
-        "suggerimento": "Utile per stress, stanchezza e svalutazione di sé.",
+        "titolo": "Azione di cura personale",
+        "obiettivo": "Questa scheda ti aiuta a scegliere una piccola azione concreta di cura verso di te e a osservare l'effetto che ha.",
+        "campi": ["Quale piccola azione di cura hai scelto?"],
+        "suggerimento": "Quando pensi di farla? Com'era il tuo stato prima e com'è stato dopo averla fatta?",
     },
     "Nota per la seduta": {
-        "obiettivo": "Tenere traccia di un punto importante da portare in colloquio.",
-        "campi": ["Scrivi una cosa importante da ricordare in seduta."],
-        "suggerimento": "Da usare quando serve una nota libera e breve.",
+        "titolo": "Nota da portare in seduta",
+        "obiettivo": "Questa scheda ti aiuta a segnare qualcosa che vuoi ricordare o discutere con il terapeuta durante la prossima seduta.",
+        "campi": ["Che cosa vorresti portare in seduta?"],
+        "suggerimento": "Perché ti sembra importante? C'è una domanda o un punto specifico che vuoi affrontare?",
     },
+}
+
+HOMEWORK_STATUS_LABELS = {
+    "assigned": "Assegnato",
+    "submitted": "Inviato",
+    "reviewed": "Revisionato",
+    "expired": "Scaduto",
+    "completed": "Completato",
+    "pending": "Da completare",
+    "draft": "Bozza",
+    "in_progress": "In compilazione",
 }
 
 
@@ -81,7 +98,14 @@ def clean_text(value):
 
 
 def homework_template_label(template_name):
-    return template_name
+    return CBT_HOMEWORK_TEMPLATES.get(template_name, {}).get("titolo", template_name)
+
+
+def format_homework_status_label(status):
+    normalized = clean_text(status).lower().replace(" ", "_")
+    if normalized in HOMEWORK_STATUS_LABELS:
+        return HOMEWORK_STATUS_LABELS[normalized]
+    return clean_text(status) or "Da completare"
 
 
 def homework_questions_for(template_name, assignment=None):
@@ -195,15 +219,15 @@ def get_open_assignments(assignments, submissions):
 
 def assignment_status(assignment, completed_ids, today=None):
     if assignment.get("id") in completed_ids or assignment.get("status") == "completato":
-        return "Completato"
+        return format_homework_status_label("completed")
     due = clean_text(assignment.get("due_date"))
     if due:
         try:
             if date.fromisoformat(due) < (today or date.today()):
-                return "Scaduto"
+                return format_homework_status_label("expired")
         except ValueError:
             pass
-    return "Da completare"
+    return format_homework_status_label("pending")
 
 
 def homework_statuses(assignments, submissions, today=None):

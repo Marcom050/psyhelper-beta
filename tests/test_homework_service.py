@@ -7,7 +7,7 @@ from services import homework_service as homework
 
 
 class HomeworkServiceTest(unittest.TestCase):
-    def test_cbt_homework_templates_are_identical_and_ordered(self):
+    def test_cbt_homework_templates_are_ordered_and_have_italian_visible_copy(self):
         self.assertEqual(
             list(homework.CBT_HOMEWORK_TEMPLATES.keys()),
             [
@@ -19,17 +19,15 @@ class HomeworkServiceTest(unittest.TestCase):
                 "Nota per la seduta",
             ],
         )
-        self.assertEqual(
-            homework.CBT_HOMEWORK_TEMPLATES["Respiro 3 minuti"],
-            {
-                "obiettivo": "Ridurre l'attivazione fisica dell'ansia con una pausa breve e ripetibile.",
-                "campi": ["Fallo una volta. Ansia prima/dopo 0-10 e una parola su com'è andata."],
-                "suggerimento": "Adatto per ansia, tensione e momenti di blocco.",
-            },
-        )
+        respiro = homework.CBT_HOMEWORK_TEMPLATES["Respiro 3 minuti"]
+        self.assertEqual(respiro["titolo"], "Respiro guidato di 3 minuti")
+        self.assertIn("osservare", respiro["obiettivo"].lower())
+        self.assertTrue(homework.clean_text(respiro["campi"][0]))
+        self.assertEqual(homework.homework_template_label("Nota per la seduta"), "Nota da portare in seduta")
+
         self.assertEqual(
             homework.homework_main_prompt("Nota per la seduta"),
-            "Scrivi una cosa importante da ricordare in seduta.",
+            "Che cosa vorresti portare in seduta?",
         )
 
     def test_create_assignment_preserves_existing_wellness_format(self):
@@ -46,8 +44,8 @@ class HomeworkServiceTest(unittest.TestCase):
             {
                 "id": "hw_20260518123045",
                 "template": "Azione di cura",
-                "objective": "Inserire un gesto semplice che sostenga energia, calma o autostima.",
-                "instructions": "Utile per stress, stanchezza e svalutazione di sé.",
+                "objective": "Questa scheda ti aiuta a scegliere una piccola azione concreta di cura verso di te e a osservare l'effetto che ha.",
+                "instructions": "Quando pensi di farla? Com'era il tuo stato prima e com'è stato dopo averla fatta?",
                 "questions": ["Fai una passeggiata e annota l'umore."],
                 "due_date": "2026-05-20",
                 "assigned_at": "2026-05-18T12:30:45",
@@ -156,6 +154,24 @@ class HomeworkServiceTest(unittest.TestCase):
             homework.submitted_homework_rows(submissions),
             [{"data": "2026-05-18T10:00:00", "homework": "Nota per la seduta", "sintesi": "Parlarne in seduta"}],
         )
+
+    def test_homework_templates_avoid_diagnostic_or_automatic_clinical_language(self):
+        forbidden_terms = ["diagnosi", "disturbo", "trattamento automatico", "valutazione clinica automatica"]
+        for template in homework.CBT_HOMEWORK_TEMPLATES.values():
+            visible_text = " ".join([
+                str(template.get("titolo", "")),
+                str(template.get("obiettivo", "")),
+                " ".join(template.get("campi", [])),
+                str(template.get("suggerimento", "")),
+            ]).lower()
+            for term in forbidden_terms:
+                self.assertNotIn(term, visible_text)
+
+    def test_format_homework_status_label_mapping_keeps_internal_statuses_stable(self):
+        self.assertEqual(homework.format_homework_status_label("assigned"), "Assegnato")
+        self.assertEqual(homework.format_homework_status_label("in_progress"), "In compilazione")
+        self.assertEqual(homework.format_homework_status_label("Completato"), "Completato")
+
 
 
 if __name__ == "__main__":
