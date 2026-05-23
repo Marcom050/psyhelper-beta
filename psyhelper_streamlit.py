@@ -615,11 +615,9 @@ def show_monitoring_tab():
 
 
 def show_homework_tab():
-    st.subheader("📚 Homework")
-    st.caption(
-        "Compiti CBT rapidi per monitorare la qualità della vita tra le sedute: "
-        "una consegna chiara, una risposta essenziale, invio immediato al terapeuta."
-    )
+    st.subheader("📚 Esercizi assegnati")
+    st.caption("Qui trovi gli esercizi che il terapeuta ti ha assegnato tra una seduta e l'altra. Puoi compilarli con calma: non servono risposte perfette, ma osservazioni utili da discutere insieme.")
+    st.caption("Queste schede sono strumenti di supporto e monitoraggio da usare nel percorso con il professionista. Non forniscono diagnosi, valutazioni cliniche automatiche o indicazioni di emergenza.")
     ensure_wellness_schema(session_adapter.get_wellness())
 
     assignments, submissions = homework_for(session_adapter.get_username(), session_adapter.get_wellness())
@@ -627,11 +625,11 @@ def show_homework_tab():
     open_assignments = get_open_assignments(assignments, submissions)
 
     if open_assignments:
-        st.markdown("### Da completare")
+        st.markdown("### Esercizi da completare")
         selected_assignment = st.selectbox(
             "Scegli il compito",
             open_assignments,
-            format_func=lambda item: f"{item.get('template', 'Homework')} · {assignment_status(item, completed_ids).lower()} · scadenza {item.get('due_date', 'non indicata')}",
+            format_func=lambda item: f"{homework_template_label(item.get('template', 'Homework'))} · {assignment_status(item, completed_ids).lower()} · scadenza {item.get('due_date', 'non indicata')}",
         )
         template_name = selected_assignment.get("template")
         template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
@@ -654,14 +652,15 @@ def show_homework_tab():
                     prompt,
                     answer,
                 ):
-                    st.success("Homework inviato. Il terapeuta vedrà solo la sintesi e la risposta essenziale.")
+                    st.success("Esercizio inviato. Il terapeuta vedrà la sintesi e la tua risposta.")
                     st.rerun()
     else:
-        st.info("Non ci sono homework assegnati aperti. Puoi comunque salvare un check-in breve da portare in seduta.")
+        st.info("Non ci sono esercizi assegnati aperti. Puoi comunque salvare una nota breve da portare in seduta.")
 
-    with st.expander("➕ Check-in o nota libera", expanded=not open_assignments):
+    with st.expander("➕ Nota libera o check-in", expanded=not open_assignments):
+        st.caption("Usa questo spazio solo se vuoi lasciare una nota libera o un aggiornamento non collegato a un esercizio specifico.")
         selected = st.selectbox(
-            "Tipo di check-in",
+            "Tipo di nota",
             list(CBT_HOMEWORK_TEMPLATES.keys()),
             format_func=homework_template_label,
         )
@@ -684,16 +683,15 @@ def show_homework_tab():
                     prompt,
                     answer,
                 ):
-                    st.success("Check-in salvato.")
+                    st.success("Nota salvata.")
 
     if submissions:
-        with st.expander("Storico essenziale homework e note"):
+        with st.expander("Storico essenziale esercizi e note"):
             rows = submitted_homework_rows(submissions, display_defaults=False)
             for row in rows:
                 with st.container(border=True):
-                    st.markdown(f"**{row.get('template', 'Homework')}** · {row.get('data', 'Data non disponibile')}")
-                    st.write(f"Stato: {row.get('stato', 'n/d')}")
-                    st.write(f"Sintesi: {row.get('risposta', 'n/d')}")
+                    st.markdown(f"**{homework_template_label(row.get('homework', 'Homework'))}** · {row.get('data', 'Data non disponibile')}")
+                    st.write(f"Sintesi: {row.get('sintesi', 'n/d')}")
 
 def show_report_tab():
     st.subheader("📋 Resoconto per colloqui psicologici")
@@ -974,8 +972,8 @@ def show_therapist_dashboard():
                 st.write("\n".join(f"- {thought}" for thought in recent_thoughts if str(thought).strip()) or "Nessun pensiero inserito.")
 
     with detail_tabs[2]:
-        st.markdown("### Homework CBT qualità di vita")
-        st.caption("Assegna un compito essenziale: modello, scadenza e una consegna già pronta. Il controllo mostra subito stato e sintesi.")
+        st.markdown("### Esercizi tra le sedute")
+        st.caption("Assegna esercizi brevi al cliente e consulta le risposte prima della seduta successiva.")
         assignments, submissions = homework_for(selected_username, selected_wellness)
         completed_ids = completed_assignment_ids(submissions)
 
@@ -983,7 +981,7 @@ def show_therapist_dashboard():
         with assign_col:
             with st.form("assign_homework"):
                 template_name = st.selectbox(
-                    "Compito CBT",
+                    "Esercizio",
                     list(CBT_HOMEWORK_TEMPLATES.keys()),
                     format_func=homework_template_label,
                 )
@@ -1000,23 +998,33 @@ def show_therapist_dashboard():
                 )
                 if st.form_submit_button("Assegna", use_container_width=True):
                     if assign_homework_for(selected_username, username, selected_wellness, template_name, due_date, prompt):
-                        st.success("Homework assegnato.")
+                        st.success("Esercizio assegnato.")
                         st.rerun()
 
         with monitor_col:
-            st.metric("Completati", f"{selected_snapshot['homework_completed']} / {selected_snapshot['homework_total']}")
+            total = selected_snapshot["homework_total"]
+            completed = selected_snapshot["homework_completed"]
+            pending = max(total - completed, 0)
+            rate = selected_snapshot["homework_compliance"]
+            m1, m2 = st.columns(2)
+            m3, m4 = st.columns(2)
+            m1.metric("Esercizi assegnati", total)
+            m2.metric("Esercizi completati", completed)
+            m3.metric("Da completare", pending)
+            m4.metric("Tasso di completamento", f"{rate:.0f}%")
             if assignments:
                 st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
             else:
                 st.info(empty_state_message("homework_assigned"))
 
         if submissions:
-            st.markdown("#### Ultime risposte")
+            st.markdown("#### Risposte inviate dal cliente")
             response_rows = submitted_homework_rows(submissions)
             st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
-            with st.expander("Apri risposte complete", expanded=False):
+            with st.expander("Dettaglio risposta", expanded=False):
+                st.caption("Punti da riprendere in seduta: osservazioni utili, elementi ricorrenti da esplorare, dati da discutere insieme.")
                 for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
-                    st.markdown(f"**{submission.get('template', 'Homework')} · {submission.get('submitted_at', '—')}**")
+                    st.markdown(f"**{homework_template_label(submission.get('template', 'Homework'))} · {submission.get('submitted_at', '—')}**")
                     render_homework_answers(submission)
         else:
             st.info(empty_state_message("homework_submissions"))
