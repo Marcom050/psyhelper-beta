@@ -163,8 +163,12 @@ if not session_adapter.is_beta_disclaimer_accepted():
     st.warning("Prima di usare o creare un account devi accettare le condizioni della beta commerciale controllata.")
     st.markdown("### Condizioni d'uso beta commerciale controllata")
     st.info(BETA_DISCLAIMER_TEXT)
+    st.info(
+        "© PsyHelper. Il prodotto e il concept sono coperti da copyright e diritto d'autore. "
+        "È vietata la riproduzione totale o parziale senza autorizzazione scritta."
+    )
     accepted = st.checkbox(
-        "Ho letto e accetto: userò PsyHelper solo come professionista autorizzato con account attivo, non lo userò per emergenze, inserirò solo dati necessari e resterò responsabile delle decisioni cliniche e degli obblighi privacy/legal.",
+        "Ho letto e accetto: userò PsyHelper solo come professionista autorizzato con account attivo, non lo userò per emergenze, inserirò solo dati necessari, resterò responsabile delle decisioni cliniche e degli obblighi privacy/legal e riconosco che prodotto/concept sono tutelati da copyright con divieto di riproduzione totale o parziale.",
         key="beta_disclaimer_acceptance_checkbox",
     )
     if st.button("Accetta e continua", use_container_width=True, disabled=not accepted):
