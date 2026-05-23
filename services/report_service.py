@@ -257,6 +257,99 @@ def weekly_recap(report: ClinicalReport | Mapping[str, Any]) -> WeeklyRecap:
         *report["insights"][:4],
     ])
 
+def build_pre_session_summary(
+    wellness: Mapping[str, Any] | None,
+    *,
+    now=None,
+    recent_days: int = 7,
+    max_recent_submissions: int = 3,
+) -> dict[str, Any]:
+    """Build a concise, non-diagnostic summary for therapist pre-session review."""
+
+    wellness = wellness or {}
+    today = _normalized_today(now)
+    recent_cutoff = today - pd.Timedelta(days=recent_days)
+
+    assignments = list(wellness.get("homework_assignments", []))
+    submissions = list(wellness.get("homework_submissions", []))
+    mood_df = mood_entries_dataframe(wellness)
+
+    submission_ids = {item.get("assignment_id") for item in submissions if item.get("assignment_id")}
+    completed_count = len([item for item in assignments if item.get("id") in submission_ids or item.get("status") == "completato"])
+    assigned_count = len(assignments)
+    pending_count = max(assigned_count - completed_count, 0)
+    overdue_count = 0
+    for assignment in assignments:
+        assignment_id = assignment.get("id")
+        if assignment_id in submission_ids:
+            continue
+        due_date = pd.to_datetime(assignment.get("due_date"), errors="coerce")
+        if pd.notna(due_date) and due_date.normalize() < today:
+            overdue_count += 1
+
+    by_assignment_id = {item.get("id"): item for item in assignments if item.get("id")}
+    recent_submissions = []
+    for submission in sorted(submissions, key=lambda item: str(item.get("submitted_at", "")), reverse=True)[:max_recent_submissions]:
+        assignment = by_assignment_id.get(submission.get("assignment_id"), {})
+        snippet_source = submission.get("summary") or " ".join(str(value) for value in (submission.get("answers") or {}).values())
+        safe_snippet = " ".join(str(snippet_source).split())
+        if len(safe_snippet) > 160:
+            safe_snippet = f"{safe_snippet[:157]}..."
+        recent_submissions.append({
+            "title": submission.get("template") or assignment.get("template") or "Esercizio",
+            "submitted_at": submission.get("submitted_at") or "—",
+            "snippet": safe_snippet or "Risposta disponibile senza sintesi.",
+        })
+
+    recent_mood_df = mood_df[mood_df["data"] >= recent_cutoff] if not mood_df.empty else pd.DataFrame()
+    recent_entries_count = len(recent_mood_df)
+    latest_mood = None
+    mood_trend_label = "Dati insufficienti per un trend"
+    if not mood_df.empty:
+        latest_row = mood_df.iloc[-1]
+        latest_mood = latest_row.get("umore")
+    if len(recent_mood_df) >= 2:
+        first_value = recent_mood_df.iloc[0].get("ansia")
+        last_value = recent_mood_df.iloc[-1].get("ansia")
+        if isinstance(first_value, (int, float)) and isinstance(last_value, (int, float)):
+            if abs(last_value - first_value) < 1:
+                mood_trend_label = "Andamento recente stabile"
+            else:
+                mood_trend_label = "Possibile variazione da esplorare"
+
+    discussion_points: list[str] = []
+    if pending_count > 0:
+        discussion_points.append("Dato osservabile: sono presenti esercizi assegnati non ancora completati.")
+    if recent_submissions:
+        discussion_points.append("Dato osservabile: è stata inviata una risposta recente a un esercizio.")
+    if recent_entries_count >= 2:
+        discussion_points.append("Dato osservabile: sono presenti più check-in recenti nel periodo.")
+    if recent_entries_count == 0:
+        discussion_points.append("Dato osservabile: non risultano nuove compilazioni nel periodo recente.")
+    if not assignments and not submissions and recent_entries_count == 0:
+        discussion_points.append("Può essere utile raccogliere nuovi dati recenti prima della seduta.")
+
+    return {
+        "period_label": f"Ultimi {recent_days} giorni",
+        "homework": {
+            "assigned_count": assigned_count,
+            "completed_count": completed_count,
+            "pending_count": pending_count,
+            "overdue_count": overdue_count,
+            "recent_submissions": recent_submissions,
+        },
+        "wellness": {
+            "recent_entries_count": recent_entries_count,
+            "latest_mood": latest_mood,
+            "mood_trend_label": mood_trend_label,
+        },
+        "discussion_points": discussion_points,
+        "non_diagnostic_notice": (
+            "Questo riepilogo organizza informazioni inserite dal cliente e non fornisce diagnosi, "
+            "valutazioni cliniche automatiche o indicazioni di emergenza."
+        ),
+    }
+
 
 def build_timeline_events(wellness: Mapping[str, Any] | None) -> list[dict[str, Any]]:
     wellness = wellness or {}
