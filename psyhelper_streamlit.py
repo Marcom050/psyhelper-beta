@@ -60,6 +60,12 @@ from services.subscription_service import (
     trial_days_remaining,
     trial_expires_at,
 )
+from services.post_consultation_onboarding_service import (
+    build_second_session_summary,
+    ensure_post_consultation_onboarding,
+    progress as post_consultation_progress,
+    save_step as save_post_consultation_step,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -940,6 +946,26 @@ def show_therapist_dashboard():
         )
 
     st.markdown(f"## {selected_patient_name}")
+    selected_onboarding = ensure_post_consultation_onboarding(selected_wellness) if selected_profile.get("free_consultation_completed", False) else None
+    if selected_onboarding:
+        done, total = post_consultation_progress(selected_onboarding)
+        st.markdown("### Onboarding post-colloquio gratuito")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Stato", selected_onboarding.get("status", "active"))
+        c2.metric("Step completati", f"{done}/{total}")
+        c3.metric("Scadenza", (selected_onboarding.get("expires_at") or "—")[:10])
+        if st.button("Apri riepilogo seconda seduta", use_container_width=True):
+            summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
+            st.info(summary.get("disclaimer", ""))
+            st.json({
+                "baseline": summary.get("baseline", {}),
+                "obiettivi": summary.get("goals", {}),
+                "diary": summary.get("diary", {}),
+                "cbt_entry": summary.get("cbt_entry", {}),
+                "nota_prossima_seduta": summary.get("next_session_note", {}),
+                "punti_da_riprendere": summary.get("points_to_resume", ""),
+            })
+
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     kpi1.metric("Ansia media", f"{selected_snapshot['avg_anxiety']:.1f}/10")
     kpi2.metric("Stress medio", f"{selected_snapshot['avg_stress']:.1f}/10")
@@ -1290,41 +1316,40 @@ def render_post_free_consultation_onboarding_or_stop():
     profile = session_adapter.get_profile()
     if not profile.get("free_consultation_completed", False):
         return
-    if profile.get("post_free_consultation_onboarding_completed", False):
+
+    wellness = session_adapter.get_wellness()
+    onboarding = ensure_post_consultation_onboarding(wellness)
+    completed_steps, total_steps = post_consultation_progress(onboarding)
+    if onboarding.get("status") == "completed":
+        if not profile.get("post_free_consultation_onboarding_completed", False):
+            session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": True})
+            save_user_data(session_adapter.get_username())
         return
 
-    st.markdown("**Bentornato.** Concludiamo il passaggio dopo la consulenza gratuita.")
-    st.info(
-        "Aggiorna il tuo piano personale: queste informazioni aiutano il terapeuta a "
-        "preparare il percorso successivo."
-    )
+    st.markdown("### Prepariamoci alla prossima seduta")
+    st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
+    st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
 
     with st.form("post_free_consultation_onboarding"):
-        percorso = st.selectbox(
-            "Come vuoi proseguire dopo la consulenza gratuita?",
-            [
-                "Percorso individuale con il terapeuta",
-                "Sessioni periodiche + homework guidato",
-                "Sto valutando e voglio solo monitorare i progressi",
-            ],
-        )
-        priorita = st.text_area(
-            "Qual è la priorità clinica principale per le prossime 2-4 settimane?"
-        )
-        disponibilita = st.selectbox(
-            "Disponibilità media per attività tra una seduta e l'altra",
-            ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"],
-        )
+        umore_base = st.slider("Baseline: umore medio settimana (1-10)", 1, 10, 5)
+        stress_base = st.slider("Baseline: stress medio settimana (1-10)", 1, 10, 5)
+        obiettivi = st.text_area("Obiettivi paziente (2-4 settimane)")
+        diario_3_giorni = st.text_area("Diario guidato 3 giorni (sintesi)")
+        cbt_leggera = st.text_area("Prima scheda CBT leggera (pensiero-risposta alternativa)")
+        nota_prossima = st.text_area("Nota per prossima seduta e punti da riprendere")
+        percorso = st.selectbox("Track di prosecuzione", ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"])
+        priorita = st.text_area("Priorità breve termine")
+        disponibilita = st.selectbox("Disponibilità media", ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"])
         if st.form_submit_button("Conferma piano post-consulenza", use_container_width=True):
-            session_adapter.set_profile(
-                {
-                    **profile,
-                    "post_free_consultation_track": percorso,
-                    "post_free_consultation_priority": priorita.strip(),
-                    "post_free_consultation_time_commitment": disponibilita,
-                    "post_free_consultation_onboarding_completed": True,
-                }
-            )
+            save_post_consultation_step(onboarding, "baseline", {"mood": umore_base, "stress": stress_base})
+            save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
+            save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
+            save_post_consultation_step(onboarding, "cbt", {"entry": cbt_leggera.strip()})
+            save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
+            build_second_session_summary(onboarding)
+            completed_steps_after, total_after = post_consultation_progress(onboarding)
+            session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": completed_steps_after == total_after})
+            session_adapter.set_wellness(wellness)
             save_user_data(session_adapter.get_username())
             session_adapter.set_scroll_to_top(True)
             st.rerun()
