@@ -361,7 +361,6 @@ def render_second_session_summary(summary):
         "Baseline iniziale": summary.get("baseline", {}),
         "Obiettivi del paziente": summary.get("goals", {}),
         "Diario guidato": summary.get("diary", {}),
-        "Prima scheda CBT": summary.get("cbt_entry", {}),
         "Nota per la prossima seduta": summary.get("next_session_note", {}),
         "Punti suggeriti da riprendere": summary.get("points_to_resume", ""),
     }
@@ -371,7 +370,19 @@ def render_second_session_summary(summary):
             "Il paziente non ha ancora completato i passaggi. Il riepilogo si aggiornerà man mano che verranno inserite nuove informazioni."
         )
         return
-    st.json(sections)
+    for title, content in sections.items():
+        if not content:
+            continue
+        with st.container(border=True):
+            st.markdown(f"**{title}**")
+            if isinstance(content, dict):
+                for key, value in content.items():
+                    if value is None or (isinstance(value, str) and not value.strip()):
+                        continue
+                    label = str(key).replace("_", " ").capitalize()
+                    st.write(f"• **{label}:** {value}")
+            else:
+                st.write(content)
 
 def scroll_to_top():
     st.html(
@@ -1422,7 +1433,6 @@ def render_post_free_consultation_onboarding_or_stop():
         stress_base = st.slider("Baseline: stress medio settimana (1-10)", 1, 10, 5)
         obiettivi = st.text_area("Obiettivi paziente (2-4 settimane)")
         diario_3_giorni = st.text_area("Diario guidato 3 giorni (sintesi)")
-        cbt_leggera = st.text_area("Prima scheda CBT leggera (pensiero-risposta alternativa)")
         nota_prossima = st.text_area("Nota per prossima seduta e punti da riprendere")
         percorso = st.selectbox("Track di prosecuzione", ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"])
         priorita = st.text_area("Priorità breve termine")
@@ -1431,7 +1441,7 @@ def render_post_free_consultation_onboarding_or_stop():
             save_post_consultation_step(onboarding, "baseline", {"mood": umore_base, "stress": stress_base})
             save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
             save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
-            save_post_consultation_step(onboarding, "cbt", {"entry": cbt_leggera.strip()})
+            save_post_consultation_step(onboarding, "cbt", {"entry": ""})
             save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
             build_second_session_summary(onboarding)
             completed_steps_after, total_after = post_consultation_progress(onboarding)
