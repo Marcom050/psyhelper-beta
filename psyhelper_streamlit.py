@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import logging
 
 import pandas as pd
@@ -317,10 +317,8 @@ def onboarding_progress_label(onboarding):
 
 def onboarding_primary_cta(status):
     normalized = (status or "").lower()
-    if normalized in {"active", "completed"}:
+    if normalized in {"active", "completed", "expired"}:
         return "Apri riepilogo seconda seduta"
-    if normalized == "expired":
-        return "Visualizza dati raccolti"
     return None
 
 
@@ -1049,12 +1047,24 @@ def show_therapist_dashboard():
             c2.metric("Progresso", onboarding_progress_label(selected_onboarding))
             c3.metric("Scadenza", (selected_onboarding.get("expires_at") or "—")[:10])
             cta_label = onboarding_primary_cta(status)
+            onboarding_key = selected_onboarding.get("id") or selected_username
+            panel_state_key = f"therapist_onboarding_summary_open_{selected_username}_{onboarding_key}"
+            if panel_state_key not in st.session_state:
+                st.session_state[panel_state_key] = False
             if cta_label and st.button(cta_label, use_container_width=True):
+                st.session_state[panel_state_key] = True
+            if st.session_state.get(panel_state_key):
                 summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
                 save_wellness_for(selected_username, selected_wellness)
-                render_second_session_summary(summary)
+                with st.container(border=True):
+                    close_col, _ = st.columns([1, 4])
+                    with close_col:
+                        if st.button("Chiudi riepilogo", key=f"close_onboarding_summary_{selected_username}_{onboarding_key}"):
+                            st.session_state[panel_state_key] = False
+                            st.rerun()
+                    render_second_session_summary(summary)
             if status == "active":
-                st.caption("Il paziente può completare i passaggi dalla propria dashboard.")
+                st.caption("Il paziente può compilarlo in autonomia quando preferisce, anche a più riprese.")
             elif status == "completed":
                 st.caption("Il materiale è pronto per essere usato come punto di partenza nella prossima seduta.")
 
@@ -1424,33 +1434,50 @@ def render_post_free_consultation_onboarding_or_stop():
         return
 
     completed_steps, total_steps = post_consultation_progress(onboarding)
+    steps = onboarding.get("steps", {})
+    baseline_data = steps.get("baseline", {}).get("data", {})
+    goals_data = steps.get("goals", {}).get("data", {})
+    diary_data = steps.get("diary", {}).get("data", {})
+    note_data = steps.get("next_session_note", {}).get("data", {})
+
     st.markdown("### Prepariamoci alla prossima seduta")
-    st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
+    st.warning("Suggerimento del terapeuta: completa questo percorso quando vuoi. Puoi salvare in bozza e inviare il riepilogo solo quando ti senti pronto.")
     st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
 
     with st.form("post_free_consultation_onboarding"):
-        umore_base = st.slider("Baseline: umore medio settimana (1-10)", 1, 10, 5)
-        stress_base = st.slider("Baseline: stress medio settimana (1-10)", 1, 10, 5)
-        obiettivi = st.text_area("Obiettivi paziente (2-4 settimane)")
-        diario_3_giorni = st.text_area("Diario guidato 3 giorni (sintesi)")
-        nota_prossima = st.text_area("Nota per prossima seduta e punti da riprendere")
-        percorso = st.selectbox("Track di prosecuzione", ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"])
-        priorita = st.text_area("Priorità breve termine")
-        disponibilita = st.selectbox("Disponibilità media", ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"])
-        if st.form_submit_button("Conferma piano post-consulenza", use_container_width=True):
+        umore_base = st.slider("Baseline: umore medio settimana (1-10)", 1, 10, int(baseline_data.get("mood") or 5))
+        stress_base = st.slider("Baseline: stress medio settimana (1-10)", 1, 10, int(baseline_data.get("stress") or 5))
+        obiettivi = st.text_area("Obiettivi paziente (2-4 settimane)", value=goals_data.get("goals_text", ""))
+        diario_3_giorni = st.text_area("Diario guidato 3 giorni (sintesi)", value=diary_data.get("guided_3_days", ""))
+        nota_prossima = st.text_area("Nota per prossima seduta e punti da riprendere", value=note_data.get("note", ""))
+        percorso_options = ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"]
+        percorso_saved = goals_data.get("track")
+        percorso_index = percorso_options.index(percorso_saved) if percorso_saved in percorso_options else 0
+        percorso = st.selectbox("Track di prosecuzione", percorso_options, index=percorso_index)
+        priorita = st.text_area("Priorità breve termine", value=goals_data.get("short_term_priority", ""))
+        disponibilita_options = ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"]
+        disponibilita_saved = goals_data.get("time_commitment")
+        disponibilita_index = disponibilita_options.index(disponibilita_saved) if disponibilita_saved in disponibilita_options else 0
+        disponibilita = st.selectbox("Disponibilità media", disponibilita_options, index=disponibilita_index)
+
+        save_draft = st.form_submit_button("Salva bozza", use_container_width=True)
+        submit_to_therapist = st.form_submit_button("Invia al terapeuta", use_container_width=True)
+        if save_draft or submit_to_therapist:
             save_post_consultation_step(onboarding, "baseline", {"mood": umore_base, "stress": stress_base})
             save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
             save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
             save_post_consultation_step(onboarding, "cbt", {"entry": ""})
             save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
+            if submit_to_therapist:
+                onboarding["submitted_to_therapist_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
             build_second_session_summary(onboarding)
             completed_steps_after, total_after = post_consultation_progress(onboarding)
             session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": completed_steps_after == total_after})
             session_adapter.set_wellness(wellness)
             save_user_data(session_adapter.get_username())
+            st.success("Bozza salvata automaticamente." if save_draft else "Riepilogo inviato al terapeuta.")
             session_adapter.set_scroll_to_top(True)
             st.rerun()
-    st.stop()
 
 
 def render_client_app_tabs():
