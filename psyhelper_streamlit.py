@@ -331,6 +331,28 @@ def find_existing_post_consultation_onboarding(wellness):
     return None
 
 
+def find_active_post_consultation_onboarding(wellness):
+    for onboarding in (wellness or {}).get("post_consultation_onboardings", []):
+        if (onboarding.get("status") or "").lower() == "active":
+            return onboarding
+    return None
+
+
+def patient_onboarding_visibility_state(wellness, profile):
+    active = find_active_post_consultation_onboarding(wellness)
+    if active:
+        return "active", active
+    existing = find_existing_post_consultation_onboarding(wellness)
+    if existing and (existing.get("status") or "").lower() in {"completed", "expired"}:
+        return (existing.get("status") or "").lower(), existing
+    return "hidden", None
+
+
+def should_show_patient_post_consultation_onboarding(wellness, profile):
+    state, _ = patient_onboarding_visibility_state(wellness, profile)
+    return state == "active"
+
+
 def render_second_session_summary(summary):
     disclaimer = summary.get("disclaimer", "")
     if disclaimer:
@@ -1373,18 +1395,24 @@ def render_onboarding_or_stop():
 
 def render_post_free_consultation_onboarding_or_stop():
     profile = session_adapter.get_profile()
-    if not profile.get("free_consultation_completed", False):
+    wellness = session_adapter.get_wellness()
+
+    visibility_state, onboarding = patient_onboarding_visibility_state(wellness, profile)
+    if visibility_state == "hidden" or onboarding is None:
         return
 
-    wellness = session_adapter.get_wellness()
-    onboarding = ensure_post_consultation_onboarding(wellness)
-    completed_steps, total_steps = post_consultation_progress(onboarding)
-    if onboarding.get("status") == "completed":
+    if visibility_state == "completed":
         if not profile.get("post_free_consultation_onboarding_completed", False):
             session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": True})
             save_user_data(session_adapter.get_username())
         return
 
+    if visibility_state == "expired":
+        st.markdown("### Prepariamoci alla prossima seduta")
+        st.warning("La preparazione risulta scaduta. Parla con il terapeuta se vuoi riattivarla.")
+        return
+
+    completed_steps, total_steps = post_consultation_progress(onboarding)
     st.markdown("### Prepariamoci alla prossima seduta")
     st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
     st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
