@@ -1286,6 +1286,51 @@ def render_onboarding_or_stop():
     st.stop()
 
 
+def render_post_free_consultation_onboarding_or_stop():
+    profile = session_adapter.get_profile()
+    if not profile.get("free_consultation_completed", False):
+        return
+    if profile.get("post_free_consultation_onboarding_completed", False):
+        return
+
+    st.markdown("**Bentornato.** Concludiamo il passaggio dopo la consulenza gratuita.")
+    st.info(
+        "Aggiorna il tuo piano personale: queste informazioni aiutano il terapeuta a "
+        "preparare il percorso successivo."
+    )
+
+    with st.form("post_free_consultation_onboarding"):
+        percorso = st.selectbox(
+            "Come vuoi proseguire dopo la consulenza gratuita?",
+            [
+                "Percorso individuale con il terapeuta",
+                "Sessioni periodiche + homework guidato",
+                "Sto valutando e voglio solo monitorare i progressi",
+            ],
+        )
+        priorita = st.text_area(
+            "Qual è la priorità clinica principale per le prossime 2-4 settimane?"
+        )
+        disponibilita = st.selectbox(
+            "Disponibilità media per attività tra una seduta e l'altra",
+            ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"],
+        )
+        if st.form_submit_button("Conferma piano post-consulenza", use_container_width=True):
+            session_adapter.set_profile(
+                {
+                    **profile,
+                    "post_free_consultation_track": percorso,
+                    "post_free_consultation_priority": priorita.strip(),
+                    "post_free_consultation_time_commitment": disponibilita,
+                    "post_free_consultation_onboarding_completed": True,
+                }
+            )
+            save_user_data(session_adapter.get_username())
+            session_adapter.set_scroll_to_top(True)
+            st.rerun()
+    st.stop()
+
+
 def render_client_app_tabs():
     app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
     with app_tabs[0]:
@@ -1336,6 +1381,7 @@ def render_authenticated_app():
 
     ensure_subscription_or_stop(current_metadata)
     render_onboarding_or_stop()
+    render_post_free_consultation_onboarding_or_stop()
     render_client_app_tabs()
     render_client_footer_actions()
 

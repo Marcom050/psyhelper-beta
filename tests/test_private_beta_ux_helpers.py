@@ -156,6 +156,16 @@ def test_patient_selector_dialog_open_state_is_persistent():
     assert 'if _patient_selector_dialog_open():' in source
 
 
+def test_post_free_consultation_onboarding_gate_exists():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "def render_post_free_consultation_onboarding_or_stop():" in source
+    assert 'if not profile.get("free_consultation_completed", False):' in source
+    assert 'if profile.get("post_free_consultation_onboarding_completed", False):' in source
+    assert 'with st.form("post_free_consultation_onboarding"):' in source
+    assert '"post_free_consultation_onboarding_completed": True' in source
+    assert "render_post_free_consultation_onboarding_or_stop()" in source
+
+
 def test_logout_cleanup_persists_and_prevents_chat_rehydration(monkeypatch):
     saved_messages = [{"role": "user", "content": "messaggio vecchio"}]
     app.session_adapter.set_username("cliente-test")
