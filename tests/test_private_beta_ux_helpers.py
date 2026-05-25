@@ -159,9 +159,9 @@ def test_patient_selector_dialog_open_state_is_persistent():
 def test_post_free_consultation_onboarding_gate_exists():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert "def render_post_free_consultation_onboarding_or_stop():" in source
-    assert 'if not profile.get("free_consultation_completed", False):' in source
-    assert "ensure_post_consultation_onboarding(wellness)" in source
-    assert 'if onboarding.get("status") == "completed":' in source
+    assert "patient_onboarding_visibility_state(wellness, profile)" in source
+    assert "find_active_post_consultation_onboarding(wellness)" in source
+    assert "if visibility_state == \"completed\":" in source
     assert 'with st.form("post_free_consultation_onboarding"):' in source
     assert '"post_free_consultation_onboarding_completed": completed_steps_after == total_after' in source
     assert "render_post_free_consultation_onboarding_or_stop()" in source
@@ -195,9 +195,26 @@ def test_find_existing_onboarding_does_not_depend_on_legacy_flag():
     }
     selected = app.find_existing_post_consultation_onboarding(wellness)
     assert selected["id"] == "old"
+    active = app.find_active_post_consultation_onboarding(wellness)
+    assert active["id"] == "active-one"
     profile = {"post_free_consultation_onboarding_completed": True}
-    assert profile["post_free_consultation_onboarding_completed"] is True
-    assert selected["status"] in {"active", "completed", "expired"}
+    assert app.should_show_patient_post_consultation_onboarding(wellness, profile) is True
+
+
+def test_patient_visibility_state_active_even_without_free_consultation_flag():
+    wellness = {"post_consultation_onboardings": [{"id": "a1", "status": "active"}]}
+    state, item = app.patient_onboarding_visibility_state(wellness, profile={})
+    assert state == "active"
+    assert item["id"] == "a1"
+
+
+def test_patient_visibility_completed_and_expired_hide_active_form():
+    completed_wellness = {"post_consultation_onboardings": [{"id": "c1", "status": "completed"}]}
+    expired_wellness = {"post_consultation_onboardings": [{"id": "e1", "status": "expired"}]}
+    assert app.should_show_patient_post_consultation_onboarding(completed_wellness, {}) is False
+    assert app.should_show_patient_post_consultation_onboarding(expired_wellness, {}) is False
+    assert app.patient_onboarding_visibility_state(completed_wellness, {})[0] == "completed"
+    assert app.patient_onboarding_visibility_state(expired_wellness, {})[0] == "expired"
 
 
 def test_logout_cleanup_persists_and_prevents_chat_rehydration(monkeypatch):
