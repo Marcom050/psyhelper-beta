@@ -384,6 +384,22 @@ def render_second_session_summary(summary):
             else:
                 st.write(content)
 
+def _client_onboarding_panel_open():
+    return st.session_state.get("client_second_session_panel_open", False)
+
+
+def _set_client_onboarding_panel_open(value):
+    st.session_state["client_second_session_panel_open"] = bool(value)
+
+
+def _therapist_second_session_summary_open():
+    return st.session_state.get("therapist_second_session_summary_open", False)
+
+
+def _set_therapist_second_session_summary_open(value):
+    st.session_state["therapist_second_session_summary_open"] = bool(value)
+
+
 def scroll_to_top():
     st.html(
         """
@@ -1050,9 +1066,14 @@ def show_therapist_dashboard():
             c3.metric("Scadenza", (selected_onboarding.get("expires_at") or "—")[:10])
             cta_label = onboarding_primary_cta(status)
             if cta_label and st.button(cta_label, use_container_width=True):
+                _set_therapist_second_session_summary_open(True)
+            if _therapist_second_session_summary_open():
                 summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
                 save_wellness_for(selected_username, selected_wellness)
                 render_second_session_summary(summary)
+                if st.button("Chiudi riepilogo", key="therapist_close_second_session_summary", use_container_width=True):
+                    _set_therapist_second_session_summary_open(False)
+                    st.rerun()
             if status == "active":
                 st.caption("Il paziente può completare i passaggi dalla propria dashboard.")
             elif status == "completed":
@@ -1418,13 +1439,28 @@ def render_post_free_consultation_onboarding_or_stop():
             save_user_data(session_adapter.get_username())
         return
 
+    st.markdown("### Prepariamoci alla prossima seduta")
     if visibility_state == "expired":
-        st.markdown("### Prepariamoci alla prossima seduta")
         st.warning("La preparazione risulta scaduta. Parla con il terapeuta se vuoi riattivarla.")
         return
 
     completed_steps, total_steps = post_consultation_progress(onboarding)
-    st.markdown("### Prepariamoci alla prossima seduta")
+    st.warning(
+        f"Hai una preparazione seconda seduta attiva ({completed_steps}/{total_steps}). "
+        "Puoi aprirla e completarla quando vuoi dalla dashboard."
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Apri preparazione seconda seduta", use_container_width=True):
+            _set_client_onboarding_panel_open(True)
+    with c2:
+        if _client_onboarding_panel_open() and st.button("Chiudi preparazione", use_container_width=True):
+            _set_client_onboarding_panel_open(False)
+            st.rerun()
+
+    if not _client_onboarding_panel_open():
+        return
+
     st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
     st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
 
@@ -1450,7 +1486,6 @@ def render_post_free_consultation_onboarding_or_stop():
             save_user_data(session_adapter.get_username())
             session_adapter.set_scroll_to_top(True)
             st.rerun()
-    st.stop()
 
 
 def render_client_app_tabs():
