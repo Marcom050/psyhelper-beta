@@ -160,9 +160,10 @@ def test_post_free_consultation_onboarding_gate_exists():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert "def render_post_free_consultation_onboarding_or_stop():" in source
     assert 'if not profile.get("free_consultation_completed", False):' in source
-    assert 'if profile.get("post_free_consultation_onboarding_completed", False):' in source
+    assert "ensure_post_consultation_onboarding(wellness)" in source
+    assert 'if onboarding.get("status") == "completed":' in source
     assert 'with st.form("post_free_consultation_onboarding"):' in source
-    assert '"post_free_consultation_onboarding_completed": True' in source
+    assert '"post_free_consultation_onboarding_completed": completed_steps_after == total_after' in source
     assert "render_post_free_consultation_onboarding_or_stop()" in source
 
 
