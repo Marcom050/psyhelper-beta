@@ -304,6 +304,53 @@ def role_nav_sections(role):
         return therapist_sections + admin_sections
     return ["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"]
 
+
+def onboarding_status_label(status):
+    labels = {"active": "Attivo", "completed": "Completato", "expired": "Scaduto"}
+    return labels.get((status or "").lower(), "Non disponibile")
+
+
+def onboarding_progress_label(onboarding):
+    completed, total = post_consultation_progress(onboarding or {})
+    return f"{completed}/{total} step completati"
+
+
+def onboarding_primary_cta(status):
+    normalized = (status or "").lower()
+    if normalized in {"active", "completed"}:
+        return "Apri riepilogo seconda seduta"
+    if normalized == "expired":
+        return "Visualizza dati raccolti"
+    return None
+
+
+def find_existing_post_consultation_onboarding(wellness):
+    for onboarding in (wellness or {}).get("post_consultation_onboardings", []):
+        if onboarding.get("status") in {"active", "completed", "expired"}:
+            return onboarding
+    return None
+
+
+def render_second_session_summary(summary):
+    disclaimer = summary.get("disclaimer", "")
+    if disclaimer:
+        st.info(disclaimer)
+    sections = {
+        "Baseline iniziale": summary.get("baseline", {}),
+        "Obiettivi del paziente": summary.get("goals", {}),
+        "Diario guidato": summary.get("diary", {}),
+        "Prima scheda CBT": summary.get("cbt_entry", {}),
+        "Nota per la prossima seduta": summary.get("next_session_note", {}),
+        "Punti suggeriti da riprendere": summary.get("points_to_resume", ""),
+    }
+    has_content = any(bool(value) for value in sections.values())
+    if not has_content:
+        st.caption(
+            "Il paziente non ha ancora completato i passaggi. Il riepilogo si aggiornerà man mano che verranno inserite nuove informazioni."
+        )
+        return
+    st.json(sections)
+
 def scroll_to_top():
     st.html(
         """
@@ -946,25 +993,37 @@ def show_therapist_dashboard():
         )
 
     st.markdown(f"## {selected_patient_name}")
-    selected_onboarding = ensure_post_consultation_onboarding(selected_wellness) if selected_profile.get("free_consultation_completed", False) else None
-    if selected_onboarding:
-        done, total = post_consultation_progress(selected_onboarding)
-        st.markdown("### Onboarding post-colloquio gratuito")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Stato", selected_onboarding.get("status", "active"))
-        c2.metric("Step completati", f"{done}/{total}")
-        c3.metric("Scadenza", (selected_onboarding.get("expires_at") or "—")[:10])
-        if st.button("Apri riepilogo seconda seduta", use_container_width=True):
-            summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
-            st.info(summary.get("disclaimer", ""))
-            st.json({
-                "baseline": summary.get("baseline", {}),
-                "obiettivi": summary.get("goals", {}),
-                "diary": summary.get("diary", {}),
-                "cbt_entry": summary.get("cbt_entry", {}),
-                "nota_prossima_seduta": summary.get("next_session_note", {}),
-                "punti_da_riprendere": summary.get("points_to_resume", ""),
-            })
+    with st.container(border=True):
+        st.markdown("### Preparazione seconda seduta")
+        st.caption(
+            "Attiva un percorso breve per aiutare il paziente ad arrivare alla prossima seduta con più chiarezza: "
+            "baseline iniziale, obiettivi, diario guidato, prima scheda CBT e nota per la seduta."
+        )
+        selected_onboarding = find_existing_post_consultation_onboarding(selected_wellness)
+        if not selected_onboarding:
+            if st.button("Avvia preparazione seconda seduta", use_container_width=True):
+                try:
+                    selected_onboarding = ensure_post_consultation_onboarding(selected_wellness)
+                    save_wellness_for(selected_username, selected_wellness)
+                    st.success("Preparazione seconda seduta avviata per il paziente.")
+                    st.rerun()
+                except Exception:
+                    st.error("Non è stato possibile avviare la preparazione. Riprova o verifica l’accesso al paziente.")
+        else:
+            status = selected_onboarding.get("status")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Stato", onboarding_status_label(status))
+            c2.metric("Progresso", onboarding_progress_label(selected_onboarding))
+            c3.metric("Scadenza", (selected_onboarding.get("expires_at") or "—")[:10])
+            cta_label = onboarding_primary_cta(status)
+            if cta_label and st.button(cta_label, use_container_width=True):
+                summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
+                save_wellness_for(selected_username, selected_wellness)
+                render_second_session_summary(summary)
+            if status == "active":
+                st.caption("Il paziente può completare i passaggi dalla propria dashboard.")
+            elif status == "completed":
+                st.caption("Il materiale è pronto per essere usato come punto di partenza nella prossima seduta.")
 
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     kpi1.metric("Ansia media", f"{selected_snapshot['avg_anxiety']:.1f}/10")

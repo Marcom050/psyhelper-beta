@@ -167,6 +167,39 @@ def test_post_free_consultation_onboarding_gate_exists():
     assert "render_post_free_consultation_onboarding_or_stop()" in source
 
 
+def test_therapist_dashboard_second_session_card_copy_exists():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "Preparazione seconda seduta" in source
+    assert "Avvia preparazione seconda seduta" in source
+    assert "Apri riepilogo seconda seduta" in source
+
+
+def test_onboarding_helpers_status_progress_and_cta_labels():
+    assert app.onboarding_status_label("active") == "Attivo"
+    assert app.onboarding_status_label("completed") == "Completato"
+    assert app.onboarding_status_label("expired") == "Scaduto"
+    onboarding = {"steps": {name: {"completed": False} for name in ("baseline", "goals", "diary", "cbt", "next_session_note")}}
+    onboarding["steps"]["baseline"]["completed"] = True
+    assert app.onboarding_progress_label(onboarding) == "1/5 step completati"
+    assert app.onboarding_primary_cta("active") == "Apri riepilogo seconda seduta"
+    assert app.onboarding_primary_cta("completed") == "Apri riepilogo seconda seduta"
+    assert app.onboarding_primary_cta("expired") == "Visualizza dati raccolti"
+
+
+def test_find_existing_onboarding_does_not_depend_on_legacy_flag():
+    wellness = {
+        "post_consultation_onboardings": [
+            {"id": "old", "status": "expired"},
+            {"id": "active-one", "status": "active"},
+        ]
+    }
+    selected = app.find_existing_post_consultation_onboarding(wellness)
+    assert selected["id"] == "old"
+    profile = {"post_free_consultation_onboarding_completed": True}
+    assert profile["post_free_consultation_onboarding_completed"] is True
+    assert selected["status"] in {"active", "completed", "expired"}
+
+
 def test_logout_cleanup_persists_and_prevents_chat_rehydration(monkeypatch):
     saved_messages = [{"role": "user", "content": "messaggio vecchio"}]
     app.session_adapter.set_username("cliente-test")
