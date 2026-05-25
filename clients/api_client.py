@@ -238,6 +238,38 @@ class PsyHelperAPIClient:
         )
 
 
+
+    def create_post_consultation_onboarding(self, patient_id: str) -> dict[str, Any]:
+        return self._request("POST", "/api/v1/post-consultation-onboarding", json={"patient_id": patient_id})
+
+    def get_post_consultation_onboarding(self, onboarding_id: str) -> dict[str, Any]:
+        safe_id = quote(onboarding_id, safe="")
+        return self._request("GET", f"/api/v1/post-consultation-onboarding/{safe_id}")
+
+    def update_post_consultation_baseline(self, onboarding_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        safe_id = quote(onboarding_id, safe="")
+        return self._request("PATCH", f"/api/v1/post-consultation-onboarding/{safe_id}/baseline", json=payload)
+
+    def update_post_consultation_goals(self, onboarding_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        safe_id = quote(onboarding_id, safe="")
+        return self._request("PATCH", f"/api/v1/post-consultation-onboarding/{safe_id}/goals", json=payload)
+
+    def update_post_consultation_diary(self, onboarding_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        safe_id = quote(onboarding_id, safe="")
+        return self._request("PATCH", f"/api/v1/post-consultation-onboarding/{safe_id}/diary", json=payload)
+
+    def update_post_consultation_cbt_entry(self, onboarding_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        safe_id = quote(onboarding_id, safe="")
+        return self._request("PATCH", f"/api/v1/post-consultation-onboarding/{safe_id}/cbt-entry", json=payload)
+
+    def update_post_consultation_next_session_note(self, onboarding_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        safe_id = quote(onboarding_id, safe="")
+        return self._request("PATCH", f"/api/v1/post-consultation-onboarding/{safe_id}/next-session-note", json=payload)
+
+    def get_post_consultation_summary(self, onboarding_id: str) -> dict[str, Any]:
+        safe_id = quote(onboarding_id, safe="")
+        return self._request("GET", f"/api/v1/post-consultation-onboarding/{safe_id}/summary")
+
     def list_my_clients(self) -> dict[str, Any]:
         return self._request("GET", "/therapists/me/clients")
 
