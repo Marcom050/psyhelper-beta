@@ -1053,7 +1053,7 @@ def show_therapist_dashboard():
     selected_patient_name = selected_profile.get("nome", selected_username)
     selector_col, active_col = st.columns([1, 3], gap="large")
     with selector_col:
-        if st.button("👥 Scegli profilo paziente", use_container_width=True):
+        if st.button("👥 Scegli profilo paziente", key="open_patient_selector_dialog", use_container_width=True):
             _set_patient_selector_dialog_open(True)
 
         if _patient_selector_dialog_open():
@@ -1096,11 +1096,19 @@ def show_therapist_dashboard():
             summary_key = f"show_second_session_summary_{selected_username}"
             open_col, close_col = st.columns([3, 1])
             with open_col:
-                if cta_label and st.button(cta_label, use_container_width=True):
+                if cta_label and st.button(
+                    cta_label,
+                    key=f"second_session_summary_open_{selected_username}",
+                    use_container_width=True,
+                ):
                     set_runtime_state(summary_key, True)
             with close_col:
                 if get_runtime_state(summary_key, False):
-                    if st.button("Chiudi riepilogo", use_container_width=True):
+                    if st.button(
+                        "Chiudi riepilogo",
+                        key=f"second_session_summary_close_{selected_username}",
+                        use_container_width=True,
+                    ):
                         set_runtime_state(summary_key, False)
                         st.rerun()
 
