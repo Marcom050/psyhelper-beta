@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 import pandas as pd
 
@@ -25,7 +25,7 @@ def _to_date_label(value: Any) -> str:
     return ts.strftime("%d/%m/%Y") if pd.notna(ts) else "Data non disponibile"
 
 
-def normalize_progress_timeline_event(event: Mapping[str, Any] | None) -> dict[str, Any]:
+def normalize_progress_timeline_event(event: Optional[Mapping[str, Any]]) -> dict[str, Any]:
     event = event or {}
     date_value = event.get("date") or event.get("data")
     raw_type = str(event.get("type") or event.get("tipo") or "note").strip().lower()
@@ -56,10 +56,10 @@ def normalize_progress_timeline_event(event: Mapping[str, Any] | None) -> dict[s
 
 
 def build_progress_journey_summary(
-    wellness: Mapping[str, Any] | None,
-    homework_data: Mapping[str, Any] | None = None,
-    reports_data: Mapping[str, Any] | None = None,
-    notes_data: Mapping[str, Any] | None = None,
+    wellness: Optional[Mapping[str, Any]],
+    homework_data: Optional[Mapping[str, Any]] = None,
+    reports_data: Optional[Mapping[str, Any]] = None,
+    notes_data: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Any]:
     wellness = wellness or {}
     df = mood_entries_dataframe(wellness)
