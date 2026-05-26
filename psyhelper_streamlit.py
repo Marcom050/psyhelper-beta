@@ -60,6 +60,7 @@ from services.subscription_service import (
     trial_days_remaining,
     trial_expires_at,
 )
+from services.progress_journey_service import build_progress_journey_summary
 from services.post_consultation_onboarding_service import (
     build_second_session_summary,
     ensure_post_consultation_onboarding,
