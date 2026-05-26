@@ -25,6 +25,36 @@ def _to_date_label(value: Any) -> str:
     return ts.strftime("%d/%m/%Y") if pd.notna(ts) else "Data non disponibile"
 
 
+def normalize_progress_timeline_event(event: Mapping[str, Any] | None) -> dict[str, Any]:
+    event = event or {}
+    date_value = event.get("date") or event.get("data")
+    raw_type = str(event.get("type") or event.get("tipo") or "note").strip().lower()
+    type_aliases = {
+        "homework_completed": "homework",
+        "homework assegnato": "homework",
+        "homework completato": "homework",
+        "start": "onboarding",
+        "evento clinico": "note",
+    }
+    normalized_type = type_aliases.get(raw_type, raw_type)
+    allowed_types = {"baseline", "progress", "setback", "homework", "onboarding", "note", "session", "trigger"}
+    if normalized_type not in allowed_types:
+        normalized_type = "note"
+    title = event.get("title") or event.get("titolo") or "Evento del percorso"
+    description = event.get("description") or event.get("dettaglio") or "Informazione utile da riprendere in seduta."
+    source = event.get("source") or "system"
+    non_diagnostic = bool(event.get("non_diagnostic", True))
+    return {
+        "date": date_value,
+        "date_label": event.get("date_label") or _to_date_label(date_value),
+        "type": normalized_type,
+        "title": str(title),
+        "description": str(description),
+        "source": str(source),
+        "non_diagnostic": non_diagnostic,
+    }
+
+
 def build_progress_journey_summary(
     wellness: Mapping[str, Any] | None,
     homework_data: Mapping[str, Any] | None = None,
@@ -108,17 +138,18 @@ def build_progress_journey_summary(
         if aid in completed_ids:
             helpful_strategies.append(f"Dopo l'esercizio '{title}', nei dati successivi compaiono informazioni utili da discutere in seduta.")
             homework_impact.append({"homework": title, "status": "completed", "note": "Potrebbe essere utile discuterne in seduta."})
-            timeline_events.append({"date": assignment.get("assigned_at") or assignment.get("due_date"), "date_label": _to_date_label(assignment.get("assigned_at") or assignment.get("due_date")), "type": "homework_completed", "title": "Homework completato", "description": title, "source": "homework_submissions", "evidence_level": "high", "non_diagnostic": True})
+            timeline_events.append({"date": assignment.get("assigned_at") or assignment.get("due_date"), "date_label": _to_date_label(assignment.get("assigned_at") or assignment.get("due_date")), "type": "homework", "title": "Homework completato", "description": title, "source": "homework_submissions", "evidence_level": "high", "non_diagnostic": True})
         else:
             homework_impact.append({"homework": title, "status": "pending", "note": "Tema da portare in seduta per capire ostacoli e supporti utili."})
 
     if not timeline_events:
-        timeline_events.append({"date": None, "date_label": "Data non disponibile", "type": "start", "title": "Inizio percorso", "description": "Avvia raccolta dati per rendere visibile l'andamento.", "source": "system", "evidence_level": "low", "non_diagnostic": True})
+        timeline_events.append({"date": None, "date_label": "Data non disponibile", "type": "onboarding", "title": "Inizio percorso", "description": "Avvia raccolta dati per rendere visibile l'andamento.", "source": "system", "evidence_level": "low", "non_diagnostic": True})
 
     # onboarding events
     if onboarding:
         timeline_events.append({"date": onboarding.get("started_at"), "date_label": _to_date_label(onboarding.get("started_at")), "type": "baseline", "title": "Baseline compilata", "description": "Informazioni iniziali inserite dal paziente.", "source": "post_consultation_onboarding", "evidence_level": "high", "non_diagnostic": True})
 
+    timeline_events = [normalize_progress_timeline_event(event) for event in timeline_events]
     timeline_events = sorted(timeline_events, key=lambda item: str(item.get("date") or ""))
 
     next_session_points = []

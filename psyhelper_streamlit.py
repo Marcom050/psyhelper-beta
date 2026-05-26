@@ -9,7 +9,6 @@ from clients.exceptions import APIClientError, APIHTTPError, APITimeoutError, AP
 from services.chat_service import ChatContext, get_response as get_chat_response
 from services.report_service import (
     build_pre_session_summary,
-    build_timeline_events,
     clinical_snapshot,
     mood_entries_dataframe,
     most_common_values,
@@ -60,7 +59,7 @@ from services.subscription_service import (
     trial_days_remaining,
     trial_expires_at,
 )
-from services.progress_journey_service import build_progress_journey_summary
+from services.progress_journey_service import build_progress_journey_summary, normalize_progress_timeline_event
 from services.post_consultation_onboarding_service import (
     build_second_session_summary,
     ensure_post_consultation_onboarding,
@@ -735,6 +734,21 @@ def show_monitoring_tab():
     for item in journey['next_session_points'][:5]:
         st.write(f"- {item}")
     st.caption(journey['retention_message'])
+    st.markdown("#### Timeline del percorso")
+    st.caption("Una lettura cronologica non diagnostica dei momenti inseriti, degli esercizi svolti e dei cambiamenti osservabili.")
+    journey_events = [normalize_progress_timeline_event(event) for event in (journey.get("timeline_events") or [])]
+    if not journey_events:
+        st.info("Non ci sono ancora eventi sufficienti per costruire una timeline del percorso.")
+    else:
+        timeline_rows = [{
+            "Data": event.get("date_label", "Data non disponibile"),
+            "Titolo": event.get("title", "Evento del percorso"),
+            "Descrizione": event.get("description", "Informazione utile da riprendere in seduta."),
+            "Tipo": event.get("type", "note"),
+            "Fonte": event.get("source", "system"),
+            "Lettura non diagnostica": "Sì" if event.get("non_diagnostic", True) else "—",
+        } for event in journey_events]
+        st.dataframe(pd.DataFrame(timeline_rows), use_container_width=True, hide_index=True)
 
     df = entries_dataframe()
     if df.empty:
@@ -1267,34 +1281,31 @@ def show_therapist_dashboard():
 
     with detail_tabs[3]:
         st.markdown("### Percorso e ricadute")
-        events = build_timeline_events(selected_wellness)
         journey = build_progress_journey_summary(selected_wellness)
+        journey_events = [normalize_progress_timeline_event(event) for event in (journey.get("timeline_events") or [])]
         st.markdown("#### Punti da riprendere in seduta")
         for point in journey["next_session_points"]:
             st.write(f"- {point}")
         if journey.get("retention_alerts"):
             st.warning(journey["retention_alerts"][0]["therapist_copy"])
-        st.button("Apri timeline percorso", use_container_width=True)
+        show_full_timeline = st.button("Apri timeline percorso", use_container_width=True)
         st.button("Aggiungi al recap pre-seduta", use_container_width=True)
-        if not events:
-            st.info("La timeline si popolerà con diario, homework ed eventi.")
+        if not journey_events:
+            st.info("Non ci sono ancora eventi sufficienti per costruire una timeline del percorso.")
         else:
-            visible_events = events[:80]
-            st.caption(f"Mostro {len(visible_events)} eventi più recenti, raggruppati per mese.")
-            timeline_df = pd.DataFrame(visible_events)
-            timeline_df["data"] = timeline_df["data"].fillna("—")
-            timeline_df["month_group"] = pd.to_datetime(timeline_df["data"], errors="coerce").dt.strftime("%Y-%m")
-            timeline_df["month_group"] = timeline_df["month_group"].fillna("Senza data")
-            timeline_df["giorno"] = pd.to_datetime(timeline_df["data"], errors="coerce").dt.strftime("%d/%m/%Y")
-            timeline_df["giorno"] = timeline_df["giorno"].fillna(timeline_df["data"])
-
-            for month, month_df in timeline_df.groupby("month_group", sort=False):
-                month_label = "Senza data" if month == "Senza data" else datetime.strptime(month, "%Y-%m").strftime("%B %Y").title()
-                with st.expander(f"{month_label} · {len(month_df)} eventi", expanded=(month == timeline_df.iloc[0]["month_group"])):
-                    compact_df = month_df[["giorno", "tipo", "titolo", "dettaglio"]].rename(
-                        columns={"giorno": "Data", "tipo": "Tipo", "titolo": "Titolo", "dettaglio": "Dettaglio"}
-                    )
-                    st.dataframe(compact_df, use_container_width=True, hide_index=True)
+            max_visible = 10
+            events_to_render = journey_events if show_full_timeline else journey_events[-max_visible:]
+            if not show_full_timeline and len(journey_events) > max_visible:
+                st.caption(f"Mostro gli ultimi {max_visible} eventi su {len(journey_events)}.")
+            timeline_rows = [{
+                "Data": event.get("date_label", "Data non disponibile"),
+                "Titolo": event.get("title", "Evento del percorso"),
+                "Descrizione": event.get("description", "Informazione utile da riprendere in seduta."),
+                "Tipo": event.get("type", "note"),
+                "Fonte": event.get("source", "system"),
+                "Lettura non diagnostica": "Sì" if event.get("non_diagnostic", True) else "—",
+            } for event in reversed(events_to_render)]
+            st.dataframe(pd.DataFrame(timeline_rows), use_container_width=True, hide_index=True)
         with st.form("manual_timeline_event"):
             event_title = st.text_input("Aggiungi evento/progresso/ricaduta")
             event_detail = st.text_area("Dettaglio")
