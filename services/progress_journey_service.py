@@ -41,8 +41,8 @@ def normalize_progress_timeline_event(event: Mapping[str, Any] | None) -> dict[s
     if normalized_type not in allowed_types:
         normalized_type = "note"
     title = event.get("title") or event.get("titolo") or "Evento del percorso"
-    description = event.get("description") or event.get("dettaglio") or "Informazione utile da riprendere in seduta."
-    source = event.get("source") or "system"
+    description = event.get("description") or event.get("dettaglio") or ""
+    source = event.get("source") or "progress_journey"
     non_diagnostic = bool(event.get("non_diagnostic", True))
     return {
         "date": date_value,

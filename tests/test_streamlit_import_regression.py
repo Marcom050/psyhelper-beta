@@ -44,3 +44,6 @@ def test_progress_journey_builder_is_imported_from_service():
 
     service = importlib.import_module("services.progress_journey_service")
     assert hasattr(service, "build_progress_journey_summary")
+
+    assert "normalize_progress_timeline_event" in imported_names
+    assert hasattr(service, "normalize_progress_timeline_event")

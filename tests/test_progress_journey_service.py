@@ -1,4 +1,4 @@
-from services.progress_journey_service import build_progress_journey_summary
+from services.progress_journey_service import build_progress_journey_summary, normalize_progress_timeline_event
 
 
 def _wellness(entries=None, assignments=None, submissions=None, onboardings=None):
@@ -73,3 +73,16 @@ def test_no_diagnostic_language_in_timeline_labels():
     ).lower()
     assert "diagnosi" not in timeline_text
     assert "disturbo" not in timeline_text
+
+
+def test_normalize_progress_timeline_event_safe_defaults_and_shape():
+    event = normalize_progress_timeline_event({})
+    assert event == {
+        "date": None,
+        "date_label": "Data non disponibile",
+        "type": "note",
+        "title": "Evento del percorso",
+        "description": "",
+        "source": "progress_journey",
+        "non_diagnostic": True,
+    }
