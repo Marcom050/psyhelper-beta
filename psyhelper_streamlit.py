@@ -1116,6 +1116,25 @@ def show_therapist_dashboard():
                 summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
                 save_wellness_for(selected_username, selected_wellness)
                 render_second_session_summary(summary)
+                clear_confirm_key = f"confirm_clear_second_session_summary_{selected_username}"
+                clear_col, cancel_col = st.columns(2)
+                with clear_col:
+                    if st.button("Elimina riepilogo", key=f"second_session_summary_clear_{selected_username}", use_container_width=True):
+                        set_runtime_state(clear_confirm_key, True)
+                with cancel_col:
+                    if get_runtime_state(clear_confirm_key, False):
+                        if st.button("Annulla eliminazione", key=f"second_session_summary_clear_cancel_{selected_username}", use_container_width=True):
+                            set_runtime_state(clear_confirm_key, False)
+                            st.rerun()
+                if get_runtime_state(clear_confirm_key, False):
+                    st.warning("Conferma eliminazione riepilogo: questa azione rimuove il riepilogo corrente e potrai rigenerarlo dal percorso.")
+                    if st.button("Conferma eliminazione riepilogo", key=f"second_session_summary_clear_confirm_{selected_username}", type="primary", use_container_width=True):
+                        selected_onboarding["summary"] = {}
+                        save_wellness_for(selected_username, selected_wellness)
+                        set_runtime_state(clear_confirm_key, False)
+                        set_runtime_state(summary_key, False)
+                        st.success("Riepilogo eliminato. Puoi rigenerarlo quando vuoi.")
+                        st.rerun()
             if status == "active":
                 st.caption("Il paziente può completare i passaggi dalla propria dashboard.")
             elif status == "completed":
