@@ -370,12 +370,17 @@ def render_second_session_summary(summary):
     disclaimer = summary.get("disclaimer", "")
     if disclaimer:
         st.info(disclaimer)
+    note_prossima = summary.get("next_session_note", {}) or {}
+    points_to_resume = summary.get("points_to_resume", "")
+    if isinstance(note_prossima, dict) and points_to_resume == note_prossima.get("note", ""):
+        points_to_resume = ""
     sections = {
         "Baseline iniziale": summary.get("baseline", {}),
         "Obiettivi del paziente": summary.get("goals", {}),
         "Diario guidato": summary.get("diary", {}),
+        "Scheda CBT": summary.get("cbt_entry", {}),
         "Nota per la prossima seduta": summary.get("next_session_note", {}),
-        "Punti suggeriti da riprendere": summary.get("points_to_resume", ""),
+        "Punti suggeriti da riprendere": points_to_resume,
     }
     has_content = any(bool(value) for value in sections.values())
     if not has_content:
@@ -389,10 +394,25 @@ def render_second_session_summary(summary):
         with st.container(border=True):
             st.markdown(f"**{title}**")
             if isinstance(content, dict):
+                italian_labels = {
+                    "mood": "Umore medio",
+                    "stress": "Stress medio",
+                    "goals_text": "Obiettivi (2-4 settimane)",
+                    "track": "Percorso scelto",
+                    "short_term_priority": "Priorità breve termine",
+                    "time_commitment": "Disponibilità media",
+                    "guided_3_days": "Diario guidato (3 giorni)",
+                    "situation": "Situazione",
+                    "automatic_thought": "Pensiero automatico",
+                    "emotion": "Emozione",
+                    "alternative_thought": "Pensiero alternativo",
+                    "note": "Nota",
+                    "points_to_resume": "Punti da riprendere",
+                }
                 for key, value in content.items():
                     if value is None or (isinstance(value, str) and not value.strip()):
                         continue
-                    label = str(key).replace("_", " ").capitalize()
+                    label = italian_labels.get(key, str(key).replace("_", " ").capitalize())
                     st.write(f"• **{label}:** {value}")
             else:
                 st.write(content)
@@ -1444,24 +1464,38 @@ def open_post_free_consultation_onboarding_dialog(onboarding: dict, profile: dic
     completed_steps, total_steps = post_consultation_progress(onboarding)
     st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
     st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
+    step_data = (onboarding or {}).get("steps", {})
+    baseline_data = step_data.get("baseline", {}).get("data", {})
+    goals_data = step_data.get("goals", {}).get("data", {})
+    diary_data = step_data.get("diary", {}).get("data", {})
+    cbt_data = step_data.get("cbt", {}).get("data", {})
+    next_note_data = step_data.get("next_session_note", {}).get("data", {})
 
     with st.form("post_free_consultation_onboarding"):
-        umore_base = st.slider("Baseline: umore medio settimana (1-10)", 1, 10, 5)
-        stress_base = st.slider("Baseline: stress medio settimana (1-10)", 1, 10, 5)
-        obiettivi = st.text_area("Obiettivi paziente (2-4 settimane)")
-        diario_3_giorni = st.text_area("Diario guidato 3 giorni (sintesi)")
-        nota_prossima = st.text_area("Nota per prossima seduta e punti da riprendere")
-        percorso = st.selectbox("Track di prosecuzione", ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"])
-        priorita = st.text_area("Priorità breve termine")
-        disponibilita = st.selectbox("Disponibilità media", ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"])
+        umore_base = st.slider("Baseline: umore medio settimana (1-10)", 1, 10, int(baseline_data.get("mood", 5)))
+        stress_base = st.slider("Baseline: stress medio settimana (1-10)", 1, 10, int(baseline_data.get("stress", 5)))
+        obiettivi = st.text_area("Obiettivi paziente (2-4 settimane)", value=goals_data.get("goals_text", ""))
+        diario_3_giorni = st.text_area("Diario guidato 3 giorni (sintesi)", value=diary_data.get("guided_3_days", ""))
+        situazione_cbt = st.text_area("Scheda CBT: situazione", value=cbt_data.get("situation", ""))
+        pensiero_cbt = st.text_area("Scheda CBT: pensiero automatico", value=cbt_data.get("automatic_thought", ""))
+        emozione_cbt = st.text_area("Scheda CBT: emozione principale", value=cbt_data.get("emotion", ""))
+        alternativa_cbt = st.text_area("Scheda CBT: pensiero alternativo", value=cbt_data.get("alternative_thought", ""))
+        nota_prossima = st.text_area("Nota per prossima seduta e punti da riprendere", value=next_note_data.get("note", ""))
+        track_options = ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"]
+        selected_track = goals_data.get("track", track_options[0])
+        track_index = track_options.index(selected_track) if selected_track in track_options else 0
+        percorso = st.selectbox("Track di prosecuzione", track_options, index=track_index)
+        priorita = st.text_area("Priorità breve termine", value=goals_data.get("short_term_priority", ""))
+        availability_options = ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"]
+        selected_availability = goals_data.get("time_commitment", "Da definire")
+        availability_index = availability_options.index(selected_availability) if selected_availability in availability_options else len(availability_options) - 1
+        disponibilita = st.selectbox("Disponibilità media", availability_options, index=availability_index)
         if st.form_submit_button("Salva aggiornamento onboarding", use_container_width=True):
             save_post_consultation_step(onboarding, "baseline", {"mood": umore_base, "stress": stress_base})
-            if obiettivi.strip() or priorita.strip():
-                save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
-            if diario_3_giorni.strip():
-                save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
-            if nota_prossima.strip():
-                save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
+            save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
+            save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
+            save_post_consultation_step(onboarding, "cbt", {"situation": situazione_cbt.strip(), "automatic_thought": pensiero_cbt.strip(), "emotion": emozione_cbt.strip(), "alternative_thought": alternativa_cbt.strip()})
+            save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
             build_second_session_summary(onboarding)
             completed_steps_after, total_after = post_consultation_progress(onboarding)
             session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": completed_steps_after == total_after})
