@@ -59,7 +59,7 @@ from services.subscription_service import (
     trial_days_remaining,
     trial_expires_at,
 )
-from services.progress_journey_service import build_progress_journey_summary, normalize_progress_timeline_event
+from services.progress_journey_service import build_progress_journey_summary
 from services.post_consultation_onboarding_service import (
     build_second_session_summary,
     ensure_post_consultation_onboarding,
@@ -736,7 +736,7 @@ def show_monitoring_tab():
     st.caption(journey['retention_message'])
     st.markdown("#### Timeline del percorso")
     st.caption("Una lettura cronologica non diagnostica dei momenti inseriti, degli esercizi svolti e dei cambiamenti osservabili.")
-    journey_events = [normalize_progress_timeline_event(event) for event in (journey.get("timeline_events") or [])]
+    journey_events = journey.get("timeline_events") or []
     if not journey_events:
         st.info("Non ci sono ancora eventi sufficienti per costruire una timeline del percorso.")
     else:
@@ -1282,7 +1282,7 @@ def show_therapist_dashboard():
     with detail_tabs[3]:
         st.markdown("### Percorso e ricadute")
         journey = build_progress_journey_summary(selected_wellness)
-        journey_events = [normalize_progress_timeline_event(event) for event in (journey.get("timeline_events") or [])]
+        journey_events = journey.get("timeline_events") or []
         st.markdown("#### Punti da riprendere in seduta")
         for point in journey["next_session_points"]:
             st.write(f"- {point}")
