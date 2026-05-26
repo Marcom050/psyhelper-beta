@@ -28,3 +28,19 @@ def test_delete_user_account_is_directly_importable_from_auth_service():
     from services.auth_service import delete_user_account
 
     assert callable(delete_user_account)
+
+
+def test_progress_journey_builder_is_imported_from_service():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    imported_names = []
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == "services.progress_journey_service":
+            imported_names = [alias.name for alias in node.names]
+            break
+
+    assert "build_progress_journey_summary" in imported_names
+
+    service = importlib.import_module("services.progress_journey_service")
+    assert hasattr(service, "build_progress_journey_summary")
