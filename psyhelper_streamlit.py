@@ -1439,29 +1439,10 @@ def render_onboarding_or_stop():
     st.stop()
 
 
-def render_post_free_consultation_onboarding_or_stop():
-    profile = session_adapter.get_profile()
-    wellness = session_adapter.get_wellness()
-
-    visibility_state, onboarding = patient_onboarding_visibility_state(wellness, profile)
-    if visibility_state == "hidden" or onboarding is None:
-        return
-
-    if visibility_state == "completed":
-        if not profile.get("post_free_consultation_onboarding_completed", False):
-            session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": True})
-            save_user_data(session_adapter.get_username())
-        return
-
-    if visibility_state == "expired":
-        st.markdown("### Prepariamoci alla prossima seduta")
-        st.warning("La preparazione risulta scaduta. Parla con il terapeuta se vuoi riattivarla.")
-        return
-
+@st.dialog("🧭 Onboarding post-colloquio")
+def open_post_free_consultation_onboarding_dialog(onboarding: dict, profile: dict, wellness: dict):
     completed_steps, total_steps = post_consultation_progress(onboarding)
-    st.markdown("### Prepariamoci alla prossima seduta")
     st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
-    st.warning("Questo onboarding è opzionale: puoi compilarlo poco alla volta e aggiornare il riepilogo quando vuoi.")
     st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
 
     with st.form("post_free_consultation_onboarding"):
@@ -1487,8 +1468,35 @@ def render_post_free_consultation_onboarding_or_stop():
             session_adapter.set_wellness(wellness)
             save_user_data(session_adapter.get_username())
             session_adapter.set_scroll_to_top(True)
+            st.success("Bozza onboarding salvata. Puoi chiudere e riprendere quando vuoi.")
             st.rerun()
-    st.stop()
+
+
+def render_post_free_consultation_onboarding_or_stop():
+    profile = session_adapter.get_profile()
+    wellness = session_adapter.get_wellness()
+
+    visibility_state, onboarding = patient_onboarding_visibility_state(wellness, profile)
+    if visibility_state == "hidden" or onboarding is None:
+        return
+
+    if visibility_state == "completed":
+        if not profile.get("post_free_consultation_onboarding_completed", False):
+            session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": True})
+            save_user_data(session_adapter.get_username())
+        return
+
+    if visibility_state == "expired":
+        st.markdown("### Prepariamoci alla prossima seduta")
+        st.warning("La preparazione risulta scaduta. Parla con il terapeuta se vuoi riattivarla.")
+        return
+
+    st.markdown("### Prepariamoci alla prossima seduta")
+    st.warning("Questo onboarding è opzionale: apri la finestra dedicata, salva quando vuoi e riprendi in un secondo momento.")
+    completed_steps, total_steps = post_consultation_progress(onboarding)
+    st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
+    if st.button("Apri onboarding post-colloquio", use_container_width=True):
+        open_post_free_consultation_onboarding_dialog(onboarding, profile, wellness)
 
 
 def render_client_app_tabs():
