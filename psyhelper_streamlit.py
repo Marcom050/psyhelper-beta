@@ -705,6 +705,36 @@ def show_diary_tab():
 
 def show_monitoring_tab():
     st.subheader("📈 Monitoraggio ansia e stress")
+    journey = build_progress_journey_summary(session_adapter.get_wellness())
+    st.markdown("### Il tuo percorso")
+    st.caption("Una panoramica non diagnostica dei cambiamenti, delle difficoltà e dei punti da portare in seduta.")
+    st.info(journey["disclaimer"])
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("#### Da dove sei partito")
+        st.write(f"Umore iniziale: {journey['baseline'].get('mood', '—')}")
+        st.write(f"Ansia/stress iniziali: {journey['baseline'].get('anxiety', '—')} / {journey['baseline'].get('stress', '—')}")
+        if journey['baseline'].get('goals'):
+            st.write("Obiettivi iniziali: " + ", ".join(journey['baseline']['goals']))
+    with col_b:
+        st.markdown("#### Dove sei ora")
+        cs = journey['current_snapshot']
+        st.write(f"Media ansia recente: {cs.get('recent_anxiety_avg', '—')}")
+        st.write(f"Media stress recente: {cs.get('recent_stress_avg', '—')}")
+        st.write(f"Homework completati: {cs.get('homework_completed', 0)}/{cs.get('homework_assigned', 0)}")
+
+    st.markdown("#### Segnali di miglioramento")
+    for item in (journey['progress_markers'] or ["Dai dati inseriti emerge che servono più check-in per osservare segnali stabili."])[:5]:
+        st.write(f"- {item}")
+    st.markdown("#### Momenti di difficoltà")
+    for item in (journey['setback_markers'] or ["Nessun momento di difficoltà marcato nei dati recenti."])[:5]:
+        st.write(f"- {item}")
+    st.markdown("#### Da portare in seduta")
+    for item in journey['next_session_points'][:5]:
+        st.write(f"- {item}")
+    st.caption(journey['retention_message'])
+
     df = entries_dataframe()
     if df.empty:
         st.info("Aggiungi almeno una scheda nel diario per vedere trend e indicatori.")
@@ -1235,8 +1265,16 @@ def show_therapist_dashboard():
             st.info(empty_state_message("homework_submissions"))
 
     with detail_tabs[3]:
-        st.markdown("### Timeline terapeutica condivisa")
+        st.markdown("### Percorso e ricadute")
         events = build_timeline_events(selected_wellness)
+        journey = build_progress_journey_summary(selected_wellness)
+        st.markdown("#### Punti da riprendere in seduta")
+        for point in journey["next_session_points"]:
+            st.write(f"- {point}")
+        if journey.get("retention_alerts"):
+            st.warning(journey["retention_alerts"][0]["therapist_copy"])
+        st.button("Apri timeline percorso", use_container_width=True)
+        st.button("Aggiungi al recap pre-seduta", use_container_width=True)
         if not events:
             st.info("La timeline si popolerà con diario, homework ed eventi.")
         else:

@@ -260,3 +260,12 @@ def test_runtime_summary_state_uses_compatible_session_methods():
     assert "get_runtime_value(" not in source
     assert "set_runtime_value(" not in source
 
+
+
+def test_progress_journey_copy_present_for_patient_and_therapist():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "Il tuo percorso" in source
+    assert "Percorso e ricadute" in source
+    assert "Segnali di miglioramento" in source
+    assert "Momenti di difficoltà" in source
+    assert "Da portare in seduta" in source
