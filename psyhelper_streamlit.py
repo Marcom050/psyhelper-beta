@@ -889,6 +889,14 @@ def _set_patient_selector_dialog_open(is_open: bool) -> None:
     session_adapter._set("patient_selector_dialog_open", bool(is_open))
 
 
+def get_runtime_state(key: str, default=None):
+    return session_adapter._get(key, default)
+
+
+def set_runtime_state(key: str, value) -> None:
+    session_adapter._set(key, value)
+
+
 @st.dialog("👥 Scegli profilo paziente")
 def show_patient_selector_dialog(clients, snapshots, overview_rows):
     st.caption("Seleziona il profilo paziente da aprire nella dashboard. La scheda scelta verrà mostrata a tutta larghezza.")
@@ -1069,14 +1077,14 @@ def show_therapist_dashboard():
             open_col, close_col = st.columns([3, 1])
             with open_col:
                 if cta_label and st.button(cta_label, use_container_width=True):
-                    session_adapter.set_runtime_value(summary_key, True)
+                    set_runtime_state(summary_key, True)
             with close_col:
-                if session_adapter.get_runtime_value(summary_key, False):
+                if get_runtime_state(summary_key, False):
                     if st.button("Chiudi riepilogo", use_container_width=True):
-                        session_adapter.set_runtime_value(summary_key, False)
+                        set_runtime_state(summary_key, False)
                         st.rerun()
 
-            if session_adapter.get_runtime_value(summary_key, False):
+            if get_runtime_state(summary_key, False):
                 summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
                 save_wellness_for(selected_username, selected_wellness)
                 render_second_session_summary(summary)
