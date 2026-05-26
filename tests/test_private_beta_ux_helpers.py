@@ -249,3 +249,14 @@ def test_logout_cleanup_persists_and_prevents_chat_rehydration(monkeypatch):
     app.session_adapter.set_username("cliente-test")
     app.load_user_data("cliente-test")
     assert app.session_adapter.get_messages() == []
+
+
+def test_runtime_summary_state_uses_compatible_session_methods():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "def get_runtime_state(key: str, default=None):" in source
+    assert "def set_runtime_state(key: str, value) -> None:" in source
+    assert "session_adapter._get(key, default)" in source
+    assert "session_adapter._set(key, value)" in source
+    assert "get_runtime_value(" not in source
+    assert "set_runtime_value(" not in source
+
