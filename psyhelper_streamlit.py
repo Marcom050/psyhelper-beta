@@ -324,6 +324,19 @@ def onboarding_primary_cta(status):
     return None
 
 
+def onboarding_progress_alert(onboarding):
+    completed, total = post_consultation_progress(onboarding or {})
+    if total <= 0:
+        return None
+    if completed == total:
+        return "✅ Preparazione completata: il riepilogo è pronto per la prossima seduta."
+    remaining = total - completed
+    return (
+        f"ℹ️ Preparazione opzionale in corso: {completed}/{total} step completati "
+        f"(ne mancano {remaining})."
+    )
+
+
 def find_existing_post_consultation_onboarding(wellness):
     for onboarding in (wellness or {}).get("post_consultation_onboardings", []):
         if onboarding.get("status") in {"active", "completed", "expired"}:
@@ -1048,8 +1061,22 @@ def show_therapist_dashboard():
             c1.metric("Stato", onboarding_status_label(status))
             c2.metric("Progresso", onboarding_progress_label(selected_onboarding))
             c3.metric("Scadenza", (selected_onboarding.get("expires_at") or "—")[:10])
+            computed_alert = onboarding_progress_alert(selected_onboarding)
+            if computed_alert:
+                st.warning(computed_alert)
             cta_label = onboarding_primary_cta(status)
-            if cta_label and st.button(cta_label, use_container_width=True):
+            summary_key = f"show_second_session_summary_{selected_username}"
+            open_col, close_col = st.columns([3, 1])
+            with open_col:
+                if cta_label and st.button(cta_label, use_container_width=True):
+                    session_adapter.set_runtime_value(summary_key, True)
+            with close_col:
+                if session_adapter.get_runtime_value(summary_key, False):
+                    if st.button("Chiudi riepilogo", use_container_width=True):
+                        session_adapter.set_runtime_value(summary_key, False)
+                        st.rerun()
+
+            if session_adapter.get_runtime_value(summary_key, False):
                 summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
                 save_wellness_for(selected_username, selected_wellness)
                 render_second_session_summary(summary)
@@ -1426,6 +1453,7 @@ def render_post_free_consultation_onboarding_or_stop():
     completed_steps, total_steps = post_consultation_progress(onboarding)
     st.markdown("### Prepariamoci alla prossima seduta")
     st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
+    st.warning("Questo onboarding è opzionale: puoi compilarlo poco alla volta e aggiornare il riepilogo quando vuoi.")
     st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
 
     with st.form("post_free_consultation_onboarding"):
@@ -1437,12 +1465,14 @@ def render_post_free_consultation_onboarding_or_stop():
         percorso = st.selectbox("Track di prosecuzione", ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"])
         priorita = st.text_area("Priorità breve termine")
         disponibilita = st.selectbox("Disponibilità media", ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"])
-        if st.form_submit_button("Conferma piano post-consulenza", use_container_width=True):
+        if st.form_submit_button("Salva aggiornamento onboarding", use_container_width=True):
             save_post_consultation_step(onboarding, "baseline", {"mood": umore_base, "stress": stress_base})
-            save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
-            save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
-            save_post_consultation_step(onboarding, "cbt", {"entry": ""})
-            save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
+            if obiettivi.strip() or priorita.strip():
+                save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
+            if diario_3_giorni.strip():
+                save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
+            if nota_prossima.strip():
+                save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
             build_second_session_summary(onboarding)
             completed_steps_after, total_after = post_consultation_progress(onboarding)
             session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": completed_steps_after == total_after})
