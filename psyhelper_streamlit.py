@@ -1335,7 +1335,23 @@ def show_therapist_dashboard():
             st.success("Note private salvate.")
 
     with detail_tabs[5]:
-        st.markdown("### Riepilogo pre-seduta")
+        pre_session_visibility_key = f"show_pre_session_summary_{selected_username}"
+        if pre_session_visibility_key not in st.session_state:
+            st.session_state[pre_session_visibility_key] = True
+
+        recap_title_col, recap_delete_col = st.columns([8, 1])
+        with recap_title_col:
+            st.markdown("### Riepilogo pre-seduta")
+        with recap_delete_col:
+            if st.session_state[pre_session_visibility_key]:
+                if st.button("🗑️", key=f"delete_pre_session_summary_{selected_username}", help="Elimina riepilogo pre-seduta"):
+                    st.session_state[pre_session_visibility_key] = False
+                    st.rerun()
+
+        if not st.session_state[pre_session_visibility_key]:
+            st.info("Riepilogo pre-seduta eliminato da questa vista.")
+            return
+
         st.caption("Una vista rapida dei dati recenti del cliente da usare come supporto prima della seduta.")
         pre_session = build_pre_session_summary(selected_wellness)
         st.info(pre_session["non_diagnostic_notice"])
