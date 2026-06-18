@@ -60,6 +60,15 @@ from services.subscription_service import (
     trial_days_remaining,
     trial_expires_at,
 )
+from services.private_area_service import (
+    create_private_entry,
+    delete_private_entry,
+    list_patient_private_entries,
+    list_shared_entries_for_therapist,
+    revoke_shared_entry,
+    share_private_entry,
+    update_private_entry,
+)
 from services.progress_journey_service import build_progress_journey_summary
 from services.post_consultation_onboarding_service import (
     build_second_session_summary,
@@ -383,7 +392,7 @@ def role_nav_sections(role):
         return therapist_sections
     if role == "admin":
         return therapist_sections + admin_sections
-    return ["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"]
+    return ["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"]
 
 
 def onboarding_status_label(status):
@@ -937,6 +946,87 @@ def show_homework_tab():
                     st.markdown(f"**{homework_template_label(row.get('homework', 'Homework'))}** · {row.get('data', 'Data non disponibile')}")
                     st.write(f"Sintesi: {row.get('sintesi', 'n/d')}")
 
+
+def _private_area_status_label(status):
+    return {
+        "private": "Privata",
+        "shared": "Condivisa con il terapeuta",
+        "revoked": "Condivisione revocata",
+    }.get(status, "Privata")
+
+
+def show_private_area_tab():
+    st.subheader("🔐 Area privata · Cose che vorrei dire")
+    st.info("Questo spazio è privato. Il terapeuta non vede ciò che scrivi qui, a meno che tu non scelga esplicitamente di condividerlo.")
+    st.caption("Scrivi qui qualcosa che vorresti portare in seduta, ma che non ti senti ancora pronto/a a dire. Rimane privato finché non scegli di condividerlo.")
+    st.warning("PsyHelper non è uno strumento di emergenza. Se ti trovi in pericolo immediato o hai bisogno di aiuto urgente, contatta i servizi di emergenza o un professionista.")
+
+    wellness = session_adapter.get_wellness()
+    with st.form("private_area_new_entry"):
+        title = st.text_input("Titolo", placeholder="Es. Cose che vorrei dire")
+        content = st.text_area(
+            "Nota privata",
+            placeholder="Puoi scrivere pensieri, dubbi o materiale da portare in seduta. Visibile al terapeuta solo dopo la tua conferma.",
+            height=160,
+        )
+        if st.form_submit_button("Salva in area privata", use_container_width=True):
+            if not content.strip():
+                st.error("Scrivi almeno qualche parola prima di salvare la nota.")
+            else:
+                create_private_entry(wellness, title, content)
+                save_user_data(session_adapter.get_username())
+                st.success("Nota salvata. Rimane privata finché non scegli di condividerla.")
+                st.rerun()
+
+    entries = sorted(list_patient_private_entries(wellness), key=lambda item: item.get("updated_at", ""), reverse=True)
+    st.markdown("### Le tue note")
+    if not entries:
+        st.info("Non hai ancora note in questa area. Puoi iniziare con una frase breve, senza doverla condividere subito.")
+        return
+
+    for entry in entries:
+        status = entry.get("share_status", "private")
+        with st.container(border=True):
+            st.markdown(f"**{entry.get('title', 'Senza titolo')}**")
+            st.caption(f"Stato: {_private_area_status_label(status)} · Creata: {entry.get('created_at', '—')} · Aggiornata: {entry.get('updated_at', '—')}")
+            st.write(entry.get("content", ""))
+            if status == "private":
+                with st.expander("Modifica nota privata"):
+                    edit_title = st.text_input("Titolo", value=entry.get("title", ""), key=f"private_title_{entry['id']}")
+                    edit_content = st.text_area("Contenuto", value=entry.get("content", ""), key=f"private_content_{entry['id']}", height=140)
+                    if st.button("Salva modifiche", key=f"private_update_{entry['id']}", use_container_width=True):
+                        update_private_entry(wellness, entry["id"], edit_title, edit_content)
+                        save_user_data(session_adapter.get_username())
+                        st.success("Nota aggiornata.")
+                        st.rerun()
+                col_share, col_delete = st.columns(2)
+                with col_share:
+                    if st.button("Condividi con il terapeuta", key=f"private_share_{entry['id']}", use_container_width=True):
+                        share_private_entry(wellness, entry["id"])
+                        save_user_data(session_adapter.get_username())
+                        st.success("Nota condivisa. Il terapeuta potrà vederla nel recap pre-seduta.")
+                        st.rerun()
+                with col_delete:
+                    if st.button("Elimina nota", key=f"private_delete_{entry['id']}", use_container_width=True):
+                        delete_private_entry(wellness, entry["id"])
+                        save_user_data(session_adapter.get_username())
+                        st.success("Nota eliminata.")
+                        st.rerun()
+            elif status == "shared":
+                st.success("Visibile al terapeuta solo perché hai confermato la condivisione.")
+                if st.button("Revoca condivisione", key=f"private_revoke_{entry['id']}", use_container_width=True):
+                    revoke_shared_entry(wellness, entry["id"])
+                    save_user_data(session_adapter.get_username())
+                    st.warning("La nota non sarà più visibile nelle viste normali del terapeuta. Se il terapeuta l’ha già letta o esportata, non è possibile garantire che non ne abbia preso visione.")
+                    st.rerun()
+            else:
+                st.caption("La condivisione è stata revocata. Puoi condividerla di nuovo quando ti senti pronto/a.")
+                if st.button("Condividi di nuovo con il terapeuta", key=f"private_reshare_{entry['id']}", use_container_width=True):
+                    share_private_entry(wellness, entry["id"])
+                    save_user_data(session_adapter.get_username())
+                    st.success("Nota condivisa di nuovo con il terapeuta.")
+                    st.rerun()
+
 def show_report_tab():
     st.subheader("📋 Resoconto per colloqui psicologici")
     report = clinical_report_for(session_adapter.get_username(), session_adapter.get_wellness(), session_adapter.get_messages())
@@ -1427,6 +1517,17 @@ def show_therapist_dashboard():
             if wellness_summary["recent_entries_count"] == 0:
                 st.info("Non ci sono dati wellness recenti.")
 
+        st.markdown("#### Cose condivise dal paziente per la seduta")
+        shared_private_entries = list_shared_entries_for_therapist(selected_wellness)
+        if shared_private_entries:
+            for entry in shared_private_entries:
+                with st.container(border=True):
+                    st.markdown(f"**{entry.get('title', 'Senza titolo')}**")
+                    st.caption(f"Condivisa dal paziente · creata: {entry.get('created_at', '—')} · condivisa: {entry.get('shared_at', '—')}")
+                    st.write(entry.get("content", ""))
+        else:
+            st.info("Non ci sono materiali condivisi dal paziente per questa seduta.")
+
         st.markdown("#### Punti da riprendere in seduta")
         if pre_session["discussion_points"]:
             for point in pre_session["discussion_points"]:
@@ -1672,16 +1773,18 @@ def render_post_free_consultation_onboarding_or_stop():
 
 
 def render_client_app_tabs():
-    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
+    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
     with app_tabs[0]:
         show_chat_tab()
     with app_tabs[1]:
         show_diary_tab()
     with app_tabs[2]:
-        show_homework_tab()
+        show_private_area_tab()
     with app_tabs[3]:
-        show_monitoring_tab()
+        show_homework_tab()
     with app_tabs[4]:
+        show_monitoring_tab()
+    with app_tabs[5]:
         show_report_tab()
 
 

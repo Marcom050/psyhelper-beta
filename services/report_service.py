@@ -11,6 +11,8 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import pandas as pd
 
+from services.private_area_service import list_shared_entries_for_therapist
+
 
 HIGH_RISK_KEYWORDS = [
     "suicidio", "suicid", "farla finita", "non voglio vivere", "uccidermi", "autolesion", "tagliarmi",
@@ -273,6 +275,7 @@ def build_pre_session_summary(
     assignments = list(wellness.get("homework_assignments", []))
     submissions = list(wellness.get("homework_submissions", []))
     mood_df = mood_entries_dataframe(wellness)
+    shared_private_area_entries = list_shared_entries_for_therapist(wellness)
 
     submission_ids = {item.get("assignment_id") for item in submissions if item.get("assignment_id")}
     completed_count = len([item for item in assignments if item.get("id") in submission_ids or item.get("status") == "completato"])
@@ -343,6 +346,7 @@ def build_pre_session_summary(
             "latest_mood": latest_mood,
             "mood_trend_label": mood_trend_label,
         },
+        "private_area_shared_entries": shared_private_area_entries,
         "discussion_points": discussion_points,
         "non_diagnostic_notice": (
             "Questo riepilogo organizza informazioni inserite dal cliente e non fornisce diagnosi, "
