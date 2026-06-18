@@ -191,6 +191,9 @@ def build_progress_journey_summary(
         else:
             homework_impact.append({"homework": title, "status": "pending", "note": "Tema da portare in seduta per capire ostacoli e supporti utili."})
 
+    for manual_event in wellness.get("timeline_events", []):
+        timeline_events.append({**manual_event, "source": manual_event.get("source") or "manual_timeline"})
+
     if not timeline_events:
         timeline_events.append({"date": None, "date_label": "Data non disponibile", "type": "onboarding", "title": "Inizio percorso", "description": "Avvia raccolta dati per rendere visibile l'andamento.", "source": "system", "evidence_level": "low", "non_diagnostic": True})
 
