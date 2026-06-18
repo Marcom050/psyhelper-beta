@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from html import escape
 import logging
 
 import pandas as pd
@@ -198,6 +199,88 @@ AI_UNAVAILABLE_MESSAGE = "Funzione AI non disponibile: chiave GROQ_API_KEY non c
 
 
 MOOD_OPTIONS = ["Sereno", "Ansioso", "Triste", "Irritabile", "Sovraccarico", "Speranzoso", "Altro"]
+
+TIMELINE_TYPE_LABELS = {
+    "setback": "Ricadute / peggioramenti",
+    "improvement": "Miglioramenti",
+    "attention_area": "Aree da attenzionare",
+    "step_forward": "Passi avanti",
+    "maintained_progress": "Miglioramenti mantenuti",
+    "baseline": "Baseline",
+    "homework": "Homework",
+    "onboarding": "Onboarding",
+    "note": "Nota",
+    "session": "Seduta",
+    "trigger": "Trigger",
+}
+
+TIMELINE_SECTION_ORDER = [
+    ("setback", "Ricadute / peggioramenti"),
+    ("improvement", "Miglioramenti"),
+    ("maintained_progress", "Miglioramenti mantenuti"),
+    ("step_forward", "Passi avanti"),
+    ("attention_area", "Aree da attenzionare"),
+    ("baseline", "Baseline e onboarding"),
+    ("homework", "Homework"),
+    ("note", "Note e altri eventi"),
+]
+
+
+def _timeline_type_label(event_type):
+    return TIMELINE_TYPE_LABELS.get(event_type, str(event_type or "note"))
+
+
+def _timeline_card(event):
+    evidence = event.get("evidence") or []
+    evidence_copy = "; ".join(str(item) for item in evidence) if evidence else "Nessuna evidenza aggiuntiva registrata."
+    date_label = escape(str(event.get("date_label", "Data non disponibile")))
+    event_type = escape(_timeline_type_label(event.get("type")))
+    importance = escape(str(event.get("importance", "low")))
+    title = escape(str(event.get("title", "Evento del percorso")))
+    description = escape(str(event.get("description", "Informazione utile da riprendere in seduta.")))
+    evidence_copy = escape(evidence_copy)
+    source = escape(str(event.get("source", "system")))
+    non_diagnostic = "Sì" if event.get("non_diagnostic", True) else "—"
+    st.markdown(
+        f"""
+<div style="border: 1px solid #334155; border-radius: 12px; padding: 14px; margin: 10px 0; background: rgba(15, 23, 42, 0.35);">
+  <div style="font-size: 0.85rem; color: #94a3b8;">{date_label} · {event_type} · Importanza: {importance}</div>
+  <div style="font-size: 1.05rem; font-weight: 700; margin-top: 4px;">{title}</div>
+  <div style="margin-top: 6px;">{description}</div>
+  <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 8px;"><strong>Evidenze:</strong> {evidence_copy}</div>
+  <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Fonte: {source} · Lettura non diagnostica: {non_diagnostic}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def render_progress_timeline(events, *, max_visible=None, newest_first=False):
+    if not events:
+        st.info("Non ci sono ancora eventi sufficienti per costruire una timeline del percorso.")
+        return
+    visible_events = list(events)
+    if max_visible is not None and len(visible_events) > max_visible:
+        st.caption(f"Mostro gli ultimi {max_visible} eventi su {len(visible_events)}.")
+        visible_events = visible_events[-max_visible:]
+    if newest_first:
+        visible_events = list(reversed(visible_events))
+    rendered_ids = set()
+    for event_type, section_title in TIMELINE_SECTION_ORDER:
+        section_events = [event for event in visible_events if event.get("type", "note") == event_type]
+        if not section_events:
+            continue
+        rendered_ids.update(id(event) for event in section_events)
+        with st.expander(f"{section_title} ({len(section_events)})", expanded=event_type in {"setback", "improvement", "attention_area"}):
+            for event in section_events:
+                _timeline_card(event)
+    other_events = [event for event in visible_events if id(event) not in rendered_ids]
+    if other_events:
+        with st.expander(f"Altri eventi ({len(other_events)})", expanded=False):
+            for event in other_events:
+                _timeline_card(event)
+
+
 SENSATION_OPTIONS = [
     "Tensione muscolare",
     "Nodo allo stomaco",
@@ -740,20 +823,7 @@ def show_monitoring_tab():
     st.markdown("#### Timeline del percorso")
     st.caption("Questi segnali sono descrittivi e non diagnostici. Vanno interpretati dal professionista.")
     journey_events = journey.get("timeline_events") or []
-    if not journey_events:
-        st.info("Non ci sono ancora eventi sufficienti per costruire una timeline del percorso.")
-    else:
-        timeline_rows = [{
-            "Data": event.get("date_label", "Data non disponibile"),
-            "Titolo": event.get("title", "Evento del percorso"),
-            "Descrizione": event.get("description", "Informazione utile da riprendere in seduta."),
-            "Tipo": {"setback": "Ricadute / peggioramenti", "improvement": "Miglioramenti", "attention_area": "Aree da attenzionare", "step_forward": "Passi avanti", "maintained_progress": "Miglioramenti mantenuti"}.get(event.get("type", "note"), event.get("type", "note")),
-            "Importanza": event.get("importance", "low"),
-            "Evidenze": "; ".join(event.get("evidence", [])),
-            "Fonte": event.get("source", "system"),
-            "Lettura non diagnostica": "Sì" if event.get("non_diagnostic", True) else "—",
-        } for event in journey_events]
-        st.dataframe(pd.DataFrame(timeline_rows), use_container_width=True, hide_index=True)
+    render_progress_timeline(journey_events)
 
     df = entries_dataframe()
     if df.empty:
@@ -1296,29 +1366,12 @@ def show_therapist_dashboard():
             st.warning(journey["retention_alerts"][0]["therapist_copy"])
         show_full_timeline = st.button("Apri timeline percorso", use_container_width=True)
         st.button("Aggiungi al recap pre-seduta", use_container_width=True)
-        if not journey_events:
-            st.info("Non ci sono ancora eventi sufficienti per costruire una timeline del percorso.")
-        else:
-            max_visible = 10
-            events_to_render = journey_events if show_full_timeline else journey_events[-max_visible:]
-            if not show_full_timeline and len(journey_events) > max_visible:
-                st.caption(f"Mostro gli ultimi {max_visible} eventi su {len(journey_events)}.")
-            timeline_rows = [{
-                "Data": event.get("date_label", "Data non disponibile"),
-                "Titolo": event.get("title", "Evento del percorso"),
-                "Descrizione": event.get("description", "Informazione utile da riprendere in seduta."),
-                "Tipo": {"setback": "Ricadute / peggioramenti", "improvement": "Miglioramenti", "attention_area": "Aree da attenzionare", "step_forward": "Passi avanti", "maintained_progress": "Miglioramenti mantenuti"}.get(event.get("type", "note"), event.get("type", "note")),
-                "Importanza": event.get("importance", "low"),
-                "Evidenze": "; ".join(event.get("evidence", [])),
-                "Fonte": event.get("source", "system"),
-                "Lettura non diagnostica": "Sì" if event.get("non_diagnostic", True) else "—",
-            } for event in reversed(events_to_render)]
-            st.dataframe(pd.DataFrame(timeline_rows), use_container_width=True, hide_index=True)
+        render_progress_timeline(journey_events, max_visible=None if show_full_timeline else 10, newest_first=True)
         with st.form("manual_timeline_event"):
             event_title = st.text_input("Aggiungi evento/progresso/ricaduta")
             event_detail = st.text_area("Dettaglio")
             if st.form_submit_button("Aggiungi alla timeline", use_container_width=True):
-                selected_wellness["timeline_events"].append({
+                selected_wellness.setdefault("timeline_events", []).append({
                     "data": datetime.utcnow().isoformat(timespec="seconds"),
                     "tipo": "Evento clinico",
                     "titolo": event_title,
