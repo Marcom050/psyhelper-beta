@@ -30,6 +30,7 @@ def normalize_progress_timeline_event(event: Optional[Mapping[str, Any]]) -> dic
     date_value = event.get("date") or event.get("data")
     raw_type = str(event.get("type") or event.get("tipo") or "note").strip().lower()
     type_aliases = {
+        "progress": "improvement",
         "homework_completed": "homework",
         "homework assegnato": "homework",
         "homework completato": "homework",
@@ -37,13 +38,20 @@ def normalize_progress_timeline_event(event: Optional[Mapping[str, Any]]) -> dic
         "evento clinico": "note",
     }
     normalized_type = type_aliases.get(raw_type, raw_type)
-    allowed_types = {"baseline", "progress", "setback", "homework", "onboarding", "note", "session", "trigger"}
+    allowed_types = {
+        "baseline", "improvement", "setback", "attention_area", "step_forward",
+        "maintained_progress", "homework", "onboarding", "note", "session", "trigger",
+    }
     if normalized_type not in allowed_types:
         normalized_type = "note"
     title = event.get("title") or event.get("titolo") or "Evento del percorso"
     description = event.get("description") or event.get("dettaglio") or ""
     source = event.get("source") or "progress_journey"
     non_diagnostic = bool(event.get("non_diagnostic", True))
+    importance = event.get("importance") or event.get("severity") or event.get("evidence_level") or "low"
+    evidence = event.get("evidence") or []
+    if isinstance(evidence, str):
+        evidence = [evidence]
     return {
         "date": date_value,
         "date_label": event.get("date_label") or _to_date_label(date_value),
@@ -51,8 +59,30 @@ def normalize_progress_timeline_event(event: Optional[Mapping[str, Any]]) -> dic
         "title": str(title),
         "description": str(description),
         "source": str(source),
+        "importance": str(importance),
+        "evidence": [str(item) for item in evidence],
+        "is_clinical_disclaimer_needed": bool(event.get("is_clinical_disclaimer_needed", True)),
         "non_diagnostic": non_diagnostic,
     }
+
+
+def _timeline_event(event_type: str, title: str, description: str, date: Any, source: str, *, importance: str = "medium", evidence: Optional[list[str]] = None) -> dict[str, Any]:
+    return {
+        "date": date,
+        "date_label": _to_date_label(date),
+        "type": event_type,
+        "title": title,
+        "description": description,
+        "source": source,
+        "importance": importance,
+        "evidence": evidence or [],
+        "is_clinical_disclaimer_needed": True,
+        "non_diagnostic": True,
+    }
+
+
+def _split_themes(value: Any) -> list[str]:
+    return [part.strip().lower() for part in str(value or "").split(",") if part.strip()]
 
 
 def build_progress_journey_summary(
@@ -115,20 +145,34 @@ def build_progress_journey_summary(
     if not recent_7.empty and not prev_7.empty:
         delta_anx = float(recent_7["ansia"].mean() - prev_7["ansia"].mean())
         delta_stress = float(recent_7["stress"].mean() - prev_7["stress"].mean())
-        if delta_anx <= -0.7 or delta_stress <= -0.7:
-            progress_markers.append("Potrebbe essere un segnale di miglioramento: nei dati recenti ansia/stress risultano in riduzione rispetto alla settimana precedente.")
-            timeline_events.append({"date": now.isoformat(), "date_label": _to_date_label(now), "type": "progress", "title": "Progressi", "description": "Riduzione recente di ansia/stress da riprendere con il terapeuta.", "source": "mood_entries", "evidence_level": "medium", "non_diagnostic": True})
-        if delta_anx >= 0.7 or delta_stress >= 0.7:
-            setback_markers.append("Momento di difficoltà da esplorare: possibile aumento recente di ansia/stress rispetto alla settimana precedente.")
-            timeline_events.append({"date": now.isoformat(), "date_label": _to_date_label(now), "type": "setback", "title": "Ricaduta", "description": "Possibile ricaduta o fase di maggiore fatica nei dati recenti.", "source": "mood_entries", "evidence_level": "medium", "non_diagnostic": True})
+        if delta_anx <= -1 or delta_stress <= -1:
+            evidence = [f"ansia: variazione media {delta_anx:.1f}", f"stress: variazione media {delta_stress:.1f}"]
+            progress_markers.append("Possibile segnale da esplorare in seduta: nei dati recenti ansia/stress risultano in riduzione rispetto alla settimana precedente.")
+            timeline_events.append(_timeline_event("improvement", "Miglioramento osservato", "Negli ultimi check-in si osserva una riduzione di ansia/stress o una maggiore stabilità emotiva. Segnale da discutere in seduta.", now.isoformat(), "mood_entries", evidence=evidence))
+        if delta_anx >= 1 or delta_stress >= 1:
+            evidence = [f"ansia: variazione media +{delta_anx:.1f}", f"stress: variazione media +{delta_stress:.1f}"]
+            setback_markers.append("Possibile ricaduta da esplorare: aumento recente di ansia/stress rispetto alla settimana precedente.")
+            timeline_events.append(_timeline_event("setback", "Possibile ricaduta da esplorare", "Negli ultimi check-in ansia o stress risultano aumentati rispetto al periodo precedente. Può essere utile esplorare cosa è cambiato.", now.isoformat(), "mood_entries", importance="high", evidence=evidence))
 
+    recent_rows = recent_14.to_dict("records") if not recent_14.empty else []
     trigger_counter = Counter()
-    for row in (wellness.get("mood_entries") or []):
-        trigger = row.get("trigger")
-        if trigger:
-            for part in [p.strip().lower() for p in str(trigger).split(",") if p.strip()]:
-                trigger_counter[part] += 1
+    automatic_thought_counter = Counter()
+    behavior_counter = Counter()
+    for row in recent_rows:
+        trigger_counter.update(_split_themes(row.get("trigger")))
+        automatic_thought_counter.update(_split_themes(row.get("pensiero_automatico")))
+        behavior_counter.update(_split_themes(row.get("comportamento")))
     recurring_triggers = [{"trigger": k, "count": v} for k, v in trigger_counter.most_common(5)]
+
+    for theme, count in trigger_counter.most_common(3):
+        if count >= 2:
+            timeline_events.append(_timeline_event("attention_area", f"Area da attenzionare: {theme}", "Questo tema compare più volte nei check-in recenti e potrebbe essere utile riprenderlo in seduta.", now.isoformat(), "mood_entries", evidence=[f"trigger ricorrente: {theme} ({count} volte)"]))
+    for theme, count in (automatic_thought_counter + behavior_counter).most_common(3):
+        if count >= 2:
+            timeline_events.append(_timeline_event("attention_area", f"Area da attenzionare: {theme}", "Questo pensiero o comportamento compare più volte nei check-in recenti: possibile segnale da esplorare in seduta.", now.isoformat(), "mood_entries", evidence=[f"tema ricorrente: {theme} ({count} volte)"]))
+
+    if len(recent_7) >= 2 and not prev_7.empty and recent_7["ansia"].mean() <= prev_7["ansia"].mean() - 1 and recent_7["stress"].mean() <= prev_7["stress"].mean() - 1:
+        timeline_events.append(_timeline_event("maintained_progress", "Progresso mantenuto", "Il miglioramento sembra mantenersi nei check-in più recenti. Segnale descrittivo da discutere in seduta.", now.isoformat(), "mood_entries", evidence=["ansia e stress restano più bassi nel periodo recente"]))
 
     helpful_strategies = []
     homework_impact = []
@@ -138,7 +182,12 @@ def build_progress_journey_summary(
         if aid in completed_ids:
             helpful_strategies.append(f"Dopo l'esercizio '{title}', nei dati successivi compaiono informazioni utili da discutere in seduta.")
             homework_impact.append({"homework": title, "status": "completed", "note": "Potrebbe essere utile discuterne in seduta."})
-            timeline_events.append({"date": assignment.get("assigned_at") or assignment.get("due_date"), "date_label": _to_date_label(assignment.get("assigned_at") or assignment.get("due_date")), "type": "homework", "title": "Homework completato", "description": title, "source": "homework_submissions", "evidence_level": "high", "non_diagnostic": True})
+            event_date = assignment.get("assigned_at") or assignment.get("due_date")
+            timeline_events.append(_timeline_event("homework", "Homework completato", title, event_date, "homework_submissions", importance="high", evidence=[f"homework completato: {title}"]))
+            step_keywords = ["evitamento", "piccolo passo", "esposizione", "paura", "ansia", "situazione evitata"]
+            text = f"{title} {assignment.get('instructions', '')}".lower()
+            if any(keyword in text for keyword in step_keywords):
+                timeline_events.append(_timeline_event("step_forward", "Passo avanti", "È presente un possibile passo avanti: il paziente ha affrontato o descritto un’azione collegata a un blocco precedente.", event_date, "homework_submissions", importance="high", evidence=[f"homework completato collegato a: {title}"]))
         else:
             homework_impact.append({"homework": title, "status": "pending", "note": "Tema da portare in seduta per capire ostacoli e supporti utili."})
 
