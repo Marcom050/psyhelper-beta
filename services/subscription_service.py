@@ -3,9 +3,10 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from core.settings import SETTINGS
 from services.auth_service import load_user_metadata, resolve_tenant_owner
 
-BETA_TRIAL_DAYS = 7
+BETA_TRIAL_DAYS = SETTINGS.beta_trial_days
 ACTIVE_BILLING_STATUSES = {"trialing", "active"}
 
 

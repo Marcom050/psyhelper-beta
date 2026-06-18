@@ -194,9 +194,7 @@ render_analytics_banner()
 st.info(PRIVATE_BETA_BANNER)
 
 GROQ_API_KEY = secret_get("GROQ_API_KEY", "")
-if not GROQ_API_KEY:
-    st.error("⚠️ API Key non configurata!")
-    st.stop()
+AI_UNAVAILABLE_MESSAGE = "Funzione AI non disponibile: chiave GROQ_API_KEY non configurata."
 
 
 MOOD_OPTIONS = ["Sereno", "Ansioso", "Triste", "Irritabile", "Sovraccarico", "Speranzoso", "Altro"]
@@ -551,6 +549,8 @@ def chat_context_for(user_input):
 
 
 def get_local_chat_response(context):
+    if not GROQ_API_KEY:
+        return AI_UNAVAILABLE_MESSAGE
     return get_chat_response(
         context,
         api_key=GROQ_API_KEY,
@@ -646,6 +646,9 @@ def show_chat_tab():
     for msg in session_adapter.get_messages():
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+
+    if not GROQ_API_KEY:
+        st.warning(AI_UNAVAILABLE_MESSAGE)
 
     if user_input := st.chat_input("Scrivi un messaggio…", key="chat_input_box"):
         session_adapter.get_messages().append({"role": "user", "content": user_input})
