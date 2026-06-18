@@ -37,14 +37,14 @@ def normalize_progress_timeline_event(event: Optional[Mapping[str, Any]]) -> dic
         "evento clinico": "note",
     }
     normalized_type = type_aliases.get(raw_type, raw_type)
-    allowed_types = {"baseline", "progress", "setback", "homework", "onboarding", "note", "session", "trigger"}
+    allowed_types = {"baseline", "progress", "setback", "homework", "onboarding", "note", "session", "trigger", "improvement", "attention_area", "step_forward", "maintained_progress"}
     if normalized_type not in allowed_types:
         normalized_type = "note"
     title = event.get("title") or event.get("titolo") or "Evento del percorso"
     description = event.get("description") or event.get("dettaglio") or ""
     source = event.get("source") or "progress_journey"
     non_diagnostic = bool(event.get("non_diagnostic", True))
-    return {
+    normalized_event = {
         "date": date_value,
         "date_label": event.get("date_label") or _to_date_label(date_value),
         "type": normalized_type,
@@ -53,6 +53,10 @@ def normalize_progress_timeline_event(event: Optional[Mapping[str, Any]]) -> dic
         "source": str(source),
         "non_diagnostic": non_diagnostic,
     }
+    for optional_key in ("importance", "evidence", "evidences", "evidence_level", "signals", "severity"):
+        if optional_key in event:
+            normalized_event[optional_key] = event[optional_key]
+    return normalized_event
 
 
 def build_progress_journey_summary(
