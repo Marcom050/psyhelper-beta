@@ -94,7 +94,7 @@ def build_progress_journey_summary(
             "source": "mood_entries",
         })
 
-    now = pd.Timestamp.now().tz_localize(None).normalize()
+    now = (df["data"].max() if not df.empty else pd.Timestamp.now()).tz_localize(None).normalize()
     recent_14 = df[df["data"] >= now - pd.Timedelta(days=14)] if not df.empty else pd.DataFrame()
     recent_7 = df[df["data"] >= now - pd.Timedelta(days=7)] if not df.empty else pd.DataFrame()
     prev_7 = df[(df["data"] < now - pd.Timedelta(days=7)) & (df["data"] >= now - pd.Timedelta(days=14))] if not df.empty else pd.DataFrame()

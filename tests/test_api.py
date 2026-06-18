@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -120,7 +121,7 @@ class PsyHelperAPITest(unittest.TestCase):
             headers=headers,
             json={
                 "template": "Nota per la seduta",
-                "due_date": "2026-05-30",
+                "due_date": (date.today() + timedelta(days=30)).isoformat(),
                 "assigned_by": "therapist_a",
                 "prompt": "Scrivi una nota.",
             },

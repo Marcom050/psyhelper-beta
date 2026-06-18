@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -32,7 +32,7 @@ def test_e2e_clinical_flow(tmp_path):
     assert c.post("/therapists/me/clients", headers=th, json={"username": "client1", "password": "secret", "profile": {"nome": "C1"}}).status_code == 200
 
     assert c.post("/clients/client1/mood-entries", headers=th, json={"data": "2026-05-19", "umore": "Ansioso", "umore_intensita": 8, "ansia": 7, "stress": 6}).status_code == 200
-    hw = c.post("/clients/client1/homework-assignments", headers=th, json={"template": "Nota per la seduta", "due_date": "2026-05-30", "assigned_by": "thera", "prompt": "nota"}).json()["assignment"]
+    hw = c.post("/clients/client1/homework-assignments", headers=th, json={"template": "Nota per la seduta", "due_date": (date.today() + timedelta(days=30)).isoformat(), "assigned_by": "thera", "prompt": "nota"}).json()["assignment"]
     assert c.post("/homework-submissions", headers=th, json={"username": "client1", "assignment_id": hw["id"], "template": "Nota per la seduta", "prompt": "nota", "answer": "fatto"}).status_code == 200
     with patch("api.routers.chat.groq_api_key", return_value="k"), patch("api.routers.chat.get_chat_response") as g:
         g.return_value.content = "ok"
