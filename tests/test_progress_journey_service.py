@@ -13,7 +13,7 @@ def _wellness(entries=None, assignments=None, submissions=None, onboardings=None
 def test_timeline_events_have_stable_shape():
     res = build_progress_journey_summary(_wellness())
     event = res["timeline_events"][0]
-    required_keys = {"date", "date_label", "type", "title", "description", "source", "non_diagnostic"}
+    required_keys = {"date", "date_label", "type", "title", "description", "source", "importance", "evidence", "is_clinical_disclaimer_needed", "non_diagnostic"}
     assert required_keys.issubset(set(event.keys()))
 
 
@@ -46,16 +46,41 @@ def test_timeline_includes_setback_event_when_stress_or_anxiety_increase():
         {"data": "2026-05-24", "ansia": 8, "stress": 8, "umore_intensita": 3},
     ]
     res = build_progress_journey_summary(_wellness(entries=entries))
-    assert any(event["type"] == "setback" for event in res["timeline_events"])
+    event = next(event for event in res["timeline_events"] if event["type"] == "setback")
+    assert event["title"] == "Possibile ricaduta da esplorare"
+    assert event["evidence"]
 
 
-def test_timeline_includes_progress_event_when_stress_or_anxiety_decrease():
+def test_timeline_includes_improvement_event_when_stress_or_anxiety_decrease():
     entries = [
         {"data": "2026-05-14", "ansia": 8, "stress": 8, "umore_intensita": 2},
         {"data": "2026-05-24", "ansia": 3, "stress": 3, "umore_intensita": 7},
     ]
     res = build_progress_journey_summary(_wellness(entries=entries))
-    assert any(event["type"] == "progress" for event in res["timeline_events"])
+    assert any(event["type"] == "improvement" for event in res["timeline_events"])
+
+
+def test_recurring_trigger_generates_attention_area():
+    entries = [
+        {"data": "2026-05-20", "ansia": 6, "stress": 5, "umore_intensita": 5, "trigger": "lavoro"},
+        {"data": "2026-05-24", "ansia": 6, "stress": 5, "umore_intensita": 5, "trigger": "lavoro"},
+    ]
+    res = build_progress_journey_summary(_wellness(entries=entries))
+    assert any(event["type"] == "attention_area" and "lavoro" in event["title"] for event in res["timeline_events"])
+
+
+def test_avoidance_homework_completion_generates_step_forward():
+    assignments = [{"id": "a1", "template": "Piccolo passo su situazione evitata", "assigned_at": "2026-05-03"}]
+    submissions = [{"assignment_id": "a1", "submitted_at": "2026-05-05"}]
+    res = build_progress_journey_summary(_wellness(assignments=assignments, submissions=submissions))
+    assert any(event["type"] == "step_forward" for event in res["timeline_events"])
+
+
+def test_insufficient_data_does_not_generate_false_clinical_signals():
+    entries = [{"data": "2026-05-24", "ansia": 6, "stress": 6, "umore_intensita": 5, "trigger": "lavoro"}]
+    res = build_progress_journey_summary(_wellness(entries=entries))
+    signal_types = {"setback", "improvement", "attention_area", "step_forward", "maintained_progress"}
+    assert not any(event["type"] in signal_types for event in res["timeline_events"])
 
 
 def test_missing_date_does_not_crash():
@@ -73,6 +98,7 @@ def test_no_diagnostic_language_in_timeline_labels():
     ).lower()
     assert "diagnosi" not in timeline_text
     assert "disturbo" not in timeline_text
+    assert "guarito" not in timeline_text
 
 
 def test_normalize_progress_timeline_event_safe_defaults_and_shape():
@@ -84,5 +110,13 @@ def test_normalize_progress_timeline_event_safe_defaults_and_shape():
         "title": "Evento del percorso",
         "description": "",
         "source": "progress_journey",
+        "importance": "low",
+        "evidence": [],
+        "is_clinical_disclaimer_needed": True,
         "non_diagnostic": True,
     }
+
+
+def test_normalize_progress_alias_to_improvement_for_backwards_compatibility():
+    event = normalize_progress_timeline_event({"type": "progress", "title": "Progressi"})
+    assert event["type"] == "improvement"

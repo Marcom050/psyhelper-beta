@@ -738,7 +738,7 @@ def show_monitoring_tab():
         st.write(f"- {item}")
     st.caption(journey['retention_message'])
     st.markdown("#### Timeline del percorso")
-    st.caption("Una lettura cronologica non diagnostica dei momenti inseriti, degli esercizi svolti e dei cambiamenti osservabili.")
+    st.caption("Questi segnali sono descrittivi e non diagnostici. Vanno interpretati dal professionista.")
     journey_events = journey.get("timeline_events") or []
     if not journey_events:
         st.info("Non ci sono ancora eventi sufficienti per costruire una timeline del percorso.")
@@ -747,7 +747,9 @@ def show_monitoring_tab():
             "Data": event.get("date_label", "Data non disponibile"),
             "Titolo": event.get("title", "Evento del percorso"),
             "Descrizione": event.get("description", "Informazione utile da riprendere in seduta."),
-            "Tipo": event.get("type", "note"),
+            "Tipo": {"setback": "Ricadute / peggioramenti", "improvement": "Miglioramenti", "attention_area": "Aree da attenzionare", "step_forward": "Passi avanti", "maintained_progress": "Miglioramenti mantenuti"}.get(event.get("type", "note"), event.get("type", "note")),
+            "Importanza": event.get("importance", "low"),
+            "Evidenze": "; ".join(event.get("evidence", [])),
             "Fonte": event.get("source", "system"),
             "Lettura non diagnostica": "Sì" if event.get("non_diagnostic", True) else "—",
         } for event in journey_events]
@@ -1283,7 +1285,8 @@ def show_therapist_dashboard():
             st.info(empty_state_message("homework_submissions"))
 
     with detail_tabs[3]:
-        st.markdown("### Percorso e ricadute")
+        st.markdown("### Percorso e ricadute · Timeline del percorso")
+        st.caption("Questi segnali sono descrittivi e non diagnostici. Vanno interpretati dal professionista.")
         journey = build_progress_journey_summary(selected_wellness)
         journey_events = journey.get("timeline_events") or []
         st.markdown("#### Punti da riprendere in seduta")
@@ -1304,7 +1307,9 @@ def show_therapist_dashboard():
                 "Data": event.get("date_label", "Data non disponibile"),
                 "Titolo": event.get("title", "Evento del percorso"),
                 "Descrizione": event.get("description", "Informazione utile da riprendere in seduta."),
-                "Tipo": event.get("type", "note"),
+                "Tipo": {"setback": "Ricadute / peggioramenti", "improvement": "Miglioramenti", "attention_area": "Aree da attenzionare", "step_forward": "Passi avanti", "maintained_progress": "Miglioramenti mantenuti"}.get(event.get("type", "note"), event.get("type", "note")),
+                "Importanza": event.get("importance", "low"),
+                "Evidenze": "; ".join(event.get("evidence", [])),
                 "Fonte": event.get("source", "system"),
                 "Lettura non diagnostica": "Sì" if event.get("non_diagnostic", True) else "—",
             } for event in reversed(events_to_render)]
