@@ -1,6 +1,7 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from html import escape
 import logging
+import os
 
 import pandas as pd
 import plotly.express as px
@@ -20,7 +21,6 @@ from services.homework_service import (
     append_assignment,
     append_submission,
     assignment_status,
-    clean_text,
     completed_assignment_ids,
     create_assignment,
     create_submission,
@@ -30,7 +30,6 @@ from services.homework_service import (
     homework_answer_items,
     homework_assignment_rows,
     homework_main_prompt,
-    homework_readable_summary,
     homework_template_label,
     submitted_homework_rows,
 )
@@ -78,6 +77,7 @@ from services.post_consultation_onboarding_service import (
 )
 
 LOGGER = logging.getLogger(__name__)
+SHOW_DEBUG_UI = os.getenv("SHOW_DEBUG_UI", "").lower() == "true"
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 
@@ -465,12 +465,12 @@ def render_second_session_summary(summary):
     if isinstance(note_prossima, dict) and points_to_resume == note_prossima.get("note", ""):
         points_to_resume = ""
     sections = {
-        "Baseline iniziale": summary.get("baseline", {}),
-        "Obiettivi del paziente": summary.get("goals", {}),
-        "Diario guidato": summary.get("diary", {}),
-        "Scheda CBT": summary.get("cbt_entry", {}),
-        "Nota per la prossima seduta": summary.get("next_session_note", {}),
-        "Punti suggeriti da riprendere": points_to_resume,
+        "Com’è andata la settimana": summary.get("baseline", {}),
+        "Piccolo passo scelto": summary.get("goals", {}),
+        "Situazione importante": summary.get("diary", {}),
+        "Pensiero e reazione": summary.get("cbt_entry", {}),
+        "Da riprendere nella prossima seduta": summary.get("next_session_note", {}),
+        "Punti da riprendere": points_to_resume,
     }
     has_content = any(bool(value) for value in sections.values())
     if not has_content:
@@ -487,15 +487,15 @@ def render_second_session_summary(summary):
                 italian_labels = {
                     "mood": "Umore medio",
                     "stress": "Stress medio",
-                    "goals_text": "Obiettivi (2-4 settimane)",
-                    "track": "Percorso scelto",
-                    "short_term_priority": "Priorità breve termine",
-                    "time_commitment": "Disponibilità media",
-                    "guided_3_days": "Diario guidato (3 giorni)",
+                    "goals_text": "Cosa vuole ottenere",
+                    "track": "Percorso",
+                    "short_term_priority": "Piccolo passo",
+                    "time_commitment": "Tempo disponibile",
+                    "guided_3_days": "Situazione importante",
                     "situation": "Situazione",
-                    "automatic_thought": "Pensiero automatico",
+                    "automatic_thought": "Pensiero",
                     "emotion": "Emozione",
-                    "alternative_thought": "Pensiero alternativo",
+                    "alternative_thought": "Piccolo passo",
                     "note": "Nota",
                     "points_to_resume": "Punti da riprendere",
                 }
@@ -756,19 +756,35 @@ def show_diary_tab():
     st.caption("Prima i dati essenziali; i dettagli restano disponibili qui sotto.")
 
     with st.form("mood_entry_form"):
-        entry_date = st.date_input("Data", value=date.today())
-        mood = st.selectbox("Stato d'animo prevalente", MOOD_OPTIONS)
-        mood_intensity = st.slider("Intensità dell'emozione (1-10)", 1, 10, 5)
-        anxiety = st.slider("Ansia (0-10)", 0, 10, 4)
-        stress = st.slider("Stress (0-10)", 0, 10, 4)
+        entry_date = st.date_input("Data", value=date.today(), help="Scegli il giorno dell'episodio.")
+        mood = st.selectbox("Che emozione hai sentito di più?", MOOD_OPTIONS, help="Scegli quella più presente in quel momento.")
+        mood_intensity = st.slider("Quanto era forte?", 0, 10, 5, help="0 significa per niente, 10 significa molto forte.")
+        trigger = st.text_input(
+            "Che cosa è successo?",
+            help="Descrivi brevemente il momento o la situazione.",
+            placeholder="Es. Ho ricevuto un messaggio che mi ha preoccupato.",
+        )
+        automatic_thought = st.text_area(
+            "Che pensiero ti è venuto in quel momento?",
+            help="Scrivilo come ti è comparso, anche con poche parole.",
+            placeholder="Es. Non riuscirò a gestirlo.",
+        )
+        behavior = st.text_area(
+            "Che cosa hai fatto subito dopo?",
+            help="Descrivi brevemente come hai reagito.",
+            placeholder="Es. Ho evitato di rispondere e ho spento il telefono.",
+        )
+        note = st.text_area(
+            "Vuoi riprendere qualcosa di questo episodio in seduta? (facoltativo)",
+            help="Questo testo sarà visibile al terapeuta.",
+            placeholder="Es. Vorrei capire perché tendo a evitare queste situazioni.",
+        )
 
-        with st.expander("Dettagli CBT opzionali (trigger, corpo, pensieri, azioni)", expanded=False):
-            trigger = st.text_input("Trigger/situazione", placeholder="Es. discussione, scadenza, luogo, pensiero...")
-            sensations = st.multiselect("Sensazioni corporee", SENSATION_OPTIONS)
-            need = st.text_input("Bisogno emerso", placeholder="Es. sicurezza, riposo, chiarezza, supporto...")
-            automatic_thought = st.text_area("Pensiero automatico", placeholder="Che cosa ti sei detto/a in quel momento?")
-            behavior = st.text_area("Comportamento o impulso", placeholder="Che cosa hai fatto o avresti voluto fare?")
-            note = st.text_area("Nota per il professionista", placeholder="Elementi che vorresti portare in seduta.")
+        with st.expander("Aggiungi qualche dettaglio, se ti aiuta", expanded=False):
+            anxiety = st.slider("Quanta ansia hai sentito? (facoltativo)", 0, 10, 4, help="Indica la tua percezione da 0 a 10.")
+            stress = st.slider("Quanto stress hai sentito? (facoltativo)", 0, 10, 4, help="Indica la tua percezione da 0 a 10.")
+            sensations = st.multiselect("Che cosa hai sentito nel corpo? (facoltativo)", SENSATION_OPTIONS, help="Scegli solo le sensazioni che ricordi chiaramente.")
+            need = ""
 
         if st.form_submit_button("Salva scheda", use_container_width=True):
             entry = {
@@ -848,12 +864,14 @@ def show_monitoring_tab():
     st.metric("Media stress", f"{avg_stress:.1f}/10")
     st.metric("Homework", f"{snapshot['homework_completed']}/{snapshot['homework_total']}")
 
-    with st.expander("Insight automatici da portare in seduta", expanded=True):
+    with st.expander("Segnali descrittivi dai dati recenti", expanded=True):
+        st.caption("Queste informazioni organizzano ciò che hai inserito e devono essere interpretate con il terapeuta.")
         for insight in snapshot["insights"]:
             st.write(f"• {insight}")
         for alert in snapshot["alerts"]:
-            st.warning(f"Potenziale area da attenzionare: {alert}")
+            st.warning(f"Punto da osservare: {alert}")
 
+    st.caption("I valori mostrano come hai descritto la tua esperienza nel tempo.")
     chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
     fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
     fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
@@ -861,7 +879,7 @@ def show_monitoring_tab():
 
     trigger_counts = most_common_values(df["trigger"])
     sensation_counts = most_common_values(df["sensazioni"])
-    st.markdown("**Trigger più ricorrenti**")
+    st.markdown("**Situazioni più ricorrenti**")
     st.dataframe(trigger_counts.rename("Frequenza"), use_container_width=True)
     st.markdown("**Sensazioni più ricorrenti**")
     st.dataframe(sensation_counts.rename("Frequenza"), use_container_width=True)
@@ -890,11 +908,14 @@ def show_homework_tab():
         st.info(template.get("obiettivo") or "Compito breve assegnato dal terapeuta.")
         st.metric("Scadenza", selected_assignment.get("due_date", "—"))
         with st.form("assigned_homework_submission"):
+            st.markdown(f"**Domanda assegnata:** {prompt}")
+            st.caption("La risposta sarà visibile al terapeuta dopo l’invio.")
             answer = st.text_area(
-                prompt,
+                "La tua risposta",
                 key=f"assigned_{selected_assignment.get('id')}_single_answer",
                 height=150,
-                placeholder="Scrivi una risposta breve.",
+                help="Scrivi ciò che hai osservato o provato. Non serve una risposta perfetta.",
+                placeholder="Es. Ho provato a fare una pausa prima di rispondere.",
             )
             if st.form_submit_button("Invia al terapeuta", use_container_width=True):
                 if save_homework_submission_for(
@@ -963,10 +984,11 @@ def show_private_area_tab():
 
     wellness = session_adapter.get_wellness()
     with st.form("private_area_new_entry"):
-        title = st.text_input("Titolo", placeholder="Es. Cose che vorrei dire")
+        title = st.text_input("Titolo facoltativo", help="Serve soltanto a ritrovare la nota più facilmente.", placeholder="Es. Da riprendere con calma")
         content = st.text_area(
-            "Nota privata",
-            placeholder="Puoi scrivere pensieri, dubbi o materiale da portare in seduta. Visibile al terapeuta solo dopo la tua conferma.",
+            "Che cosa vuoi annotare?",
+            help="Questa nota resta privata finché non scegli di condividerla.",
+            placeholder="Scrivi un pensiero, un dubbio o qualcosa che non vuoi dimenticare.",
             height=160,
         )
         if st.form_submit_button("Salva in area privata", use_container_width=True):
@@ -992,8 +1014,8 @@ def show_private_area_tab():
             st.write(entry.get("content", ""))
             if status == "private":
                 with st.expander("Modifica nota privata"):
-                    edit_title = st.text_input("Titolo", value=entry.get("title", ""), key=f"private_title_{entry['id']}")
-                    edit_content = st.text_area("Contenuto", value=entry.get("content", ""), key=f"private_content_{entry['id']}", height=140)
+                    edit_title = st.text_input("Titolo facoltativo", value=entry.get("title", ""), key=f"private_title_{entry['id']}", help="Serve soltanto a ritrovare la nota più facilmente.")
+                    edit_content = st.text_area("Che cosa vuoi annotare?", value=entry.get("content", ""), key=f"private_content_{entry['id']}", height=140, help="Questa nota resta privata finché non scegli di condividerla.")
                     if st.button("Salva modifiche", key=f"private_update_{entry['id']}", use_container_width=True):
                         update_private_entry(wellness, entry["id"], edit_title, edit_content)
                         save_user_data(session_adapter.get_username())
@@ -1001,7 +1023,8 @@ def show_private_area_tab():
                         st.rerun()
                 col_share, col_delete = st.columns(2)
                 with col_share:
-                    if st.button("Condividi con il terapeuta", key=f"private_share_{entry['id']}", use_container_width=True):
+                    st.caption("Dopo la conferma, il terapeuta potrà vedere questa nota.")
+                    if st.button("Condividi questa nota", key=f"private_share_{entry['id']}", use_container_width=True):
                         share_private_entry(wellness, entry["id"])
                         save_user_data(session_adapter.get_username())
                         st.success("Nota condivisa. Il terapeuta potrà vederla nel recap pre-seduta.")
@@ -1014,7 +1037,8 @@ def show_private_area_tab():
                         st.rerun()
             elif status == "shared":
                 st.success("Visibile al terapeuta solo perché hai confermato la condivisione.")
-                if st.button("Revoca condivisione", key=f"private_revoke_{entry['id']}", use_container_width=True):
+                st.caption("La nota non sarà più mostrata al terapeuta nell’app. Questo non elimina ciò che potrebbe essere già stato letto o esportato.")
+                if st.button("Interrompi la condivisione", key=f"private_revoke_{entry['id']}", use_container_width=True):
                     revoke_shared_entry(wellness, entry["id"])
                     save_user_data(session_adapter.get_username())
                     st.warning("La nota non sarà più visibile nelle viste normali del terapeuta. Se il terapeuta l’ha già letta o esportata, non è possibile garantire che non ne abbia preso visione.")
@@ -1036,7 +1060,8 @@ def show_report_tab():
         return
 
     st.caption("Le attività e i materiali sono strumenti di supporto scelti e adattati dal professionista.")
-    st.text_area("Resoconto sintetico", value=report["export_text"], height=320)
+    st.markdown("#### Riepilogo prima della seduta")
+    st.container(border=True).write(report["export_text"])
     st.download_button("Scarica resoconto .txt", data=report["export_text"], file_name="resoconto_psyhelper.txt", mime="text/plain", use_container_width=True)
 
     with st.expander("Vedi schede dettagliate"):
@@ -1280,8 +1305,8 @@ def show_therapist_dashboard():
     with st.container(border=True):
         st.markdown("### Preparazione seconda seduta")
         st.caption(
-            "Attiva un percorso breve per aiutare il paziente ad arrivare alla prossima seduta con più chiarezza: "
-            "baseline iniziale, obiettivi, diario guidato, prima scheda CBT e nota per la seduta."
+            "Attiva poche domande semplici per aiutare il paziente ad arrivare alla prossima seduta "
+            "con una situazione, un pensiero e un punto da riprendere."
         )
         selected_onboarding = find_existing_post_consultation_onboarding(selected_wellness)
         if not selected_onboarding:
@@ -1358,13 +1383,14 @@ def show_therapist_dashboard():
 
     detail_tabs = st.tabs(["🧠 Insight", "📊 Trend", "📚 Homework", "🗓️ Timeline", "🔒 Note private", "📄 Recap seduta"])
     with detail_tabs[0]:
-        st.markdown("### Insight automatici clinicamente utili")
+        st.markdown("### Segnali descrittivi dai dati recenti")
+        st.caption("Queste informazioni organizzano ciò che il paziente ha inserito e devono essere interpretate dal terapeuta.")
         for insight in selected_snapshot["insights"]:
             st.success(f"• {insight}")
-        st.markdown("### Alert intelligenti")
+        st.markdown("### Punti da osservare")
         if selected_snapshot["alerts"]:
             for alert in selected_snapshot["alerts"]:
-                st.warning(f"Potenziale area da attenzionare: {alert}")
+                st.warning(f"Punto da osservare: {alert}")
         else:
             st.info("Nessun alert automatico con i dati attuali.")
 
@@ -1379,10 +1405,10 @@ def show_therapist_dashboard():
             st.plotly_chart(fig, use_container_width=True)
             col_a, col_b = st.columns(2)
             with col_a:
-                st.markdown("**Trigger ricorrenti**")
+                st.markdown("**Situazioni ricorrenti**")
                 st.dataframe(most_common_values(df["trigger"], limit=5).rename("Frequenza"), use_container_width=True)
             with col_b:
-                st.markdown("**Pensieri automatici recenti**")
+                st.markdown("**Pensieri recenti**")
                 recent_thoughts = df["pensiero_automatico"].dropna().tail(5)
                 st.write("\n".join(f"- {thought}" for thought in recent_thoughts if str(thought).strip()) or "Nessun pensiero inserito.")
 
@@ -1396,20 +1422,18 @@ def show_therapist_dashboard():
         with assign_col:
             with st.form("assign_homework"):
                 template_name = st.selectbox(
-                    "Esercizio",
+                    "Quale esercizio vuoi assegnare?",
                     list(CBT_HOMEWORK_TEMPLATES.keys()),
                     format_func=homework_template_label,
                 )
-                due_date = st.date_input("Scadenza", value=date.today())
-                template = CBT_HOMEWORK_TEMPLATES[template_name]
-                st.markdown(f"**Obiettivo:** {template['obiettivo']}")
-                if clean_text(template.get("suggerimento")):
-                    st.caption(template["suggerimento"])
+                due_date = st.date_input("Entro quando?", value=date.today() + timedelta(days=7), help="Scegli una data realistica rispetto alla prossima seduta.")
+                st.caption("Scegli l’attività concordata con il paziente.")
                 prompt = st.text_area(
-                    "Consegna essenziale",
+                    "Che cosa vuoi chiedere al paziente?",
                     value=homework_main_prompt(template_name),
                     height=95,
-                    placeholder="Mantieni una sola traccia: il paziente risponderà in un unico spazio.",
+                    help="Questa è la domanda che comparirà nel compito.",
+                    placeholder="Es. Quale piccolo passo puoi provare prima della prossima seduta?",
                 )
                 if st.form_submit_button("Assegna", use_container_width=True):
                     if assign_homework_for(selected_username, username, selected_wellness, template_name, due_date, prompt):
@@ -1455,11 +1479,11 @@ def show_therapist_dashboard():
         if journey.get("retention_alerts"):
             st.warning(journey["retention_alerts"][0]["therapist_copy"])
         show_full_timeline = st.button("Apri timeline percorso", use_container_width=True)
-        st.button("Aggiungi al recap pre-seduta", use_container_width=True)
         render_progress_timeline(journey_events, max_visible=None if show_full_timeline else 10, newest_first=True)
         with st.form("manual_timeline_event"):
-            event_title = st.text_input("Aggiungi evento/progresso/ricaduta")
-            event_detail = st.text_area("Dettaglio")
+            st.caption("Gli eventi manuali sono visibili soltanto al terapeuta.")
+            event_title = st.text_input("Che cosa vuoi aggiungere al percorso?", help="Inserisci un evento o un cambiamento utile da ricordare.", placeholder="Es. Ha affrontato una situazione che prima evitava.")
+            event_detail = st.text_area("Aggiungi un breve dettaglio", help="Facoltativo: indica perché può essere utile riprenderlo.", placeholder="Es. Ne parleremo nella prossima seduta.")
             if st.form_submit_button("Aggiungi alla timeline", use_container_width=True):
                 selected_wellness.setdefault("timeline_events", []).append({
                     "data": datetime.utcnow().isoformat(timespec="seconds"),
@@ -1472,11 +1496,11 @@ def show_therapist_dashboard():
                 st.rerun()
 
     with detail_tabs[4]:
-        st.markdown("### Note private terapeuta")
-        st.caption("Queste note restano nello spazio del professionista e non sono mostrate al paziente.")
+        st.markdown("### Note private del terapeuta")
+        st.caption("Queste note non sono mostrate al paziente e non entrano automaticamente nel recap.")
         notes = load_therapist_notes(username)
         note_value = notes.get(selected_username, "")
-        updated_note = st.text_area("Osservazioni cliniche, ipotesi, note seduta", value=note_value, height=260)
+        updated_note = st.text_area("Note private del terapeuta", value=note_value, height=260, help="Queste note non sono mostrate al paziente e non entrano automaticamente nel recap.", placeholder="Scrivi appunti utili per il tuo lavoro.")
         if st.button("Salva note private", use_container_width=True):
             notes[selected_username] = updated_note
             save_therapist_notes(username, notes)
@@ -1536,9 +1560,9 @@ def show_therapist_dashboard():
             st.info("Assegna un esercizio o invita il cliente a compilare un check-in per vedere più informazioni qui.")
 
         st.divider()
-        st.markdown("### Riassunto automatico pre-seduta")
+        st.markdown("### Riepilogo prima della seduta")
         recap_payload = weekly_recap_payload_for(selected_username, selected_snapshot)
-        st.text_area("Ultimi 14 giorni", value=recap_payload["display_text"], height=260)
+        st.container(border=True).write(recap_payload["display_text"])
         st.download_button(
             "Scarica recap .txt",
             data=recap_payload["download_text"],
@@ -1672,13 +1696,13 @@ def render_onboarding_or_stop():
     with st.form("onboarding"):
         nome = st.text_input("Come ti chiami?", value=session_adapter.get_profile().get("nome", ""))
         età = st.number_input("Età", 14, 90, 30)
-        umore = st.selectbox("Umore attuale", MOOD_OPTIONS)
-        intensità = st.slider("Intensità del malessere (1-10)", 1, 10, 5)
-        stress = st.slider("Livello di stress (1-10)", 1, 10, 5)
-        sonno = st.selectbox("Sonno ultimamente", ["Buono", "Faccio fatica ad addormentarmi", "Mi sveglio spesso", "Rimugino e non dormo"])
-        motivazione = st.slider("Motivazione (1-10)", 1, 10, 7)
-        pensieri = st.text_area("Quali pensieri ti occupano di più ultimamente?")
-        obiettivi = st.text_area("Cosa vorresti migliorare nel tuo benessere mentale?")
+        umore = st.selectbox("Come ti senti oggi?", MOOD_OPTIONS, help="Serve solo a iniziare il monitoraggio.")
+        intensità = st.slider("Quanto è forte questa emozione?", 0, 10, 5, help="0 significa per niente, 10 significa molto forte.")
+        stress = 0
+        sonno = ""
+        motivazione = 0
+        pensieri = ""
+        obiettivi = ""
         if st.form_submit_button("Inizia il percorso 💜", use_container_width=True):
             session_adapter.set_profile({
                 "nome": nome or "Utente",
@@ -1711,24 +1735,22 @@ def open_post_free_consultation_onboarding_dialog(onboarding: dict, profile: dic
     next_note_data = step_data.get("next_session_note", {}).get("data", {})
 
     with st.form("post_free_consultation_onboarding"):
-        umore_base = st.slider("Baseline: umore medio settimana (1-10)", 1, 10, int(baseline_data.get("mood", 5)))
-        stress_base = st.slider("Baseline: stress medio settimana (1-10)", 1, 10, int(baseline_data.get("stress", 5)))
-        obiettivi = st.text_area("Obiettivi paziente (2-4 settimane)", value=goals_data.get("goals_text", ""))
-        diario_3_giorni = st.text_area("Diario guidato 3 giorni (sintesi)", value=diary_data.get("guided_3_days", ""))
-        situazione_cbt = st.text_area("Scheda CBT: situazione", value=cbt_data.get("situation", ""))
-        pensiero_cbt = st.text_area("Scheda CBT: pensiero automatico", value=cbt_data.get("automatic_thought", ""))
-        emozione_cbt = st.text_area("Scheda CBT: emozione principale", value=cbt_data.get("emotion", ""))
-        alternativa_cbt = st.text_area("Scheda CBT: pensiero alternativo", value=cbt_data.get("alternative_thought", ""))
-        nota_prossima = st.text_area("Nota per prossima seduta e punti da riprendere", value=next_note_data.get("note", ""))
+        umore_base = st.slider("Com’è andata questa settimana?", 0, 10, int(baseline_data.get("mood", 5)), help="0 significa molto difficile, 10 significa molto bene.")
+        stress_base = 0
+        obiettivi = ""
+        diario_3_giorni = st.text_area("Quale situazione importante è successa?", value=diary_data.get("guided_3_days", ""), help="Descrivi un episodio concreto della settimana.", placeholder="Es. Ho affrontato una conversazione che rimandavo.")
+        situazione_cbt = diario_3_giorni
+        pensiero_cbt = st.text_area("Che pensiero ti è venuto?", value=cbt_data.get("automatic_thought", ""), help="Scrivi il pensiero principale, anche in poche parole.", placeholder="Es. Non ce la farò.")
+        emozione_cbt = ""
+        alternativa_cbt = st.text_area("Quale piccolo passo vorresti provare?", value=cbt_data.get("alternative_thought", ""), help="Indica un'azione semplice da discutere con il terapeuta.", placeholder="Es. Rispondere dopo aver fatto una pausa.")
+        nota_prossima = st.text_area("Che cosa vuoi riprendere nella prossima seduta?", value=next_note_data.get("note", ""), help="Questo testo sarà visibile al terapeuta.", placeholder="Es. Vorrei parlare della paura di sbagliare.")
         track_options = ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"]
         selected_track = goals_data.get("track", track_options[0])
-        track_index = track_options.index(selected_track) if selected_track in track_options else 0
-        percorso = st.selectbox("Track di prosecuzione", track_options, index=track_index)
-        priorita = st.text_area("Priorità breve termine", value=goals_data.get("short_term_priority", ""))
+        percorso = selected_track
+        priorita = alternativa_cbt
         availability_options = ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"]
         selected_availability = goals_data.get("time_commitment", "Da definire")
-        availability_index = availability_options.index(selected_availability) if selected_availability in availability_options else len(availability_options) - 1
-        disponibilita = st.selectbox("Disponibilità media", availability_options, index=availability_index)
+        disponibilita = selected_availability if selected_availability in availability_options else "Da definire"
         if st.form_submit_button("Salva aggiornamento onboarding", use_container_width=True):
             save_post_consultation_step(onboarding, "baseline", {"mood": umore_base, "stress": stress_base})
             save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
@@ -1810,11 +1832,12 @@ def render_authenticated_app():
     st.sidebar.markdown("### Navigazione")
     st.sidebar.caption(f"Ruolo attivo: **{current_role}**")
     st.sidebar.radio("Sezioni disponibili", role_nav_sections(current_role), index=0, disabled=True)
-    with st.sidebar.expander("Note private beta", expanded=False):
-        for line in beta_disclaimer_lines():
-            st.markdown(f"- {line}")
-    with st.sidebar.expander("Contesto sessione (safe)", expanded=False):
-        st.json(safe_metadata)
+    if SHOW_DEBUG_UI:
+        with st.sidebar.expander("Note private beta", expanded=False):
+            for line in beta_disclaimer_lines():
+                st.markdown(f"- {line}")
+        with st.sidebar.expander("Contesto sessione (safe)", expanded=False):
+            st.json(safe_metadata)
 
     if current_role == "therapist":
         show_therapist_dashboard()
