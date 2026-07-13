@@ -1142,11 +1142,11 @@ def _set_pending_patient_delete(username: str | None) -> None:
 
 
 def _patient_selector_dialog_open() -> bool:
-    return bool(session_adapter._get("patient_selector_dialog_open"))
+    return bool(session_adapter._get("patient_selector_open", False))
 
 
 def _set_patient_selector_dialog_open(is_open: bool) -> None:
-    session_adapter._set("patient_selector_dialog_open", bool(is_open))
+    session_adapter._set("patient_selector_open", bool(is_open))
 
 
 def get_runtime_state(key: str, default=None):
@@ -1180,6 +1180,7 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
             with action_col:
                 if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
                     session_adapter.set_selected_patient_username(client["username"])
+                    _set_patient_selector_dialog_open(False)
                     _set_pending_patient_delete(None)
                     st.rerun()
             with delete_col:
@@ -1696,20 +1697,47 @@ def render_onboarding_or_stop():
     if session_adapter.get_profile().get("onboarding_completed", False):
         return
 
-    st.markdown("**Benvenuto.** Prima di iniziare, aiutami a conoscerti meglio.")
+    st.markdown("**Benvenuto.** Prima di iniziare, raccogliamo un piccolo punto di partenza su come ti senti oggi.")
+    st.caption("Non è un test e non ci sono risposte giuste o sbagliate.")
 
     with st.form("onboarding"):
-        nome = st.text_input("Come ti chiami?", value=session_adapter.get_profile().get("nome", ""))
+        current_profile = session_adapter.get_profile()
+        nome = st.text_input("Come ti chiami?", value=current_profile.get("nome", ""))
         età = st.number_input("Età", 14, 90, 30)
-        umore = st.selectbox("Come ti senti oggi?", MOOD_OPTIONS, help="Serve solo a iniziare il monitoraggio.")
-        intensità = st.slider("Quanto è forte questa emozione?", 0, 10, 5, help="0 significa per niente, 10 significa molto forte.")
-        stress = 0
+        umore = st.text_area(
+            "Come ti senti in questo momento?",
+            value=current_profile.get("umore", ""),
+            help="Puoi rispondere in poche parole. Questa risposta servirà solo come primo punto di partenza.",
+            height=90,
+        )
+        ansia = st.slider(
+            "Quanta ansia senti in questo momento?",
+            0,
+            10,
+            int(current_profile.get("initial_baseline", {}).get("ansia", 5)),
+            help="0 = Nessuna ansia · 10 = Ansia molto forte. Indica la tua percezione personale, senza cercare una risposta precisa o corretta.",
+        )
+        stress = st.slider(
+            "Quanto stress senti in questo momento?",
+            0,
+            10,
+            int(current_profile.get("initial_baseline", {}).get("stress", current_profile.get("stress", 5))),
+            help="0 = Nessuno stress · 10 = Stress molto forte. Considera come ti senti complessivamente in questo periodo.",
+        )
+        motivazione = st.slider(
+            "Quanto ti senti motivato a iniziare questo percorso?",
+            0,
+            10,
+            int(current_profile.get("initial_baseline", {}).get("motivazione", current_profile.get("motivazione", 5))),
+            help="0 = Per niente motivato · 10 = Molto motivato. Non è una valutazione e non condiziona il percorso. Serve solo a capire da dove stai partendo.",
+        )
+        intensità = 0
         sonno = ""
-        motivazione = 0
         pensieri = ""
         obiettivi = ""
         if st.form_submit_button("Inizia il percorso 💜", use_container_width=True):
             session_adapter.set_profile({
+                **current_profile,
                 "nome": nome or "Utente",
                 "età": età,
                 "umore": umore,
@@ -1719,6 +1747,13 @@ def render_onboarding_or_stop():
                 "pensieri": pensieri,
                 "obiettivi": obiettivi,
                 "motivazione": motivazione,
+                "initial_baseline": {
+                    "source": "initial_patient_onboarding",
+                    "umore": umore,
+                    "ansia": ansia,
+                    "stress": stress,
+                    "motivazione": motivazione,
+                },
                 "onboarding_completed": True,
             })
             session_adapter.set_scroll_to_top(True)

@@ -152,7 +152,7 @@ def test_patient_delete_keys_and_pending_state_are_stable():
 def test_patient_selector_dialog_open_state_is_persistent():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert 'def _patient_selector_dialog_open() -> bool:' in source
-    assert 'session_adapter._set("patient_selector_dialog_open", bool(is_open))' in source
+    assert 'session_adapter._set("patient_selector_open", bool(is_open))' in source
     assert 'if _patient_selector_dialog_open():' in source
 
 
@@ -274,3 +274,28 @@ def test_progress_journey_copy_present_for_patient_and_therapist():
     assert "Momenti di difficoltà" in source
     assert "Da portare in seduta" in source
     assert "journey = build_progress_journey_summary(selected_wellness)" in source
+
+
+def test_initial_patient_onboarding_collects_baseline_without_monitoring_overwrite():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "Prima di iniziare, raccogliamo un piccolo punto di partenza" in source
+    assert "Come ti senti in questo momento?" in source
+    assert "Quanta ansia senti in questo momento?" in source
+    assert "Quanto stress senti in questo momento?" in source
+    assert "Quanto ti senti motivato a iniziare questo percorso?" in source
+    assert '"initial_baseline": {' in source
+    assert '"source": "initial_patient_onboarding"' in source
+    assert '"ansia": ansia' in source
+    assert '"stress": stress' in source
+    assert '"motivazione": motivazione' in source
+    assert 'mood_entries' not in source[source.index('def render_onboarding_or_stop():'):source.index('@st.dialog("🧭 Da dove vuoi iniziare?")')]
+
+
+def test_patient_selector_uses_isolated_open_key_and_closes_on_selection():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert 'session_adapter._get("patient_selector_open", False)' in source
+    assert 'session_adapter._set("patient_selector_open", bool(is_open))' in source
+    assert 'session_adapter._set("patient_selector_dialog_open", bool(is_open))' not in source
+    select_block_start = source.index('key=f"select_patient_dialog_{client[\'username\']}"')
+    select_block = source[select_block_start:select_block_start + 250]
+    assert '_set_patient_selector_dialog_open(False)' in select_block
