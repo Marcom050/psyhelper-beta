@@ -70,7 +70,7 @@ from services.private_area_service import (
 )
 from services.progress_journey_service import build_progress_journey_summary
 from services.post_consultation_onboarding_service import (
-    build_second_session_summary,
+    build_starting_point_summary,
     ensure_post_consultation_onboarding,
     progress as post_consultation_progress,
     save_step as save_post_consultation_step,
@@ -408,7 +408,7 @@ def onboarding_progress_label(onboarding):
 def onboarding_primary_cta(status):
     normalized = (status or "").lower()
     if normalized in {"active", "completed"}:
-        return "Apri riepilogo seconda seduta"
+        return "Apri punto di partenza"
     if normalized == "expired":
         return "Visualizza dati raccolti"
     return None
@@ -419,10 +419,10 @@ def onboarding_progress_alert(onboarding):
     if total <= 0:
         return None
     if completed == total:
-        return "✅ Preparazione completata: il riepilogo è pronto per la prossima seduta."
+        return "✅ Punto di partenza completato: il riepilogo è pronto per essere letto insieme."
     remaining = total - completed
     return (
-        f"ℹ️ Preparazione opzionale in corso: {completed}/{total} step completati "
+        f"ℹ️ Onboarding di avvio opzionale in corso: {completed}/{total} step completati "
         f"(ne mancano {remaining})."
     )
 
@@ -456,7 +456,7 @@ def should_show_patient_post_consultation_onboarding(wellness, profile):
     return state == "active"
 
 
-def render_second_session_summary(summary):
+def render_starting_point_summary(summary):
     disclaimer = summary.get("disclaimer", "")
     if disclaimer:
         st.info(disclaimer)
@@ -465,12 +465,12 @@ def render_second_session_summary(summary):
     if isinstance(note_prossima, dict) and points_to_resume == note_prossima.get("note", ""):
         points_to_resume = ""
     sections = {
-        "Com’è andata la settimana": summary.get("baseline", {}),
-        "Piccolo passo scelto": summary.get("goals", {}),
-        "Situazione importante": summary.get("diary", {}),
-        "Pensiero e reazione": summary.get("cbt_entry", {}),
-        "Da riprendere nella prossima seduta": summary.get("next_session_note", {}),
-        "Punti da riprendere": points_to_resume,
+        "Difficoltà percepite": summary.get("baseline", {}),
+        "Abitudini o comportamenti da cambiare": summary.get("diary", {}),
+        "Pensieri a cui dare meno peso": summary.get("cbt_entry", {}),
+        "Obiettivi, aspettative e ruolo personale": summary.get("goals", {}),
+        "Informazioni aggiuntive": summary.get("next_session_note", {}),
+        "Punti indicati dal paziente": points_to_resume,
     }
     has_content = any(bool(value) for value in sections.values())
     if not has_content:
@@ -485,19 +485,24 @@ def render_second_session_summary(summary):
             st.markdown(f"**{title}**")
             if isinstance(content, dict):
                 italian_labels = {
-                    "mood": "Umore medio",
-                    "stress": "Stress medio",
-                    "goals_text": "Cosa vuole ottenere",
-                    "track": "Percorso",
-                    "short_term_priority": "Piccolo passo",
-                    "time_commitment": "Tempo disponibile",
-                    "guided_3_days": "Situazione importante",
-                    "situation": "Situazione",
-                    "automatic_thought": "Pensiero",
-                    "emotion": "Emozione",
-                    "alternative_thought": "Piccolo passo",
-                    "note": "Nota",
-                    "points_to_resume": "Punti da riprendere",
+                    "mood": "Umore iniziale (dato storico)",
+                    "stress": "Stress iniziale (dato storico)",
+                    "perceived_difficulty": "Cosa sta minando la serenità",
+                    "goals_text": "Obiettivi desiderati",
+                    "track": "Percorso (dato storico)",
+                    "short_term_priority": "Primo cambiamento desiderato",
+                    "time_commitment": "Tempo disponibile (dato storico)",
+                    "therapist_expectations": "Aspettative verso il terapeuta",
+                    "personal_commitment": "Impegno personale percepito",
+                    "guided_3_days": "Situazione importante (dato storico)",
+                    "habits_to_change": "Abitudini o modi di affrontare le situazioni",
+                    "situation": "Situazione (dato storico)",
+                    "automatic_thought": "Pensieri a cui dare meno peso",
+                    "emotion": "Emozione (dato storico)",
+                    "alternative_thought": "Piccolo passo (dato storico)",
+                    "note": "Informazione aggiuntiva",
+                    "additional_info": "Informazione aggiuntiva",
+                    "points_to_resume": "Spunti da approfondire",
                 }
                 for key, value in content.items():
                     if value is None or (isinstance(value, str) and not value.strip()):
@@ -1303,21 +1308,21 @@ def show_therapist_dashboard():
 
     st.markdown(f"## {selected_patient_name}")
     with st.container(border=True):
-        st.markdown("### Preparazione seconda seduta")
+        st.markdown("### Punto di partenza del percorso")
         st.caption(
-            "Attiva poche domande semplici per aiutare il paziente ad arrivare alla prossima seduta "
-            "con una situazione, un pensiero e un punto da riprendere."
+            "Attiva poche domande semplici per aiutare il paziente a mettere a fuoco ciò che vorrebbe affrontare, "
+            "senza trasformare le risposte in diagnosi o conclusioni cliniche."
         )
         selected_onboarding = find_existing_post_consultation_onboarding(selected_wellness)
         if not selected_onboarding:
-            if st.button("Avvia preparazione seconda seduta", use_container_width=True):
+            if st.button("Avvia punto di partenza del percorso", use_container_width=True):
                 try:
                     selected_onboarding = ensure_post_consultation_onboarding(selected_wellness)
                     save_wellness_for(selected_username, selected_wellness)
-                    st.success("Preparazione seconda seduta avviata per il paziente.")
+                    st.success("Punto di partenza del percorso avviato per il paziente.")
                     st.rerun()
                 except Exception:
-                    st.error("Non è stato possibile avviare la preparazione. Riprova o verifica l’accesso al paziente.")
+                    st.error("Non è stato possibile avviare l’onboarding di avvio. Riprova o verifica l’accesso al paziente.")
         else:
             status = selected_onboarding.get("status")
             c1, c2, c3 = st.columns(3)
@@ -1348,9 +1353,9 @@ def show_therapist_dashboard():
                         st.rerun()
 
             if get_runtime_state(summary_key, False):
-                summary = selected_onboarding.get("summary") or build_second_session_summary(selected_onboarding)
+                summary = selected_onboarding.get("summary") or build_starting_point_summary(selected_onboarding)
                 save_wellness_for(selected_username, selected_wellness)
-                render_second_session_summary(summary)
+                render_starting_point_summary(summary)
                 clear_confirm_key = f"confirm_clear_second_session_summary_{selected_username}"
                 clear_col, cancel_col = st.columns(2)
                 with clear_col:
@@ -1373,7 +1378,7 @@ def show_therapist_dashboard():
             if status == "active":
                 st.caption("Il paziente può completare i passaggi dalla propria dashboard.")
             elif status == "completed":
-                st.caption("Il materiale è pronto per essere usato come punto di partenza nella prossima seduta.")
+                st.caption("Il materiale è pronto come punto di partenza descrittivo del percorso.")
 
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     kpi1.metric("Ansia media", f"{selected_snapshot['avg_anxiety']:.1f}/10")
@@ -1722,11 +1727,15 @@ def render_onboarding_or_stop():
     st.stop()
 
 
-@st.dialog("🧭 Onboarding post-colloquio")
+@st.dialog("🧭 Da dove vuoi iniziare?")
 def open_post_free_consultation_onboarding_dialog(onboarding: dict, profile: dict, wellness: dict):
     completed_steps, total_steps = post_consultation_progress(onboarding)
-    st.info("Il tuo terapeuta ti ha proposto alcuni passaggi brevi per arrivare alla prossima seduta con più chiarezza. Non sono test diagnostici: servono solo a raccogliere materiale utile da discutere insieme.")
-    st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
+    st.info(
+        "Queste domande ti aiutano a mettere a fuoco ciò che vorresti affrontare e il tipo di cambiamento "
+        "che desideri costruire. Non esistono risposte giuste o sbagliate: puoi rispondere con parole "
+        "semplici e partire da ciò che senti più importante in questo momento."
+    )
+    st.caption(f"Progresso onboarding di avvio: {completed_steps}/{total_steps}")
     step_data = (onboarding or {}).get("steps", {})
     baseline_data = step_data.get("baseline", {}).get("data", {})
     goals_data = step_data.get("goals", {}).get("data", {})
@@ -1735,37 +1744,61 @@ def open_post_free_consultation_onboarding_dialog(onboarding: dict, profile: dic
     next_note_data = step_data.get("next_session_note", {}).get("data", {})
 
     with st.form("post_free_consultation_onboarding"):
-        umore_base = st.slider("Com’è andata questa settimana?", 0, 10, int(baseline_data.get("mood", 5)), help="0 significa molto difficile, 10 significa molto bene.")
-        stress_base = 0
-        obiettivi = ""
-        diario_3_giorni = st.text_area("Quale situazione importante è successa?", value=diary_data.get("guided_3_days", ""), help="Descrivi un episodio concreto della settimana.", placeholder="Es. Ho affrontato una conversazione che rimandavo.")
-        situazione_cbt = diario_3_giorni
-        pensiero_cbt = st.text_area("Che pensiero ti è venuto?", value=cbt_data.get("automatic_thought", ""), help="Scrivi il pensiero principale, anche in poche parole.", placeholder="Es. Non ce la farò.")
-        emozione_cbt = ""
-        alternativa_cbt = st.text_area("Quale piccolo passo vorresti provare?", value=cbt_data.get("alternative_thought", ""), help="Indica un'azione semplice da discutere con il terapeuta.", placeholder="Es. Rispondere dopo aver fatto una pausa.")
-        nota_prossima = st.text_area("Che cosa vuoi riprendere nella prossima seduta?", value=next_note_data.get("note", ""), help="Questo testo sarà visibile al terapeuta.", placeholder="Es. Vorrei parlare della paura di sbagliare.")
-        track_options = ["Percorso individuale con il terapeuta", "Sessioni periodiche + homework guidato", "Sto valutando e voglio solo monitorare i progressi"]
-        selected_track = goals_data.get("track", track_options[0])
-        percorso = selected_track
-        priorita = alternativa_cbt
-        availability_options = ["10-15 minuti", "20-30 minuti", "45+ minuti", "Da definire"]
-        selected_availability = goals_data.get("time_commitment", "Da definire")
-        disponibilita = selected_availability if selected_availability in availability_options else "Da definire"
-        if st.form_submit_button("Salva aggiornamento onboarding", use_container_width=True):
-            save_post_consultation_step(onboarding, "baseline", {"mood": umore_base, "stress": stress_base})
-            save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "track": percorso, "short_term_priority": priorita.strip(), "time_commitment": disponibilita})
-            save_post_consultation_step(onboarding, "diary", {"guided_3_days": diario_3_giorni.strip()})
-            save_post_consultation_step(onboarding, "cbt", {"situation": situazione_cbt.strip(), "automatic_thought": pensiero_cbt.strip(), "emotion": emozione_cbt.strip(), "alternative_thought": alternativa_cbt.strip()})
-            save_post_consultation_step(onboarding, "next_session_note", {"note": nota_prossima.strip(), "points_to_resume": nota_prossima.strip()})
-            build_second_session_summary(onboarding)
+        difficolta = st.text_area(
+            "Cosa pensi stia minando maggiormente la tua serenità in questo momento?",
+            value=baseline_data.get("perceived_difficulty", baseline_data.get("difficulty", "")),
+            help="Può essere una situazione, un pensiero ricorrente, una relazione, una difficoltà o qualcosa che fai fatica a comprendere.",
+            placeholder="Ad esempio: il lavoro occupa tutti i miei pensieri e faccio fatica a rilassarmi…",
+        )
+        abitudini = st.text_area(
+            "Cosa vorresti cambiare delle tue abitudini o del tuo modo di affrontare le situazioni?",
+            value=diary_data.get("habits_to_change", ""),
+            help="Pensa a qualcosa che oggi ti fa stare peggio, ti limita o non ti aiuta come vorresti.",
+            placeholder="Ad esempio: vorrei smettere di evitare le situazioni che mi mettono in difficoltà…",
+        )
+        pensieri = st.text_area(
+            "A quali pensieri vorresti riuscire a dare meno peso?",
+            value=cbt_data.get("automatic_thought", ""),
+            help="Puoi indicare pensieri ricorrenti, paure, dubbi o giudizi verso te stesso.",
+            placeholder="Ad esempio: penso spesso di non essere abbastanza capace…",
+        )
+        obiettivi = st.text_area(
+            "Quali cambiamenti concreti vorresti ottenere attraverso questo percorso?",
+            value=goals_data.get("goals_text", ""),
+            help="Prova a descrivere risultati osservabili e realistici, anche piccoli.",
+            placeholder="Ad esempio: vorrei riuscire a gestire meglio l’ansia prima degli esami e dormire con maggiore tranquillità…",
+        )
+        aspettative = st.text_area(
+            "Cosa ti aspetti dal terapeuta?",
+            value=goals_data.get("therapist_expectations", ""),
+            help="Puoi indicare il tipo di ascolto, supporto, confronto o guida che pensi possa esserti utile.",
+            placeholder="Ad esempio: vorrei sentirmi ascoltato, ma anche ricevere indicazioni concrete su cui lavorare…",
+        )
+        impegno = st.text_area(
+            "Cosa pensi di poter mettere tu in questo percorso?",
+            value=goals_data.get("personal_commitment", ""),
+            help="Non serve promettere grandi cambiamenti. Puoi indicare la disponibilità a riflettere, provare nuovi modi di affrontare le cose o svolgere piccoli esercizi.",
+            placeholder="Ad esempio: posso provare a essere sincero su ciò che provo e a mettere in pratica alcuni piccoli cambiamenti…",
+        )
+        nota = st.text_area(
+            "C’è qualcosa che vorresti che il terapeuta sapesse prima di iniziare? (facoltativo)",
+            value=next_note_data.get("additional_info", next_note_data.get("note", "")),
+            help="Puoi usare questo spazio per aggiungere qualcosa che non è emerso durante il colloquio o che trovi difficile dire a voce.",
+        )
+        if st.form_submit_button("Salva punto di partenza", use_container_width=True):
+            save_post_consultation_step(onboarding, "baseline", {"perceived_difficulty": difficolta.strip()})
+            save_post_consultation_step(onboarding, "goals", {"goals_text": obiettivi.strip(), "therapist_expectations": aspettative.strip(), "personal_commitment": impegno.strip()})
+            save_post_consultation_step(onboarding, "diary", {"habits_to_change": abitudini.strip()})
+            save_post_consultation_step(onboarding, "cbt", {"automatic_thought": pensieri.strip()})
+            save_post_consultation_step(onboarding, "next_session_note", {"additional_info": nota.strip(), "note": nota.strip(), "points_to_resume": nota.strip()})
+            build_starting_point_summary(onboarding)
             completed_steps_after, total_after = post_consultation_progress(onboarding)
             session_adapter.set_profile({**profile, "post_free_consultation_onboarding_completed": completed_steps_after == total_after})
             session_adapter.set_wellness(wellness)
             save_user_data(session_adapter.get_username())
             session_adapter.set_scroll_to_top(True)
-            st.success("Bozza onboarding salvata. Puoi chiudere e riprendere quando vuoi.")
+            st.success("Punto di partenza salvato. Potrete approfondirlo insieme al terapeuta.")
             st.rerun()
-
 
 def render_post_free_consultation_onboarding_or_stop():
     profile = session_adapter.get_profile()
@@ -1782,15 +1815,15 @@ def render_post_free_consultation_onboarding_or_stop():
         return
 
     if visibility_state == "expired":
-        st.markdown("### Prepariamoci alla prossima seduta")
-        st.warning("La preparazione risulta scaduta. Parla con il terapeuta se vuoi riattivarla.")
+        st.markdown("### Da dove vuoi iniziare?")
+        st.warning("L’onboarding di avvio risulta scaduto. Parla con il terapeuta se vuoi riattivarlo.")
         return
 
-    st.markdown("### Prepariamoci alla prossima seduta")
+    st.markdown("### Da dove vuoi iniziare?")
     st.warning("Questo onboarding è opzionale: apri la finestra dedicata, salva quando vuoi e riprendi in un secondo momento.")
     completed_steps, total_steps = post_consultation_progress(onboarding)
-    st.caption(f"Progresso onboarding post-colloquio: {completed_steps}/{total_steps}")
-    if st.button("Apri onboarding post-colloquio", use_container_width=True):
+    st.caption(f"Progresso onboarding di avvio: {completed_steps}/{total_steps}")
+    if st.button("Apri domande di avvio", use_container_width=True):
         open_post_free_consultation_onboarding_dialog(onboarding, profile, wellness)
 
 

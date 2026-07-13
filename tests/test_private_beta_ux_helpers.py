@@ -167,11 +167,13 @@ def test_post_free_consultation_onboarding_gate_exists():
     assert "render_post_free_consultation_onboarding_or_stop()" in source
 
 
-def test_therapist_dashboard_second_session_card_copy_exists():
+def test_therapist_dashboard_starting_point_card_copy_exists():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
-    assert "Preparazione seconda seduta" in source
-    assert "Avvia preparazione seconda seduta" in source
-    assert "Apri riepilogo seconda seduta" in source
+    assert "Punto di partenza del percorso" in source
+    assert "Avvia punto di partenza del percorso" in source
+    assert "Apri punto di partenza" in source
+    assert "Com’è andata questa settimana?" not in source
+    assert "Sto valutando e voglio solo monitorare i progressi" not in source
 
 
 def test_onboarding_helpers_status_progress_and_cta_labels():
@@ -181,8 +183,8 @@ def test_onboarding_helpers_status_progress_and_cta_labels():
     onboarding = {"steps": {name: {"completed": False} for name in ("baseline", "goals", "diary", "cbt", "next_session_note")}}
     onboarding["steps"]["baseline"]["completed"] = True
     assert app.onboarding_progress_label(onboarding) == "1/5 step completati"
-    assert app.onboarding_primary_cta("active") == "Apri riepilogo seconda seduta"
-    assert app.onboarding_primary_cta("completed") == "Apri riepilogo seconda seduta"
+    assert app.onboarding_primary_cta("active") == "Apri punto di partenza"
+    assert app.onboarding_primary_cta("completed") == "Apri punto di partenza"
     assert app.onboarding_primary_cta("expired") == "Visualizza dati raccolti"
 
 

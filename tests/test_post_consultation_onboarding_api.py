@@ -68,7 +68,7 @@ class PostConsultationOnboardingAPITest(unittest.TestCase):
 
         summary = self.client.get(f"/api/v1/post-consultation-onboarding/{onboarding_id}/summary", headers=h1)
         self.assertEqual(summary.status_code, 200)
-        self.assertIn("non è diagnostico", summary.json()["summary"]["disclaimer"])
+        self.assertIn("non diagnostico", summary.json()["summary"]["disclaimer"])
 
         self.assertEqual(self.client.post("/api/v1/post-consultation-onboarding", headers=p1, json={"patient_id": "p1"}).status_code, 401)
         self.assertEqual(self.client.get(f"/api/v1/post-consultation-onboarding/{onboarding_id}", headers=p2) .status_code, 404)

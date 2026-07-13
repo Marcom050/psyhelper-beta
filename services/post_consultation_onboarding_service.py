@@ -55,12 +55,12 @@ def save_step(onboarding: dict[str, Any], step: str, data: dict[str, Any]) -> di
     return onboarding
 
 
-def build_second_session_summary(onboarding: dict[str, Any]) -> dict[str, Any]:
+def build_starting_point_summary(onboarding: dict[str, Any]) -> dict[str, Any]:
     steps = onboarding.get("steps", {})
     summary = {
         "disclaimer": (
-            "Questo riepilogo non è diagnostico: raccoglie materiali condivisi dal paziente "
-            "per supportare la prossima seduta."
+            "Questo riepilogo è puramente descrittivo e non diagnostico: raccoglie le parole "
+            "e le priorità indicate dal paziente come primo punto di partenza del percorso."
         ),
         "baseline": steps.get("baseline", {}).get("data", {}),
         "goals": steps.get("goals", {}).get("data", {}),
@@ -68,6 +68,12 @@ def build_second_session_summary(onboarding: dict[str, Any]) -> dict[str, Any]:
         "cbt_entry": steps.get("cbt", {}).get("data", {}),
         "next_session_note": steps.get("next_session_note", {}).get("data", {}),
         "points_to_resume": steps.get("next_session_note", {}).get("data", {}).get("points_to_resume", ""),
+        "additional_info": steps.get("next_session_note", {}).get("data", {}).get("additional_info", ""),
     }
     onboarding["summary"] = summary
     return summary
+
+
+# Backward-compatible alias for API callers and older tests.
+def build_second_session_summary(onboarding: dict[str, Any]) -> dict[str, Any]:
+    return build_starting_point_summary(onboarding)
