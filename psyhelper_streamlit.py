@@ -70,7 +70,7 @@ from services.private_area_service import (
 )
 from services.progress_journey_service import build_progress_journey_summary
 from services.post_consultation_onboarding_service import (
-    build_starting_point_summary,
+    build_second_session_summary as build_starting_point_summary,
     ensure_post_consultation_onboarding,
     progress as post_consultation_progress,
     save_step as save_post_consultation_step,
