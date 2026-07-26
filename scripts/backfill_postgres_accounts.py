@@ -20,32 +20,31 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--only-user")
-    p.add_argument("--skip-existing", action="store_true")
-    p.add_argument("--verify", action="store_true")
     args = p.parse_args()
     pg = PostgresAccountRepository()
-    migrated = skipped = 0
+    migrated = skipped = failed = 0
     for username in iter_users(args.only_user):
-        if args.skip_existing and pg.user_exists(username):
-            skipped += 1
-            continue
-        bundle = fs.load_account_bundle(username)
-        metadata = fs.load_user_metadata(username)
-        pwd = None
         try:
-            with open(fs.password_hash_path(username)) as h: pwd = h.read().strip()
+            if pg.user_exists(username):
+                skipped += 1
+                continue
+            bundle = fs.load_account_bundle(username)
+            metadata = fs.load_user_metadata(username)
+            pwd = None
+            try:
+                with open(fs.password_hash_path(username), encoding="utf-8") as handle:
+                    pwd = handle.read().strip()
+            except OSError:
+                pass
+            if not args.dry_run:
+                pg.save_account_bundle(username, bundle["profile"], bundle["messages"], bundle["wellness"])
+                pg.save_user_metadata(username, metadata)
+                if pwd:
+                    pg._save_password_hash(username, pwd)
+            migrated += 1
         except Exception:
-            pass
-        if args.dry_run:
-            print(f"DRY-RUN migrate {username}")
-            continue
-        pg.save_account_bundle(username, bundle["profile"], bundle["messages"], bundle["wellness"])
-        pg.save_user_metadata(username, metadata)
-        if pwd: pg._save_password_hash(username, pwd)
-        migrated += 1
-    print(f"summary migrated={migrated} skipped={skipped}")
-    if args.verify:
-        print("verify=ok")
+            failed += 1
+    print(f"summary migrated={migrated} skipped={skipped} failed={failed}")
 
 
 if __name__ == "__main__":

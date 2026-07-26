@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -102,7 +103,12 @@ class TenantArchitectureTest(unittest.TestCase):
         self.assertEqual([client["username"] for client in clients], ["client_a"])
         self.assertTrue(auth_service.is_same_tenant("therapist_a", "client_a"))
         self.assertFalse(auth_service.is_same_tenant("therapist_a", "client_b"))
-        subscription = subscription_service.subscription_state_for("client_a")
+        with mock.patch.object(
+            subscription_service,
+            "SETTINGS",
+            replace(subscription_service.SETTINGS, commercial_gating_enabled=True),
+        ):
+            subscription = subscription_service.subscription_state_for("client_a")
         self.assertTrue(subscription["inherited"])
         self.assertEqual(subscription["owner_username"], "therapist_a")
         self.assertEqual(subscription["subscription_status"], "active")

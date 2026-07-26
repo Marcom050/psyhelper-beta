@@ -143,10 +143,19 @@ def test_patient_delete_confirmation_copy_is_italian():
 
 def test_patient_delete_keys_and_pending_state_are_stable():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
-    assert 'key=f"delete_client_{client[\'username\']}"' in source
+    assert 'with st.expander("Gestione profilo", expanded=False):' in source
+    assert 'key="request_delete_client"' in source
     assert 'key=f"confirm_delete_client_{pending_delete_username}"' in source
     assert 'key=f"cancel_delete_client_{pending_delete_username}"' in source
-    assert '_set_pending_patient_delete(client["username"])' in source
+    assert "è permanente e non può essere annullata" in source
+
+
+def test_normal_demo_ui_hides_commercial_copy_and_analytics():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert "if SHOW_DEBUG_UI:\n    render_analytics_banner()" in source
+    assert 'st.header("👩‍⚕️ Dashboard terapeuta")' in source
+    assert "Dashboard terapeuta · Private Beta" not in source
+    assert 'initial_status = "trialing" if SETTINGS.commercial_gating_enabled else "active"' in source
 
 
 def test_patient_selector_dialog_open_state_is_persistent():

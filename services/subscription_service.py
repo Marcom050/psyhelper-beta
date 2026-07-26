@@ -40,6 +40,8 @@ def trial_days_remaining(created_at):
 
 
 def is_trial_expired(metadata):
+    if not SETTINGS.commercial_gating_enabled:
+        return False
     if metadata.get("role") != "therapist":
         return False
     if metadata.get("subscription_status", "inactive").lower() != "trialing":
@@ -60,6 +62,18 @@ def subscription_state_for(username: str, repository=None) -> dict[str, Any]:
         inherited = True
 
     status = str(owner_metadata.get("subscription_status") or "inactive").lower()
+    if not SETTINGS.commercial_gating_enabled:
+        return {
+            "tenant_id": resolve_tenant_owner(owner_metadata, owner_username) or owner_username,
+            "owner_username": owner_username,
+            "inherited": inherited,
+            "subscription_status": "demo",
+            "subscription_plan": None,
+            "subscription_started_at": None,
+            "subscription_expires_at": None,
+            "billing_status": "demo",
+            "trial_days_remaining": 0,
+        }
     billing_status = str(owner_metadata.get("billing_status") or status).lower()
     if status == "trialing" and is_trial_expired(owner_metadata):
         billing_status = "past_due"
