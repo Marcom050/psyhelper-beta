@@ -14,6 +14,7 @@ class Settings:
     access_token_expire_minutes:int; refresh_token_expire_days:int; token_issuer:str
     login_rate_limit_attempts:int; login_rate_limit_window_sec:int; login_lockout_sec:int
     consent_version:str; privacy_policy_version:str; terms_version:str; consent_enforcement_enabled:bool; data_export_enabled:bool; beta_trial_days:int
+    commercial_gating_enabled:bool = False
     @property
     def is_production(self)->bool: return self.environment=="production"
 
@@ -32,6 +33,6 @@ def load_settings()->Settings:
     if env=="production" and not use_postgresql: raise RuntimeError("USE_POSTGRESQL=true is required in production")
     if strict and env=="production" and use_fs: raise RuntimeError("USE_FILESYSTEM_FALLBACK must be false in strict production mode")
     if use_postgresql and not database_url: raise RuntimeError("DATABASE_URL is required when USE_POSTGRESQL=true")
-    return Settings(env, secret_key, use_postgresql, database_url, strict, use_fs, float(os.getenv("DB_CONNECT_TIMEOUT_SEC","5")), int(os.getenv("DB_STATEMENT_TIMEOUT_MS","5000")), int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES","15")), int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS","7")), os.getenv("TOKEN_ISSUER","psyhelper-beta"), int(os.getenv("LOGIN_RATE_LIMIT_ATTEMPTS","8")), int(os.getenv("LOGIN_RATE_LIMIT_WINDOW_SEC","60")), int(os.getenv("LOGIN_LOCKOUT_SEC","300")), os.getenv("CONSENT_VERSION","v1"), os.getenv("PRIVACY_POLICY_VERSION",""), os.getenv("TERMS_VERSION",""), _env_bool("CONSENT_ENFORCEMENT_ENABLED", True), _env_bool("DATA_EXPORT_ENABLED", True), int(os.getenv("BETA_TRIAL_DAYS","14")))
+    return Settings(env, secret_key, use_postgresql, database_url, strict, use_fs, float(os.getenv("DB_CONNECT_TIMEOUT_SEC","5")), int(os.getenv("DB_STATEMENT_TIMEOUT_MS","5000")), int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES","15")), int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS","7")), os.getenv("TOKEN_ISSUER","psyhelper-beta"), int(os.getenv("LOGIN_RATE_LIMIT_ATTEMPTS","8")), int(os.getenv("LOGIN_RATE_LIMIT_WINDOW_SEC","60")), int(os.getenv("LOGIN_LOCKOUT_SEC","300")), os.getenv("CONSENT_VERSION","v1"), os.getenv("PRIVACY_POLICY_VERSION",""), os.getenv("TERMS_VERSION",""), _env_bool("CONSENT_ENFORCEMENT_ENABLED", True), _env_bool("DATA_EXPORT_ENABLED", True), int(os.getenv("BETA_TRIAL_DAYS","14")), _env_bool("COMMERCIAL_GATING_ENABLED", False))
 
 SETTINGS=load_settings()
