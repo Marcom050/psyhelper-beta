@@ -117,7 +117,7 @@ class PostgresRepositoryTest(unittest.TestCase):
         self.assertIn("ON CONFLICT (username)", sql)
         self.assertTrue(conn.committed)
 
-    def test_postgres_repositories_fallback_to_filesystem_when_record_missing(self):
+    def test_postgres_repositories_do_not_fallback_to_filesystem_when_record_missing(self):
         filesystem_account_repository.create_user(
             "client_a",
             "password",
@@ -139,9 +139,9 @@ class PostgresRepositoryTest(unittest.TestCase):
              mock.patch("database.postgres.notes_repository_pg.connection", return_value=ConnectionContext(FakeConnection(notes_cursor))):
             notes = PostgresNotesRepository().load_therapist_notes("therapist_a")
 
-        self.assertEqual(bundle["profile"]["nome"], "Client A")
+        self.assertEqual(bundle["profile"], {})
         self.assertEqual(wellness["mood_entries"], [])
-        self.assertEqual(notes, {"client_a": "nota"})
+        self.assertEqual(notes, {})
 
     def test_filesystem_repository_still_writes_current_json_layout(self):
         repository = FilesystemAccountRepository()

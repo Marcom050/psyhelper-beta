@@ -19,11 +19,10 @@ class PostgresAccountRepository(AccountRepository):
     def __init__(self):
         initialize_schema()
 
-    def _filesystem_fallback_enabled(self):
-        return bool(config.USE_FILESYSTEM_FALLBACK)
-
-    def _warn_filesystem_fallback(self, operation, username=""):
-        logger.warning("Filesystem fallback used operation=%s username=%s", operation, username)
+    @staticmethod
+    def _filesystem_fallback_enabled():
+        """PostgreSQL is authoritative; legacy files are never read or written."""
+        return False
 
     def load_account_bundle(self, username):
         username = filesystem.normalize_username(username)
@@ -37,10 +36,7 @@ class PostgresAccountRepository(AccountRepository):
                 wellness_row = cursor.fetchone()
 
         if account_row is None and messages_row is None and wellness_row is None:
-            if not self._filesystem_fallback_enabled():
-                return {"profile": {}, "messages": [], "wellness": ensure_wellness_schema({})}
-            self._warn_filesystem_fallback("load_account_bundle", username)
-            return filesystem.load_account_bundle(username)
+            return {"profile": {}, "messages": [], "wellness": ensure_wellness_schema({})}
 
         profile = filesystem.normalize_profile(account_row[0] if account_row else {})
         messages = filesystem.normalize_messages(messages_row[0] if messages_row else [])
@@ -87,10 +83,7 @@ class PostgresAccountRepository(AccountRepository):
                 cursor.execute("SELECT metadata FROM accounts WHERE username = %s", (username,))
                 row = cursor.fetchone()
         if row is None:
-            if not self._filesystem_fallback_enabled():
-                return filesystem.normalize_user_metadata({}, username=username)
-            self._warn_filesystem_fallback("load_user_metadata", username)
-            return filesystem.load_user_metadata(username)
+            return filesystem.normalize_user_metadata({}, username=username)
         return filesystem.normalize_user_metadata(row[0], username=username)
 
     def save_user_metadata(self, username, metadata):

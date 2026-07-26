@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from core.settings import SETTINGS
 from clients import APIClientConfig, PsyHelperAPIClient
 from clients.exceptions import APIClientError, APIHTTPError, APITimeoutError, APIUnauthorizedError
 from services.chat_service import ChatContext, get_response as get_chat_response
@@ -92,17 +93,17 @@ Se l'utente fornisce personalmente un breve estratto, puoi commentarlo o trasfor
 """
 
 BETA_DISCLAIMER_TEXT = """
-PsyHelper è in **beta commerciale controllata**. L'uso è consentito solo a professionisti autorizzati con account attivo.
+PsyHelper è disponibile in **modalità demo** per la valutazione del prodotto.
 
 Il professionista resta responsabile delle decisioni cliniche, del rispetto degli obblighi deontologici e degli adempimenti privacy/legal applicabili.
 PsyHelper non è un servizio di emergenza e non sostituisce il giudizio clinico.
 
 Inserisci solo dati strettamente necessari, evita dati non pertinenti e segui le procedure privacy indicate nella documentazione operativa.
-Le limitazioni note della beta commerciale sono documentate e il supporto è disponibile tramite il canale indicato dal team PsyHelper.
+Le limitazioni note della demo sono documentate e il supporto è disponibile tramite il canale indicato dal team PsyHelper.
 """
 
 PRIVATE_BETA_BANNER = (
-    "🔬 **Beta commerciale controllata** · Accesso riservato a professionisti autorizzati con account attivo. "
+    "🔬 **Modalità demo** · Nessun abbonamento è richiesto durante la valutazione. "
     "Non usare per emergenze e non sostituisce il giudizio professionale. "
     "Inserisci solo dati necessari e segui obblighi privacy/legal; limitazioni note e supporto sono documentati."
 )
@@ -175,7 +176,7 @@ def render_analytics_banner():
 # =============================================
 st.title("🧠 PsyHelper")
 
-if not session_adapter.is_beta_disclaimer_accepted():
+if SETTINGS.commercial_gating_enabled and not session_adapter.is_beta_disclaimer_accepted():
     st.warning("Prima di usare o creare un account devi accettare le condizioni della beta commerciale controllata.")
     st.markdown("### Condizioni d'uso beta commerciale controllata")
     st.info(BETA_DISCLAIMER_TEXT)
@@ -335,8 +336,8 @@ def show_api_error(error):
 
 def beta_disclaimer_lines():
     return [
-        "PsyHelper è in **beta commerciale controllata**.",
-        "Uso consentito solo a professionisti autorizzati con account attivo.",
+        "PsyHelper è disponibile in **modalità demo**.",
+        "L'accesso alla demo non richiede un abbonamento attivo.",
         "Non usare in situazioni di emergenza; non sostituisce il giudizio professionale.",
         "Inserisci solo dati necessari, segui obblighi privacy/legal e consulta limitazioni note/supporto.",
     ]
@@ -1683,6 +1684,8 @@ def initialize_authenticated_session():
 
 
 def ensure_subscription_or_stop(current_metadata):
+    if not SETTINGS.commercial_gating_enabled:
+        return
     if has_active_subscription(session_adapter.get_username()):
         return
 

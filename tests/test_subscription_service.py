@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from services import auth_service, subscription_service
@@ -32,7 +33,12 @@ def test_trial_expiry_accepts_iso_string_with_timezone():
     assert subscription_service.is_trial_expired(metadata) is True
 
 
-def test_subscription_dashboard_path_does_not_crash_if_trial_expires_at_is_legacy_naive():
+def test_subscription_dashboard_path_does_not_crash_if_trial_expires_at_is_legacy_naive(monkeypatch):
+    monkeypatch.setattr(
+        subscription_service,
+        "SETTINGS",
+        replace(subscription_service.SETTINGS, commercial_gating_enabled=True),
+    )
     auth_service.create_user("therapist_naive", "pass", role="therapist", subscription_status="trialing")
     metadata = auth_service.load_user_metadata("therapist_naive")
     metadata["subscription_expires_at"] = datetime.now().isoformat(timespec="seconds")

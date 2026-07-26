@@ -79,6 +79,8 @@ def subscription_state_for(username: str, repository=None) -> dict[str, Any]:
 
 
 def is_subscription_active_for(username, active_subscription_statuses, repository=None):
+    if not SETTINGS.commercial_gating_enabled:
+        return True
     state = subscription_state_for(username, repository=repository)
     status = state.get("subscription_status", "inactive")
     if status == "trialing":

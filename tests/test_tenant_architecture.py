@@ -127,25 +127,12 @@ class TenantArchitectureTest(unittest.TestCase):
         self.assertEqual(snapshot.json()["wellness_summary"]["mood_entries_count"], 1)
         self.assertEqual(snapshot.json()["homework_summary"]["open_assignments"], 1)
 
-    def test_postgres_password_fallback_sync_and_disable_mode(self):
+    def test_postgres_password_never_falls_back_to_filesystem(self):
         filesystem_account_repository.create_user("client_a", "secret")
         config.USE_FILESYSTEM_FALLBACK = True
         password_cursor = FakeCursor(rows=[None])
-        save_cursor = FakeCursor()
-        cursors = [password_cursor, save_cursor]
-
-        def fake_connection():
-            return ConnectionContext(FakeConnection(cursors.pop(0)))
 
         with mock.patch("database.postgres.account_repository_pg.initialize_schema"), \
-             mock.patch("database.postgres.account_repository_pg.connection", side_effect=fake_connection):
-            repository = PostgresAccountRepository()
-            self.assertTrue(repository.verify_password("client_a", "secret"))
-
-        self.assertTrue(save_cursor.queries)
-        config.USE_FILESYSTEM_FALLBACK = False
-        missing_cursor = FakeCursor(rows=[None])
-        with mock.patch("database.postgres.account_repository_pg.initialize_schema"), \
-             mock.patch("database.postgres.account_repository_pg.connection", return_value=ConnectionContext(FakeConnection(missing_cursor))):
+             mock.patch("database.postgres.account_repository_pg.connection", return_value=ConnectionContext(FakeConnection(password_cursor))):
             repository = PostgresAccountRepository()
             self.assertFalse(repository.verify_password("client_a", "secret"))
