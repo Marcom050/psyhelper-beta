@@ -53,12 +53,11 @@ from services.auth_service import (
 )
 from services.session_adapter import SessionAdapter
 from services.subscription_service import (
-    BETA_TRIAL_DAYS,
     is_subscription_active_for,
     is_trial_expired,
-    trial_days_remaining,
     trial_expires_at,
 )
+from core.settings import SETTINGS
 from services.private_area_service import (
     create_private_entry,
     delete_private_entry,
@@ -91,20 +90,10 @@ Se l'utente chiede contenuti protetti estesi, rifiuta brevemente la riproduzione
 Se l'utente fornisce personalmente un breve estratto, puoi commentarlo o trasformarlo limitando le citazioni testuali allo stretto necessario.
 """
 
-BETA_DISCLAIMER_TEXT = """
-PsyHelper è in **beta commerciale controllata**. L'uso è consentito solo a professionisti autorizzati con account attivo.
-
-Il professionista resta responsabile delle decisioni cliniche, del rispetto degli obblighi deontologici e degli adempimenti privacy/legal applicabili.
-PsyHelper non è un servizio di emergenza e non sostituisce il giudizio clinico.
-
-Inserisci solo dati strettamente necessari, evita dati non pertinenti e segui le procedure privacy indicate nella documentazione operativa.
-Le limitazioni note della beta commerciale sono documentate e il supporto è disponibile tramite il canale indicato dal team PsyHelper.
-"""
-
-PRIVATE_BETA_BANNER = (
-    "🔬 **Beta commerciale controllata** · Accesso riservato a professionisti autorizzati con account attivo. "
-    "Non usare per emergenze e non sostituisce il giudizio professionale. "
-    "Inserisci solo dati necessari e segui obblighi privacy/legal; limitazioni note e supporto sono documentati."
+DEMO_NOTICE = (
+    "Versione dimostrativa di PsyHelper. I dati utilizzati nella demo sono fittizi. "
+    "PsyHelper supporta il lavoro tra le sedute, non svolge funzioni diagnostiche e "
+    "non sostituisce il giudizio professionale."
 )
 
 EMPTY_STATE_MESSAGES = {
@@ -176,15 +165,15 @@ def render_analytics_banner():
 st.title("🧠 PsyHelper")
 
 if not session_adapter.is_beta_disclaimer_accepted():
-    st.warning("Prima di usare o creare un account devi accettare le condizioni della beta commerciale controllata.")
-    st.markdown("### Condizioni d'uso beta commerciale controllata")
-    st.info(BETA_DISCLAIMER_TEXT)
+    st.info(DEMO_NOTICE)
+    st.markdown("### Condizioni d'uso")
+    st.info("PsyHelper non gestisce emergenze. Il professionista resta responsabile delle decisioni cliniche e degli obblighi privacy applicabili.")
     st.info(
         "© PsyHelper. Il prodotto e il concept sono coperti da copyright e diritto d'autore. "
         "È vietata la riproduzione totale o parziale senza autorizzazione scritta."
     )
     accepted = st.checkbox(
-        "Ho letto e accetto: userò PsyHelper solo come professionista autorizzato con account attivo, non lo userò per emergenze, inserirò solo dati necessari, resterò responsabile delle decisioni cliniche e degli obblighi privacy/legal e riconosco che prodotto/concept sono tutelati da copyright con divieto di riproduzione totale o parziale.",
+        "Ho letto e accetto: non userò PsyHelper per emergenze, inserirò solo dati necessari e resterò responsabile delle decisioni professionali e degli obblighi privacy/legal.",
         key="beta_disclaimer_acceptance_checkbox",
     )
     if st.button("Accetta e continua", use_container_width=True, disabled=not accepted):
@@ -192,16 +181,10 @@ if not session_adapter.is_beta_disclaimer_accepted():
         st.rerun()
     st.stop()
 
-st.markdown("""
-<div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 30px;">
-    <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
-    In caso di difficoltà gravi consulta un professionista della salute mentale o i servizi di emergenza se sei in pericolo immediato.<br><br>
-    <strong>Privacy:</strong> Tutte le tue conversazioni e schede sono private e salvate solo sul tuo account.
-</div>
-""", unsafe_allow_html=True)
-
-render_analytics_banner()
-st.info(PRIVATE_BETA_BANNER)
+st.info(DEMO_NOTICE)
+st.caption("PsyHelper non gestisce emergenze. In caso di pericolo immediato contatta i servizi di emergenza. Il professionista resta responsabile dell'uso dello strumento.")
+if SHOW_DEBUG_UI:
+    render_analytics_banner()
 
 GROQ_API_KEY = secret_get("GROQ_API_KEY", "")
 AI_UNAVAILABLE_MESSAGE = "Funzione AI non disponibile: chiave GROQ_API_KEY non configurata."
@@ -335,8 +318,7 @@ def show_api_error(error):
 
 def beta_disclaimer_lines():
     return [
-        "PsyHelper è in **beta commerciale controllata**.",
-        "Uso consentito solo a professionisti autorizzati con account attivo.",
+        "Versione dimostrativa con dati fittizi.",
         "Non usare in situazioni di emergenza; non sostituisce il giudizio professionale.",
         "Inserisci solo dati necessari, segui obblighi privacy/legal e consulta limitazioni note/supporto.",
     ]
@@ -1176,15 +1158,14 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
             snapshot = snapshots[client["username"]]
             is_selected = client["username"] == session_adapter.get_selected_patient_username()
             label = f"{'✅ Profilo attivo' if is_selected else 'Apri profilo'} · {client['nome']}"
-            action_col, delete_col = st.columns([4, 1])
-            with action_col:
-                if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
-                    session_adapter.set_selected_patient_username(client["username"])
-                    _set_patient_selector_dialog_open(False)
-                    _set_pending_patient_delete(None)
-                    st.rerun()
-            with delete_col:
-                if st.button("🗑️", key=f"delete_client_{client['username']}", help="Elimina profilo", type="secondary"):
+            if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
+                session_adapter.set_selected_patient_username(client["username"])
+                _set_patient_selector_dialog_open(False)
+                _set_pending_patient_delete(None)
+                st.rerun()
+            with st.expander(f"Gestione profilo · {client['nome']}", expanded=False):
+                st.caption("Le azioni in questa sezione riguardano permanentemente il profilo selezionato.")
+                if st.button("Elimina profilo", key=f"delete_client_{client['username']}", type="secondary"):
                     _set_pending_patient_delete(client["username"])
                     st.rerun()
             st.caption(
@@ -1231,22 +1212,10 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
 
 def show_therapist_dashboard():
     username = session_adapter.get_username()
-    metadata = session_adapter.get_user_metadata() or load_user_metadata(username)
-    subscription_status = metadata.get("subscription_status", "inactive")
-    subscription_active = has_active_subscription(username)
-
-    st.header("👩‍⚕️ Dashboard terapeuta · Private Beta")
+    st.header("👩‍⚕️ Dashboard terapeuta")
     st.caption("Flusso consigliato: 1) crea/seleziona paziente · 2) verifica trend e homework · 3) prepara recap pre-seduta.")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Accesso", "Attivo" if subscription_active else "Bloccato")
-    col2.metric("Stato", subscription_status)
-    if subscription_status.lower() == "trialing":
-        col3.metric("Giorni prova rimasti", trial_days_remaining(metadata.get("created_at")))
-    else:
-        col3.metric("Account", metadata.get("email") or username)
-
-    if not subscription_active:
+    if SETTINGS.commercial_gating_enabled and not has_active_subscription(username):
         show_subscription_required(username)
         return
 
@@ -1589,7 +1558,7 @@ def logout_button():
 
 
 def render_login_form():
-    st.caption("Beta commerciale controllata: i clienti non si registrano da soli; ricevono credenziali dal professionista autorizzato.")
+    st.caption("I pazienti ricevono le credenziali dal professionista e non si registrano autonomamente.")
     with st.form("login"):
         username = st.text_input("Nome utente")
         password = st.text_input("Password", type="password")
@@ -1621,10 +1590,7 @@ def render_login_form():
 
 
 def render_therapist_signup_form():
-    st.info(
-        f"Crea l'account professionista per una prova iniziale di {BETA_TRIAL_DAYS} giorni. "
-        "Ogni email può creare un solo account psicologo e l'app non deve essere usata con clienti reali."
-    )
+    st.info("Crea un account professionista per accedere alla versione dimostrativa. Ogni email può creare un solo account psicologo; usa esclusivamente dati fittizi.")
     with st.form("therapist_signup"):
         professional_name = st.text_input("Nome professionista o studio")
         professional_email = st.text_input("Email professionale obbligatoria")
@@ -1633,7 +1599,7 @@ def render_therapist_signup_form():
         confirm_password = st.text_input("Conferma password", type="password")
         if st.form_submit_button("Crea account professionista", use_container_width=True):
             normalized_username = normalize_username(new_username)
-            initial_status = "trialing"
+            initial_status = "trialing" if SETTINGS.commercial_gating_enabled else "active"
             normalized_email = normalize_email(professional_email)
             if not professional_name.strip():
                 st.error("Inserisci il nome del professionista o dello studio.")
@@ -1661,10 +1627,7 @@ def render_therapist_signup_form():
                         datetime.utcnow().isoformat(timespec="seconds")
                     ),
                 )
-                st.success(
-                    f"Account professionista creato. La prova iniziale dura {BETA_TRIAL_DAYS} giorni dalla creazione; "
-                    "ora effettua il login."
-                )
+                st.success("Account professionista creato. Ora effettua il login.")
 
 
 def render_login_area():
@@ -1683,6 +1646,8 @@ def initialize_authenticated_session():
 
 
 def ensure_subscription_or_stop(current_metadata):
+    if not SETTINGS.commercial_gating_enabled:
+        return
     if has_active_subscription(session_adapter.get_username()):
         return
 

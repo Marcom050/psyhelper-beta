@@ -19,7 +19,7 @@ class PostgresNotesRepository(NotesRepository):
                 cursor.execute("SELECT notes FROM notes WHERE username = %s", (therapist_username,))
                 row = cursor.fetchone()
         if row is None:
-            return filesystem.load_therapist_notes(therapist_username)
+            return filesystem.normalize_therapist_notes({})
         return filesystem.normalize_therapist_notes(row[0])
 
     def save_therapist_notes(self, therapist_username, notes):

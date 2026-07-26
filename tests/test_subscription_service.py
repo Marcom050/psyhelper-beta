@@ -1,6 +1,14 @@
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+
+import pytest
 
 from services import auth_service, subscription_service
+
+
+@pytest.fixture(autouse=True)
+def commercial_mode(monkeypatch):
+    monkeypatch.setattr(subscription_service, "SETTINGS", SimpleNamespace(commercial_gating_enabled=True, beta_trial_days=14))
 
 
 def _trialing_metadata(expires_at):

@@ -37,10 +37,7 @@ class PostgresAccountRepository(AccountRepository):
                 wellness_row = cursor.fetchone()
 
         if account_row is None and messages_row is None and wellness_row is None:
-            if not self._filesystem_fallback_enabled():
-                return {"profile": {}, "messages": [], "wellness": ensure_wellness_schema({})}
-            self._warn_filesystem_fallback("load_account_bundle", username)
-            return filesystem.load_account_bundle(username)
+            return {"profile": {}, "messages": [], "wellness": ensure_wellness_schema({})}
 
         profile = filesystem.normalize_profile(account_row[0] if account_row else {})
         messages = filesystem.normalize_messages(messages_row[0] if messages_row else [])
@@ -87,10 +84,7 @@ class PostgresAccountRepository(AccountRepository):
                 cursor.execute("SELECT metadata FROM accounts WHERE username = %s", (username,))
                 row = cursor.fetchone()
         if row is None:
-            if not self._filesystem_fallback_enabled():
-                return filesystem.normalize_user_metadata({}, username=username)
-            self._warn_filesystem_fallback("load_user_metadata", username)
-            return filesystem.load_user_metadata(username)
+            return filesystem.normalize_user_metadata({}, username=username)
         return filesystem.normalize_user_metadata(row[0], username=username)
 
     def save_user_metadata(self, username, metadata):
@@ -165,17 +159,6 @@ class PostgresAccountRepository(AccountRepository):
                     (username, jsonb(wellness)),
                 )
             conn.commit()
-        if self._filesystem_fallback_enabled():
-            filesystem.create_user(
-                username,
-                password,
-                role=role,
-                therapist_username=therapist_username,
-                subscription_status=subscription_status,
-                profile=profile,
-                email=email,
-                beta_disclaimer_accepted_at=beta_disclaimer_accepted_at,
-            )
 
     def _load_password_hash(self, username):
         with connection() as conn:
@@ -214,17 +197,7 @@ class PostgresAccountRepository(AccountRepository):
                 return True
             return False
 
-        if not self._filesystem_fallback_enabled():
-            return False
-        logger.warning("Auth password_hash filesystem fallback used username=%s", username)
-        if not filesystem.verify_password(username, password):
-            return False
-        try:
-            with open(filesystem.password_hash_path(username), "r") as f:
-                self._save_password_hash(username, f.read().strip())
-        except Exception:
-            logger.warning("Unable to sync filesystem password_hash to PostgreSQL username=%s", username)
-        return True
+        return False
 
     def user_exists(self, username):
         username = filesystem.normalize_username(username)
@@ -234,10 +207,7 @@ class PostgresAccountRepository(AccountRepository):
                 row = cursor.fetchone()
         if row:
             return True
-        if not self._filesystem_fallback_enabled():
-            return False
-        self._warn_filesystem_fallback("user_exists", username)
-        return filesystem.user_exists(username)
+        return False
 
     def therapist_email_exists(self, email):
         normalized_email = filesystem.normalize_email(email)
@@ -257,10 +227,7 @@ class PostgresAccountRepository(AccountRepository):
                 row = cursor.fetchone()
         if row:
             return True
-        if not self._filesystem_fallback_enabled():
-            return False
-        self._warn_filesystem_fallback("therapist_email_exists")
-        return filesystem.therapist_email_exists(email)
+        return False
 
     def delete_user_account(self, username):
         username = filesystem.normalize_username(username)
@@ -270,8 +237,6 @@ class PostgresAccountRepository(AccountRepository):
                 cursor.execute("DELETE FROM wellness WHERE username = %s", (username,))
                 cursor.execute("DELETE FROM accounts WHERE username = %s", (username,))
             conn.commit()
-        if self._filesystem_fallback_enabled():
-            filesystem.FilesystemAccountRepository().delete_user_account(username)
 
     def client_accounts_for(self, therapist_username):
         return self.get_clients_for_tenant(therapist_username)
@@ -299,10 +264,7 @@ class PostgresAccountRepository(AccountRepository):
                 "nome": profile.get("nome", username),
                 "creato_il": metadata.get("created_at", ""),
             })
-        if clients or not self._filesystem_fallback_enabled():
-            return clients
-        self._warn_filesystem_fallback("get_clients_for_tenant", tenant_id)
-        return filesystem.client_accounts_for(tenant_id)
+        return clients
 
     def get_tenant_owner(self, tenant_id):
         tenant_id = filesystem.normalize_username(tenant_id)
@@ -324,9 +286,7 @@ class PostgresAccountRepository(AccountRepository):
                 "profile": filesystem.normalize_profile(profile),
                 "metadata": filesystem.normalize_user_metadata(metadata, username=username),
             }
-        if not self._filesystem_fallback_enabled():
-            return None
-        return FilesystemTenantFallback().get_tenant_owner(tenant_id)
+        return None
 
     def is_same_tenant(self, user_a, user_b):
         metadata_a = self.load_user_metadata(user_a)

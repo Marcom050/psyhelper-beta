@@ -20,7 +20,7 @@ class PostgresWellnessRepository(WellnessRepository):
                 cursor.execute("SELECT wellness FROM wellness WHERE username = %s", (username,))
                 row = cursor.fetchone()
         if row is None:
-            return filesystem.load_account_bundle(username)["wellness"]
+            return normalize_wellness_data({})
         return normalize_wellness_data(row[0])
 
     def save_wellness(self, username, wellness):

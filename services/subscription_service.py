@@ -40,6 +40,8 @@ def trial_days_remaining(created_at):
 
 
 def is_trial_expired(metadata):
+    if not SETTINGS.commercial_gating_enabled:
+        return False
     if metadata.get("role") != "therapist":
         return False
     if metadata.get("subscription_status", "inactive").lower() != "trialing":
@@ -61,6 +63,15 @@ def subscription_state_for(username: str, repository=None) -> dict[str, Any]:
 
     status = str(owner_metadata.get("subscription_status") or "inactive").lower()
     billing_status = str(owner_metadata.get("billing_status") or status).lower()
+    if not SETTINGS.commercial_gating_enabled:
+        return {
+            "tenant_id": resolve_tenant_owner(owner_metadata, owner_username) or owner_username,
+            "owner_username": owner_username,
+            "inherited": inherited,
+            "subscription_status": status,
+            "billing_status": billing_status,
+            "commercial_gating_enabled": False,
+        }
     if status == "trialing" and is_trial_expired(owner_metadata):
         billing_status = "past_due"
     return {
@@ -79,6 +90,8 @@ def subscription_state_for(username: str, repository=None) -> dict[str, Any]:
 
 
 def is_subscription_active_for(username, active_subscription_statuses, repository=None):
+    if not SETTINGS.commercial_gating_enabled:
+        return True
     state = subscription_state_for(username, repository=repository)
     status = state.get("subscription_status", "inactive")
     if status == "trialing":
