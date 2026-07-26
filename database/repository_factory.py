@@ -9,6 +9,11 @@ from database.filesystem_wellness_repository import FilesystemWellnessRepository
 
 logger = logging.getLogger(__name__)
 
+FILESYSTEM_WARNING = (
+    "Using non-durable filesystem persistence for local development only. "
+    "Files may be lost on Streamlit Community Cloud; configure PostgreSQL for persistent data."
+)
+
 
 def use_postgresql():
     """Return whether PostgreSQL repositories should be used."""
@@ -21,7 +26,7 @@ def get_account_repository():
         from database.postgres.account_repository_pg import PostgresAccountRepository
 
         return PostgresAccountRepository()
-    logger.warning("Using filesystem account repository as source-of-truth (compatibility mode)")
+    logger.warning(FILESYSTEM_WARNING)
     return FilesystemAccountRepository()
 
 
@@ -31,7 +36,7 @@ def get_wellness_repository():
         from database.postgres.wellness_repository_pg import PostgresWellnessRepository
 
         return PostgresWellnessRepository()
-    logger.warning("Using filesystem wellness repository as source-of-truth (compatibility mode)")
+    logger.warning(FILESYSTEM_WARNING)
     return FilesystemWellnessRepository()
 
 
@@ -41,7 +46,7 @@ def get_notes_repository():
         from database.postgres.notes_repository_pg import PostgresNotesRepository
 
         return PostgresNotesRepository()
-    logger.warning("Using filesystem notes repository as source-of-truth (compatibility mode)")
+    logger.warning(FILESYSTEM_WARNING)
     return FilesystemNotesRepository()
 
 
@@ -50,5 +55,5 @@ def get_clinical_repository():
         from database.postgres.clinical_repository_pg import PostgresClinicalRepository
         return PostgresClinicalRepository()
     from database.filesystem_clinical_repository import FilesystemClinicalRepository
-    logger.warning("Using filesystem clinical repository as source-of-truth (compatibility mode)")
+    logger.warning(FILESYSTEM_WARNING)
     return FilesystemClinicalRepository()

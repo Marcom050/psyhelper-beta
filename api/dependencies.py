@@ -15,6 +15,7 @@ from services import auth_service
 from services import subscription_access
 from database.audit_log import log_event
 from database.auth_security_repository import get_auth_security_repository
+from core.settings import SETTINGS
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,10 @@ def require_client(request: Request) -> AuthContext:
 
 def require_active_therapist(request: Request) -> AuthContext:
     current = require_therapist(request)
-    if current.subscription_status.lower() not in active_subscription_statuses():
+    if (
+        SETTINGS.commercial_gating_enabled
+        and current.subscription_status.lower() not in active_subscription_statuses()
+    ):
         raise AuthenticationError("Active therapist subscription required")
     return current
 

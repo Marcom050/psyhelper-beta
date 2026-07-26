@@ -201,8 +201,10 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-render_analytics_banner()
-st.info(PRIVATE_BETA_BANNER)
+if SHOW_DEBUG_UI:
+    render_analytics_banner()
+if not SETTINGS.commercial_gating_enabled:
+    st.caption("🔬 Modalità demo: nessun abbonamento è richiesto durante la valutazione.")
 
 GROQ_API_KEY = secret_get("GROQ_API_KEY", "")
 AI_UNAVAILABLE_MESSAGE = "Funzione AI non disponibile: chiave GROQ_API_KEY non configurata."
@@ -1177,27 +1179,28 @@ def show_patient_selector_dialog(clients, snapshots, overview_rows):
             snapshot = snapshots[client["username"]]
             is_selected = client["username"] == session_adapter.get_selected_patient_username()
             label = f"{'✅ Profilo attivo' if is_selected else 'Apri profilo'} · {client['nome']}"
-            action_col, delete_col = st.columns([4, 1])
-            with action_col:
-                if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
-                    session_adapter.set_selected_patient_username(client["username"])
-                    _set_patient_selector_dialog_open(False)
-                    _set_pending_patient_delete(None)
-                    st.rerun()
-            with delete_col:
-                if st.button("🗑️", key=f"delete_client_{client['username']}", help="Elimina profilo", type="secondary"):
-                    _set_pending_patient_delete(client["username"])
-                    st.rerun()
+            if st.button(label, key=f"select_patient_dialog_{client['username']}", use_container_width=True):
+                session_adapter.set_selected_patient_username(client["username"])
+                _set_patient_selector_dialog_open(False)
+                _set_pending_patient_delete(None)
+                st.rerun()
             st.caption(
                 f"Ultima attività: {snapshot['last_activity']} · "
                 f"alert: {len(snapshot['alerts'])} · homework: {snapshot['homework_completed']}/{snapshot['homework_total']}"
             )
 
-    pending_delete_username = _pending_patient_delete_username()
-    if pending_delete_username:
-        if pending_delete_username not in {item["username"] for item in clients}:
-            _set_pending_patient_delete(None)
-        else:
+    with st.expander("Gestione profilo", expanded=False):
+        st.warning("L'eliminazione di un profilo paziente è permanente e non può essere annullata.")
+        managed_username = st.selectbox(
+            "Profilo da gestire",
+            [item["username"] for item in clients],
+            key="managed_patient_username",
+        )
+        if st.button("Elimina profilo", key="request_delete_client", type="secondary", use_container_width=True):
+            _set_pending_patient_delete(managed_username)
+
+        pending_delete_username = _pending_patient_delete_username()
+        if pending_delete_username and pending_delete_username in {item["username"] for item in clients}:
             pending_client = next(item for item in clients if item["username"] == pending_delete_username)
             pending_name = pending_client.get("nome") or pending_delete_username
             st.markdown("### Conferma eliminazione")
@@ -1236,16 +1239,17 @@ def show_therapist_dashboard():
     subscription_status = metadata.get("subscription_status", "inactive")
     subscription_active = has_active_subscription(username)
 
-    st.header("👩‍⚕️ Dashboard terapeuta · Private Beta")
+    st.header("👩‍⚕️ Dashboard terapeuta")
     st.caption("Flusso consigliato: 1) crea/seleziona paziente · 2) verifica trend e homework · 3) prepara recap pre-seduta.")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Accesso", "Attivo" if subscription_active else "Bloccato")
-    col2.metric("Stato", subscription_status)
-    if subscription_status.lower() == "trialing":
-        col3.metric("Giorni prova rimasti", trial_days_remaining(metadata.get("created_at")))
-    else:
-        col3.metric("Account", metadata.get("email") or username)
+    if SETTINGS.commercial_gating_enabled:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Accesso", "Attivo" if subscription_active else "Bloccato")
+        col2.metric("Stato", subscription_status)
+        if subscription_status.lower() == "trialing":
+            col3.metric("Giorni prova rimasti", trial_days_remaining(metadata.get("created_at")))
+        else:
+            col3.metric("Account", metadata.get("email") or username)
 
     if not subscription_active:
         show_subscription_required(username)
@@ -1590,7 +1594,7 @@ def logout_button():
 
 
 def render_login_form():
-    st.caption("Beta commerciale controllata: i clienti non si registrano da soli; ricevono credenziali dal professionista autorizzato.")
+    st.caption("I pazienti accedono con le credenziali create dal proprio professionista.")
     with st.form("login"):
         username = st.text_input("Nome utente")
         password = st.text_input("Password", type="password")
@@ -1622,10 +1626,10 @@ def render_login_form():
 
 
 def render_therapist_signup_form():
-    st.info(
-        f"Crea l'account professionista per una prova iniziale di {BETA_TRIAL_DAYS} giorni. "
-        "Ogni email può creare un solo account psicologo e l'app non deve essere usata con clienti reali."
-    )
+    if SETTINGS.commercial_gating_enabled:
+        st.info(f"Crea l'account professionista per una prova iniziale di {BETA_TRIAL_DAYS} giorni.")
+    else:
+        st.info("Crea un account professionista per valutare PsyHelper in modalità demo.")
     with st.form("therapist_signup"):
         professional_name = st.text_input("Nome professionista o studio")
         professional_email = st.text_input("Email professionale obbligatoria")
@@ -1634,7 +1638,7 @@ def render_therapist_signup_form():
         confirm_password = st.text_input("Conferma password", type="password")
         if st.form_submit_button("Crea account professionista", use_container_width=True):
             normalized_username = normalize_username(new_username)
-            initial_status = "trialing"
+            initial_status = "trialing" if SETTINGS.commercial_gating_enabled else "active"
             normalized_email = normalize_email(professional_email)
             if not professional_name.strip():
                 st.error("Inserisci il nome del professionista o dello studio.")
@@ -1662,10 +1666,7 @@ def render_therapist_signup_form():
                         datetime.utcnow().isoformat(timespec="seconds")
                     ),
                 )
-                st.success(
-                    f"Account professionista creato. La prova iniziale dura {BETA_TRIAL_DAYS} giorni dalla creazione; "
-                    "ora effettua il login."
-                )
+                st.success("Account professionista creato. Ora effettua il login.")
 
 
 def render_login_area():

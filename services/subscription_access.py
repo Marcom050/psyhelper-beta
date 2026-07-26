@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from services import auth_service
+from core.settings import SETTINGS
 
 ACTIVE_READ = {"trialing", "active", "grace_period", "past_due"}
 ACTIVE_WRITE = {"trialing", "active", "grace_period"}
@@ -52,6 +53,15 @@ def resolve_effective_subscription(username: str, repository=None) -> dict[str, 
 def tenant_access_state(username: str, repository=None) -> dict[str, Any]:
     sub = resolve_effective_subscription(username, repository=repository)
     status = sub["status"]
+    if not SETTINGS.commercial_gating_enabled:
+        return {
+            **sub,
+            "status": "demo",
+            "can_login": True,
+            "can_read": True,
+            "can_write": True,
+            "limited_mode": False,
+        }
     return {
         **sub,
         "can_login": True,
