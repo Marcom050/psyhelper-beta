@@ -61,6 +61,46 @@ class PsyHelperAPITest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_shared_journey_goal_http_flow_enforces_owner_and_patient_roles(self):
+        self.signup("therapist_a", role="therapist", subscription_status="active")
+        self.signup("therapist_b", role="therapist", subscription_status="active")
+        self.signup("patient_a", role="client", therapist_username="therapist_a")
+        patient_headers = self.auth_headers("patient_a")
+        created = self.client.post(
+            "/clients/patient_a/journey-goals", headers=patient_headers, json={"title": "Parlare con più chiarezza"}
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+        goal_id = created.json()["goal"]["id"]
+
+        patient_update = self.client.patch(
+            f"/clients/patient_a/journey-goals/{goal_id}", headers=patient_headers,
+            json={"achieved": True, "therapist_note": "auto conferma"},
+        )
+        self.assertEqual(patient_update.status_code, 422)
+
+        stranger_update = self.client.patch(
+            f"/clients/patient_a/journey-goals/{goal_id}", headers=self.auth_headers("therapist_b"),
+            json={"achieved": True, "therapist_note": "nota"},
+        )
+        self.assertEqual(stranger_update.status_code, 401)
+
+        owner_update = self.client.patch(
+            f"/clients/patient_a/journey-goals/{goal_id}", headers=self.auth_headers("therapist_a"),
+            json={"achieved": True, "therapist_note": "Passo riconosciuto insieme"},
+        )
+        self.assertEqual(owner_update.status_code, 200, owner_update.text)
+        goal = owner_update.json()["goal"]
+        self.assertEqual(goal["status"], "achieved")
+        self.assertEqual(goal["achieved_by"], "therapist_a")
+        self.assertTrue(goal["achieved_at"])
+
+        undone = self.client.patch(
+            f"/clients/patient_a/journey-goals/{goal_id}", headers=self.auth_headers("therapist_a"),
+            json={"achieved": False, "therapist_note": "Correzione"},
+        )
+        self.assertEqual(undone.status_code, 200, undone.text)
+        self.assertIsNone(undone.json()["goal"]["achieved_at"])
+
     def test_signup_login_refresh_and_me_use_jwt(self):
         signup_payload = self.signup()
         self.assertEqual(signup_payload["username"], "giulia")
