@@ -15,6 +15,7 @@ def default_wellness_data():
         "homework_assignments": [],
         "homework_submissions": [],
         "timeline_events": [],
+        "journey_goals": [],
         "private_area_entries": [],
     }
 
@@ -24,6 +25,7 @@ def ensure_wellness_schema(wellness):
     wellness.setdefault("homework_assignments", [])
     wellness.setdefault("homework_submissions", [])
     wellness.setdefault("timeline_events", [])
+    wellness.setdefault("journey_goals", [])
     wellness.setdefault("private_area_entries", [])
     # Older exports may include mindfulness logs; they are no longer shown in the clinical product.
     wellness.pop("mindfulness_log", None)

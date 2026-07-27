@@ -30,3 +30,18 @@ class MoodEntryResponse(BaseModel):
     username: str
     mood_entry: dict[str, Any]
     wellness: dict[str, Any]
+
+
+class JourneyGoalCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+
+
+class JourneyGoalUpdateRequest(BaseModel):
+    achieved: bool
+    therapist_note: str = Field(default="", max_length=300)
+
+
+class JourneyGoalResponse(BaseModel):
+    username: str
+    goal: dict[str, Any]
+    wellness: dict[str, Any]

@@ -25,7 +25,7 @@ from api.schemas.homework import (
     HomeworkSubmissionResponse,
 )
 from api.schemas.reports import ClinicalReportResponse, WeeklyRecapResponse
-from api.schemas.wellness import MoodEntryResponse, WellnessResponse
+from api.schemas.wellness import JourneyGoalResponse, MoodEntryResponse, WellnessResponse
 from clients.exceptions import (
     APIConnectionError,
     APIHTTPError,
@@ -166,6 +166,17 @@ class PsyHelperAPIClient:
             response_model=MoodEntryResponse,
         )
         return response
+
+    def create_journey_goal(self, username: str, title: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        return self._request("POST", f"/clients/{safe_username}/journey-goals", username=username,
+                             json={"title": title}, response_model=JourneyGoalResponse)
+
+    def update_journey_goal(self, username: str, goal_id: str, achieved: bool, therapist_note: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        safe_goal = quote(goal_id, safe="")
+        return self._request("PATCH", f"/clients/{safe_username}/journey-goals/{safe_goal}", username=username,
+                             json={"achieved": achieved, "therapist_note": therapist_note}, response_model=JourneyGoalResponse)
 
     def get_homework(self, username: str) -> dict[str, Any]:
         safe_username = quote(username, safe="")

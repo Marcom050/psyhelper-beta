@@ -70,6 +70,17 @@ from services.private_area_service import (
     update_private_entry,
 )
 from services.progress_journey_service import build_progress_journey_summary
+from services.journey_goal_service import (
+    JourneyGoalError,
+    active_goals,
+    build_patient_progress_recap,
+    build_starting_point,
+    create_patient_goal,
+    materialize_initial_goals,
+    normalize_journey_goals,
+    source_label,
+    update_goal_by_therapist,
+)
 from services.post_consultation_onboarding_service import (
     build_second_session_summary as build_starting_point_summary,
     ensure_post_consultation_onboarding,
@@ -626,6 +637,30 @@ def clinical_report_for(username, wellness, messages):
     return report
 
 
+def add_patient_journey_goal(username, wellness, title):
+    if not use_http_api():
+        goal = create_patient_goal(wellness, title)
+        save_user_data(username)
+        return goal
+    response = api_client().create_journey_goal(username, title)
+    replace_wellness(wellness, response["wellness"])
+    return response["goal"]
+
+
+def save_therapist_journey_goal(patient_username, wellness, goal_id, achieved, note, therapist_username):
+    if not use_http_api():
+        patient_metadata = load_user_metadata(patient_username)
+        owner = patient_metadata.get("therapist_username") or patient_metadata.get("owner_username")
+        # Ownership is also enforced by the API; local mode uses the same persisted tenant metadata.
+        goal = update_goal_by_therapist(wellness, goal_id, achieved=achieved, note=note,
+                                         actor_username=therapist_username, patient_owner=owner or "")
+        save_wellness_for(patient_username, wellness)
+        return goal
+    response = api_client().update_journey_goal(patient_username, goal_id, achieved, note)
+    replace_wellness(wellness, response["wellness"])
+    return response["goal"]
+
+
 def weekly_recap_payload_for(username, report):
     if not use_http_api():
         recap = weekly_recap(report)
@@ -823,75 +858,93 @@ def show_diary_tab():
 
 
 def show_monitoring_tab():
-    st.subheader("📈 Monitoraggio ansia e stress")
-    journey = build_progress_journey_summary(session_adapter.get_wellness())
-    st.markdown("### Il tuo percorso")
-    st.caption("Una panoramica non diagnostica dei cambiamenti, delle difficoltà e dei punti da portare in seduta.")
-    st.info(journey["disclaimer"])
+    username = session_adapter.get_username()
+    wellness = session_adapter.get_wellness()
+    profile = session_adapter.get_profile()
+    if materialize_initial_goals(wellness, profile) and not use_http_api():
+        save_user_data(username)
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("#### Da dove sei partito")
-        st.write(f"Umore iniziale: {journey['baseline'].get('mood', '—')}")
-        st.write(f"Ansia/stress iniziali: {journey['baseline'].get('anxiety', '—')} / {journey['baseline'].get('stress', '—')}")
-        if journey['baseline'].get('goals'):
-            st.write("Obiettivi iniziali: " + ", ".join(journey['baseline']['goals']))
-    with col_b:
-        st.markdown("#### Dove sei ora")
-        cs = journey['current_snapshot']
-        st.write(f"Media ansia recente: {cs.get('recent_anxiety_avg', '—')}")
-        st.write(f"Media stress recente: {cs.get('recent_stress_avg', '—')}")
-        st.write(f"Homework completati: {cs.get('homework_completed', 0)}/{cs.get('homework_assigned', 0)}")
+    journey = build_progress_journey_summary(wellness)
+    starting_point = build_starting_point(profile, wellness)
+    recap = build_patient_progress_recap(wellness, journey)
 
-    st.markdown("#### Segnali di miglioramento")
-    for item in (journey['progress_markers'] or ["Dai dati inseriti emerge che servono più check-in per osservare segnali stabili."])[:5]:
-        st.write(f"- {item}")
-    st.markdown("#### Momenti di difficoltà")
-    for item in (journey['setback_markers'] or ["Nessun momento di difficoltà marcato nei dati recenti."])[:5]:
-        st.write(f"- {item}")
-    st.markdown("#### Da portare in seduta")
-    for item in journey['next_session_points'][:5]:
-        st.write(f"- {item}")
-    st.caption(journey['retention_message'])
-    st.markdown("#### Timeline del percorso")
-    st.caption("Questi segnali sono descrittivi e non diagnostici. Vanno interpretati dal professionista.")
-    journey_events = journey.get("timeline_events") or []
-    render_progress_timeline(journey_events)
+    st.title("📈 Il mio percorso")
+    st.write("Uno spazio per ricordare da dove sei partito, vedere i passi fatti e tenere presenti gli obiettivi del percorso.")
+    st.caption("Questa panoramica organizza le informazioni inserite da te e dal terapeuta. Non rappresenta una valutazione clinica automatica.")
 
-    df = entries_dataframe()
-    if df.empty:
-        st.info("Aggiungi almeno una scheda nel diario per vedere trend e indicatori.")
-        return
+    st.markdown("## Da dove sono partito")
+    with st.container(border=True):
+        if starting_point["empty"]:
+            st.info(starting_point["empty_message"])
+        else:
+            for detail in starting_point["details"]:
+                st.write(f"• {detail}")
+            if starting_point["goals"]:
+                st.markdown("**Obiettivi iniziali**")
+                for goal in starting_point["goals"]:
+                    st.write(f"• {goal}")
 
-    snapshot = clinical_snapshot(session_adapter.get_wellness(), session_adapter.get_messages())
-    latest = df.iloc[-1]
-    avg_anxiety = df["ansia"].mean()
-    avg_stress = df["stress"].mean()
-    st.metric("Ultima ansia", f"{latest['ansia']}/10")
-    st.metric("Media ansia", f"{avg_anxiety:.1f}/10")
-    st.metric("Media stress", f"{avg_stress:.1f}/10")
-    st.metric("Homework", f"{snapshot['homework_completed']}/{snapshot['homework_total']}")
+    st.markdown("## I miei obiettivi")
+    current_goals = active_goals(wellness)
+    if not current_goals:
+        st.info("Non ci sono ancora obiettivi in percorso.")
+    for goal in current_goals:
+        with st.container(border=True):
+            st.markdown(f"**{escape(goal['title'])}**")
+            st.caption(f"{source_label(goal['source'])} · In percorso")
+    with st.form("add_patient_journey_goal", clear_on_submit=True):
+        new_goal = st.text_input(
+            "C’è un nuovo obiettivo che vuoi aggiungere al percorso?",
+            placeholder="Es. Riuscire a esprimere ciò che penso senza evitare il confronto.",
+            max_chars=240,
+        )
+        if st.form_submit_button("Aggiungi obiettivo"):
+            try:
+                add_patient_journey_goal(username, wellness, new_goal)
+            except (JourneyGoalError, APIClientError) as error:
+                st.error(str(error))
+            else:
+                st.success("Obiettivo aggiunto al percorso.")
+                st.rerun()
 
-    with st.expander("Segnali descrittivi dai dati recenti", expanded=True):
-        st.caption("Queste informazioni organizzano ciò che hai inserito e devono essere interpretate con il terapeuta.")
-        for insight in snapshot["insights"]:
-            st.write(f"• {insight}")
-        for alert in snapshot["alerts"]:
-            st.warning(f"Punto da osservare: {alert}")
+    st.markdown("## Passi avanti")
+    if recap["achieved_goals"]:
+        st.markdown("### Obiettivi raggiunti")
+        for goal in recap["achieved_goals"]:
+            achieved_date = pd.to_datetime(goal.get("achieved_at"), errors="coerce")
+            date_label = achieved_date.strftime("%d/%m/%Y") if pd.notna(achieved_date) else "data non disponibile"
+            st.markdown(f"**{escape(goal['title'])}**  ")
+            st.caption(f"Riconosciuto insieme al terapeuta il {date_label}.")
+    if recap["automatic_signals"]:
+        st.markdown("### Altri passi avanti")
+        for signal in recap["automatic_signals"]:
+            st.write(f"• {signal}")
+        st.caption("Sono segnali descrittivi: non confermano automaticamente il raggiungimento di un obiettivo.")
+    if recap["empty"]:
+        st.info(recap["empty_message"])
 
-    st.caption("I valori mostrano come hai descritto la tua esperienza nel tempo.")
-    chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
-    fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
-    fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("## Andamento recente")
+    snapshot = journey["current_snapshot"]
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Ansia recente", f"{snapshot['recent_anxiety_avg']:.1f}/10" if snapshot.get("recent_anxiety_avg") is not None else "—")
+    col2.metric("Stress recente", f"{snapshot['recent_stress_avg']:.1f}/10" if snapshot.get("recent_stress_avg") is not None else "—")
+    col3.metric("Homework completati", snapshot.get("homework_completed", 0))
 
-    trigger_counts = most_common_values(df["trigger"])
-    sensation_counts = most_common_values(df["sensazioni"])
-    st.markdown("**Situazioni più ricorrenti**")
-    st.dataframe(trigger_counts.rename("Frequenza"), use_container_width=True)
-    st.markdown("**Sensazioni più ricorrenti**")
-    st.dataframe(sensation_counts.rename("Frequenza"), use_container_width=True)
-
+    with st.expander("Vedi il percorso nel dettaglio", expanded=False):
+        st.markdown("#### Timeline")
+        render_progress_timeline(journey.get("timeline_events") or [])
+        st.markdown("#### Momenti di difficoltà")
+        for item in journey.get("setback_markers") or ["Non emergono ancora momenti di difficoltà ricorrenti dai dati disponibili."]:
+            st.write(f"• {item}")
+        st.markdown("#### Segnali ricorrenti")
+        for item in journey.get("recurring_triggers") or []:
+            st.write(f"• {item['trigger']} ({item['count']} compilazioni)")
+        df = entries_dataframe()
+        if not df.empty:
+            chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
+            fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
+            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
+            st.plotly_chart(fig, use_container_width=True)
 
 def show_homework_tab():
     st.subheader("📚 Esercizi assegnati")
@@ -1294,6 +1347,8 @@ def show_therapist_dashboard():
     selected_bundle = bundles[selected_username]
     selected_profile = selected_bundle["profile"]
     selected_wellness = selected_bundle["wellness"]
+    if materialize_initial_goals(selected_wellness, selected_profile):
+        save_wellness_for(selected_username, selected_wellness)
     selected_snapshot = clinical_report_for(selected_username, selected_wellness, selected_bundle["messages"])
 
     selected_patient_name = selected_profile.get("nome", selected_username)
@@ -1482,6 +1537,32 @@ def show_therapist_dashboard():
     with detail_tabs[3]:
         st.markdown("### Percorso e ricadute · Timeline del percorso")
         st.caption("Questi segnali sono descrittivi e non diagnostici. Vanno interpretati dal professionista.")
+        st.markdown("#### Obiettivi del percorso")
+        therapist_goals = normalize_journey_goals(selected_wellness)
+        if not therapist_goals:
+            st.info("Il paziente non ha ancora indicato obiettivi per il percorso.")
+        for goal in therapist_goals:
+            with st.container(border=True):
+                created = pd.to_datetime(goal.get("created_at"), errors="coerce")
+                created_label = created.strftime("%d/%m/%Y") if pd.notna(created) and created.year > 1970 else "dal punto di partenza"
+                st.markdown(f"**{escape(goal['title'])}**")
+                st.caption(f"{source_label(goal['source'])} · {'Raggiunto' if goal['status'] == 'achieved' else 'In percorso'} · Creato {created_label}")
+                if goal.get("achieved_at"):
+                    reached = pd.to_datetime(goal["achieved_at"], errors="coerce")
+                    if pd.notna(reached):
+                        st.caption(f"Confermato insieme al terapeuta il {reached.strftime('%d/%m/%Y')}")
+                with st.form(f"therapist_goal_{goal['id']}"):
+                    achieved = st.checkbox("Obiettivo raggiunto", value=goal["status"] == "achieved")
+                    note = st.text_input("Nota facoltativa", value=goal.get("therapist_note", ""), max_chars=300,
+                                         placeholder="Breve nota condivisa sul passo riconosciuto.")
+                    if st.form_submit_button("Salva aggiornamento"):
+                        try:
+                            save_therapist_journey_goal(selected_username, selected_wellness, goal["id"], achieved, note, username)
+                        except (JourneyGoalError, PermissionError, APIClientError) as error:
+                            st.error(str(error))
+                        else:
+                            st.success("Obiettivo aggiornato.")
+                            st.rerun()
         journey = build_progress_journey_summary(selected_wellness)
         journey_events = journey.get("timeline_events") or []
         st.markdown("#### Punti da riprendere in seduta")
