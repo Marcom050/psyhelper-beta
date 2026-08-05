@@ -569,6 +569,19 @@ def replace_wellness(current_wellness, updated_wellness):
     current_wellness.update(updated_wellness)
 
 
+def materialize_and_persist_initial_goals(username, wellness, profile, *, patient_session=False):
+    if use_http_api():
+        # GET /wellness materializes and persists server-side before returning.
+        replace_wellness(wellness, api_client().get_wellness(username))
+        return
+    if not materialize_initial_goals(wellness, profile):
+        return
+    if patient_session:
+        save_user_data(username)
+    else:
+        save_wellness_for(username, wellness)
+
+
 def homework_for(username, wellness):
     if not use_http_api():
         return get_assigned_homework(wellness), get_submitted_homework(wellness)
@@ -793,6 +806,11 @@ def show_chat_tab():
         save_user_data(session_adapter.get_username())
         st.rerun()
 
+    if st.button("Pulisci chat corrente", key="clear_current_chat_in_chat_tab", use_container_width=True):
+        clear_visible_chat_session(persist=True)
+        session_adapter.set_scroll_to_top(True)
+        st.rerun()
+
 
 def show_diary_tab():
     st.subheader("📝 Diario CBT")
@@ -861,8 +879,7 @@ def show_monitoring_tab():
     username = session_adapter.get_username()
     wellness = session_adapter.get_wellness()
     profile = session_adapter.get_profile()
-    if materialize_initial_goals(wellness, profile) and not use_http_api():
-        save_user_data(username)
+    materialize_and_persist_initial_goals(username, wellness, profile, patient_session=True)
 
     journey = build_progress_journey_summary(wellness)
     starting_point = build_starting_point(profile, wellness)
@@ -1347,8 +1364,7 @@ def show_therapist_dashboard():
     selected_bundle = bundles[selected_username]
     selected_profile = selected_bundle["profile"]
     selected_wellness = selected_bundle["wellness"]
-    if materialize_initial_goals(selected_wellness, selected_profile):
-        save_wellness_for(selected_username, selected_wellness)
+    materialize_and_persist_initial_goals(selected_username, selected_wellness, selected_profile)
     selected_snapshot = clinical_report_for(selected_username, selected_wellness, selected_bundle["messages"])
 
     selected_patient_name = selected_profile.get("nome", selected_username)
@@ -1965,10 +1981,6 @@ def render_client_app_tabs():
 
 def render_client_footer_actions():
     st.divider()
-    if st.button("Pulisci chat corrente", use_container_width=True):
-        clear_visible_chat_session(persist=True)
-        session_adapter.set_scroll_to_top(True)
-        st.rerun()
     if st.button("Torna su", use_container_width=True):
         scroll_to_top()
     if st.button("Esci", use_container_width=True):

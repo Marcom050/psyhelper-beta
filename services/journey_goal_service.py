@@ -110,6 +110,11 @@ ONBOARDING_GOAL_PATHS = (
 ONBOARDING_COMMITMENT_PATHS = (
     ("goals", "personal_commitment"),
     ("steps", "goals", "data", "personal_commitment"),
+    ("summary", "goals", "personal_commitment"),
+)
+LEGACY_COMMITMENT_PATHS = (
+    ("onboarding", "personal_commitment"),
+    ("onboarding", "goals", "personal_commitment"),
 )
 
 
@@ -119,6 +124,8 @@ def _onboarding_commitment_keys(wellness: Mapping[str, Any] | None) -> set[str]:
     for onboarding in (wellness or {}).get("post_consultation_onboardings") or []:
         for value in _values(onboarding, ONBOARDING_COMMITMENT_PATHS):
             keys.update(goal_key(title) for title in _text_items(value))
+    for value in _values(wellness, LEGACY_COMMITMENT_PATHS):
+        keys.update(goal_key(title) for title in _text_items(value))
     return keys
 
 
@@ -132,30 +139,47 @@ def extract_initial_goals(profile: Mapping[str, Any] | None, wellness: Mapping[s
         if event_type in {"goal", "obiettivo", "journey goal"}:
             candidates.append(event.get("title") or event.get("titolo"))
     unique: dict[str, str] = {}
+    commitment_keys = _onboarding_commitment_keys(wellness)
     for candidate in candidates:
         for title in _text_items(candidate):
-            unique.setdefault(goal_key(title), title)
+            key = goal_key(title)
+            if key not in commitment_keys:
+                unique.setdefault(key, title)
     return list(unique.values())
 
 
 def materialize_initial_goals(wellness: dict[str, Any], profile: Mapping[str, Any] | None) -> bool:
-    goals = normalize_journey_goals(wellness)
     changed = False
 
     commitment_keys = _onboarding_commitment_keys(wellness)
     if commitment_keys:
-        filtered_goals = [
-            goal for goal in goals
-            if not (
-                goal.get("source") == "onboarding"
-                and goal_key(goal.get("title")) in commitment_keys
+        raw_goals = wellness.get("journey_goals") or []
+        filtered_goals: list[Any] = []
+        for raw_goal in raw_goals:
+            goal = normalize_goal(raw_goal) if isinstance(raw_goal, Mapping) else None
+            if goal is None:
+                filtered_goals.append(raw_goal)
+                continue
+            key = goal_key(goal.get("title"))
+            deterministic_id = str(uuid5(GOAL_NAMESPACE, f"initial:{key}"))
+            imported_commitment = (
+                goal.get("source") != "patient_manual"
+                and key in commitment_keys
+                and (
+                    goal.get("source") == "onboarding"
+                    or goal.get("id") == deterministic_id
+                    or goal.get("created_at") == "1970-01-01T00:00:00+00:00"
+                )
             )
-        ]
-        if len(filtered_goals) != len(goals):
+            if not imported_commitment:
+                filtered_goals.append(raw_goal)
+        if len(filtered_goals) != len(raw_goals):
             wellness["journey_goals"] = filtered_goals
-            goals = filtered_goals
             changed = True
 
+    # Cleanup must precede normalization: the legacy deduplication keeps the
+    # first title match, which could otherwise discard a later manual goal.
+    goals = normalize_journey_goals(wellness)
     existing = {goal_key(goal["title"]) for goal in goals}
     for title in extract_initial_goals(profile, wellness):
         key = goal_key(title)

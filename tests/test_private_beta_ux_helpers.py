@@ -72,10 +72,14 @@ def test_clear_visible_chat_session_clears_messages_without_persistence_by_defau
 
 def test_clear_chat_button_label_is_italian_and_uses_shared_cleanup_path():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
-    assert 'if st.button("Pulisci chat corrente", use_container_width=True):' in source
+    chat_source = source[source.index("def show_chat_tab():"):source.index("def show_diary_tab():")]
+    footer_source = source[source.index("def render_client_footer_actions():"):source.index("def render_authenticated_app():")]
+    assert 'st.button("Pulisci chat corrente", key="clear_current_chat_in_chat_tab"' in chat_source
+    assert "clear_visible_chat_session(persist=True)" in chat_source
+    assert "Pulisci chat corrente" not in footer_source
+    assert source.count('st.button("Pulisci chat corrente"') == 1
     assert 'if st.button("Torna su", use_container_width=True):' in source
     assert 'if st.button("Esci", use_container_width=True):' in source
-    assert "clear_visible_chat_session(persist=True)" in source
     assert "def reset_session_for_logout():" in source
     assert "clear_visible_chat_session(persist=True)" in source
 

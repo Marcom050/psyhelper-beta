@@ -53,13 +53,56 @@ def test_extracts_new_onboarding_legacy_profile_and_timeline_idempotently():
         "timeline_events": [{"tipo": "obiettivo", "titolo": "Chiedere aiuto"}],
     }
     extracted = extract_initial_goals(profile, wellness)
-    assert {"Ridurre l'evitamento", "Esprimermi meglio", "Gestire l'ansia", "Dormire meglio", "Fare un piccolo passo", "Relazioni", "Compilare il diario", "Chiedere aiuto"} <= set(extracted)
+    assert {"Ridurre l'evitamento", "Esprimermi meglio", "Gestire l'ansia", "Dormire meglio", "Fare un piccolo passo", "Relazioni", "Chiedere aiuto"} <= set(extracted)
+    assert "Compilare il diario" not in extracted
     assert materialize_initial_goals(wellness, profile) is True
     ids = [goal["id"] for goal in wellness["journey_goals"]]
     assert materialize_initial_goals(wellness, profile) is False
     normalize_journey_goals(wellness)
     assert ids == [goal["id"] for goal in wellness["journey_goals"]]
     assert len(ids) == len(set(ids)) == len(extracted)
+
+
+def test_commitment_is_excluded_from_all_real_onboarding_shapes():
+    wellness = {
+        "onboarding": {"goals": {"personal_commitment": "Alias legacy"}},
+        "post_consultation_onboardings": [
+            {"goals": {"personal_commitment": "Forma top-level"}},
+            {"steps": {"goals": {"data": {"personal_commitment": "Forma corrente"}}}},
+            {"summary": {"goals": {"personal_commitment": "Forma riepilogo"}}},
+        ],
+    }
+    profile = {"goals": ["Forma top-level", "Forma corrente", "Forma riepilogo", "Alias legacy", "Obiettivo vero"]}
+
+    assert extract_initial_goals(profile, wellness) == ["Obiettivo vero"]
+
+
+def test_materialization_removes_imported_commitment_but_preserves_manual_match():
+    commitment = "Compilare il diario ogni sera"
+    wellness = {
+        "post_consultation_onboardings": [{"goals": {"personal_commitment": commitment}}],
+        "journey_goals": [
+            {
+                "id": "526095d5-fbcd-59c1-bca6-21a8d22196c4",
+                "title": commitment,
+                "source": "onboarding",
+                "created_at": "1970-01-01T00:00:00+00:00",
+            },
+            {
+                "id": "544eb5b5-65ea-4383-a7a7-443ca7bfcc8f",
+                "title": commitment,
+                "source": "patient_manual",
+                "created_at": "2026-08-01T12:00:00+00:00",
+            },
+        ],
+    }
+
+    assert materialize_initial_goals(wellness, {}) is True
+    assert [(goal["title"], goal["source"]) for goal in wellness["journey_goals"]] == [
+        (commitment, "patient_manual")
+    ]
+    assert materialize_initial_goals(wellness, {}) is False
+    assert len(wellness["journey_goals"]) == 1
 
 
 def test_owner_can_confirm_persist_note_and_undo_but_others_cannot():
