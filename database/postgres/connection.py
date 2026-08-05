@@ -1,12 +1,16 @@
 """Minimal PostgreSQL connection-pool support for JSONB repositories."""
 
 from contextlib import contextmanager
+from threading import Lock
 import time
 
 from database import config
 from core.settings import SETTINGS
 
 _POOL = None
+_SCHEMA_INITIALIZED = False
+_SCHEMA_INIT_LOCK = Lock()
+_SCHEMA_ADVISORY_LOCK_ID = 741852963
 
 SCHEMA_STATEMENTS = (
     """
@@ -98,20 +102,40 @@ def connection():
 
 
 def initialize_schema():
-    """Create the minimal JSONB tables without destructive migrations."""
-    with connection() as conn:
-        with conn.cursor() as cursor:
-            for statement in SCHEMA_STATEMENTS:
-                cursor.execute(statement)
-        conn.commit()
+    """Initialize the schema once and serialize concurrent DDL attempts."""
+    global _SCHEMA_INITIALIZED
+
+    if _SCHEMA_INITIALIZED:
+        return
+
+    with _SCHEMA_INIT_LOCK:
+        if _SCHEMA_INITIALIZED:
+            return
+
+        with connection() as conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT pg_advisory_xact_lock(%s)",
+                        (_SCHEMA_ADVISORY_LOCK_ID,),
+                    )
+                    for statement in SCHEMA_STATEMENTS:
+                        cursor.execute(statement)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+        _SCHEMA_INITIALIZED = True
 
 
 def reset_pool():
-    """Close and clear the cached pool; useful for tests."""
-    global _POOL
+    """Close and clear cached database state; useful for tests."""
+    global _POOL, _SCHEMA_INITIALIZED
     if _POOL is not None:
         _POOL.close()
         _POOL = None
+    _SCHEMA_INITIALIZED = False
 
 
 def db_healthcheck() -> float:
