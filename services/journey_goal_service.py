@@ -103,11 +103,23 @@ GOAL_PATHS = (
 )
 ONBOARDING_GOAL_PATHS = (
     ("goals", "goals_text"), ("goals", "short_term_priority"), ("goals", "main_goal"),
-    ("goals", "track"), ("goals", "personal_commitment"),
+    ("goals", "track"),
     ("steps", "goals", "data", "goals_text"), ("steps", "goals", "data", "short_term_priority"),
     ("steps", "goals", "data", "main_goal"), ("steps", "goals", "data", "track"),
+)
+ONBOARDING_COMMITMENT_PATHS = (
+    ("goals", "personal_commitment"),
     ("steps", "goals", "data", "personal_commitment"),
 )
+
+
+def _onboarding_commitment_keys(wellness: Mapping[str, Any] | None) -> set[str]:
+    """Return patient commitments that must remain separate from therapy goals."""
+    keys: set[str] = set()
+    for onboarding in (wellness or {}).get("post_consultation_onboardings") or []:
+        for value in _values(onboarding, ONBOARDING_COMMITMENT_PATHS):
+            keys.update(goal_key(title) for title in _text_items(value))
+    return keys
 
 
 def extract_initial_goals(profile: Mapping[str, Any] | None, wellness: Mapping[str, Any] | None) -> list[str]:
@@ -128,8 +140,23 @@ def extract_initial_goals(profile: Mapping[str, Any] | None, wellness: Mapping[s
 
 def materialize_initial_goals(wellness: dict[str, Any], profile: Mapping[str, Any] | None) -> bool:
     goals = normalize_journey_goals(wellness)
-    existing = {goal_key(goal["title"]) for goal in goals}
     changed = False
+
+    commitment_keys = _onboarding_commitment_keys(wellness)
+    if commitment_keys:
+        filtered_goals = [
+            goal for goal in goals
+            if not (
+                goal.get("source") == "onboarding"
+                and goal_key(goal.get("title")) in commitment_keys
+            )
+        ]
+        if len(filtered_goals) != len(goals):
+            wellness["journey_goals"] = filtered_goals
+            goals = filtered_goals
+            changed = True
+
+    existing = {goal_key(goal["title"]) for goal in goals}
     for title in extract_initial_goals(profile, wellness):
         key = goal_key(title)
         if key in existing:
