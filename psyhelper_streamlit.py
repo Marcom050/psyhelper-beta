@@ -842,8 +842,11 @@ def show_diary_tab():
         )
 
         with st.expander("Aggiungi qualche dettaglio, se ti aiuta", expanded=False):
-            anxiety = st.slider("Quanta ansia hai sentito? (facoltativo)", 0, 10, 4, help="Indica la tua percezione da 0 a 10.")
-            stress = st.slider("Quanto stress hai sentito? (facoltativo)", 0, 10, 4, help="Indica la tua percezione da 0 a 10.")
+            record_anxiety_stress = st.checkbox("Vuoi registrare anche ansia e stress?", value=False)
+            anxiety = stress = None
+            if record_anxiety_stress:
+                anxiety = st.slider("Quanta ansia hai sentito?", 0, 10, 4, help="Indica la tua percezione da 0 a 10.")
+                stress = st.slider("Quanto stress hai sentito?", 0, 10, 4, help="Indica la tua percezione da 0 a 10.")
             sensations = st.multiselect("Che cosa hai sentito nel corpo? (facoltativo)", SENSATION_OPTIONS, help="Scegli solo le sensazioni che ricordi chiaramente.")
             need = ""
 
@@ -853,8 +856,6 @@ def show_diary_tab():
                 "data": entry_date.isoformat(),
                 "umore": mood,
                 "umore_intensita": mood_intensity,
-                "ansia": anxiety,
-                "stress": stress,
                 "trigger": trigger,
                 "sensazioni": sensations,
                 "bisogno": need,
@@ -862,6 +863,8 @@ def show_diary_tab():
                 "comportamento": behavior,
                 "nota_professionista": note,
             }
+            if record_anxiety_stress:
+                entry.update({"ansia": anxiety, "stress": stress})
             if use_http_api():
                 try:
                     response = api_client().create_mood_entry(session_adapter.get_username(), entry)
@@ -894,12 +897,9 @@ def show_monitoring_tab():
         if starting_point["empty"]:
             st.info(starting_point["empty_message"])
         else:
-            for detail in starting_point["details"]:
-                st.write(f"• {detail}")
-            if starting_point["goals"]:
-                st.markdown("**Obiettivi iniziali**")
-                for goal in starting_point["goals"]:
-                    st.write(f"• {goal}")
+            for field in starting_point["fields"]:
+                st.markdown(f"**{escape(field['label'])}**")
+                st.write(escape(field["display_value"]))
 
     st.markdown("## I miei obiettivi")
     current_goals = active_goals(wellness)
@@ -924,28 +924,54 @@ def show_monitoring_tab():
                 st.success("Obiettivo aggiunto al percorso.")
                 st.rerun()
 
-    st.markdown("## Passi avanti")
+    st.markdown("## Quello che ho fatto finora")
+    st.markdown("### Progressi riconosciuti")
     if recap["achieved_goals"]:
-        st.markdown("### Obiettivi raggiunti")
         for goal in recap["achieved_goals"]:
             achieved_date = pd.to_datetime(goal.get("achieved_at"), errors="coerce")
             date_label = achieved_date.strftime("%d/%m/%Y") if pd.notna(achieved_date) else "data non disponibile"
             st.markdown(f"**{escape(goal['title'])}**  ")
             st.caption(f"Riconosciuto insieme al terapeuta il {date_label}.")
+    else:
+        st.caption("Non ci sono ancora obiettivi confermati come raggiunti dal terapeuta.")
+    st.markdown("### Attività svolte")
+    if recap["activities"]:
+        for activity in recap["activities"]:
+            st.write(f"• {activity}")
+        st.caption("Le attività completate aiutano a mantenere traccia del lavoro svolto tra le sedute.")
+    else:
+        st.caption("Non ci sono ancora esercizi completati registrati.")
+    st.markdown("### Segnali del percorso")
     if recap["automatic_signals"]:
-        st.markdown("### Altri passi avanti")
         for signal in recap["automatic_signals"]:
             st.write(f"• {signal}")
         st.caption("Sono segnali descrittivi: non confermano automaticamente il raggiungimento di un obiettivo.")
-    if recap["empty"]:
-        st.info(recap["empty_message"])
+    else:
+        st.caption("Non ci sono ancora segnali descrittivi supportati dalle compilazioni registrate.")
 
-    st.markdown("## Andamento recente")
+    st.markdown("## Come sta andando recentemente")
     snapshot = journey["current_snapshot"]
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Ansia recente", f"{snapshot['recent_anxiety_avg']:.1f}/10" if snapshot.get("recent_anxiety_avg") is not None else "—")
-    col2.metric("Stress recente", f"{snapshot['recent_stress_avg']:.1f}/10" if snapshot.get("recent_stress_avg") is not None else "—")
-    col3.metric("Homework completati", snapshot.get("homework_completed", 0))
+    recent_columns = st.columns(2)
+    for column, name, value_key, count_key in (
+        (recent_columns[0], "Ansia", "recent_anxiety_avg", "recent_anxiety_count"),
+        (recent_columns[1], "Stress", "recent_stress_avg", "recent_stress_count"),
+    ):
+        value, count = snapshot.get(value_key), snapshot.get(count_key, 0)
+        label = "Ultimo valore registrato" if count == 1 else f"Media degli ultimi {count} check-in"
+        column.metric(name, f"{value:.1f}/10" if value is not None else "—")
+        column.caption(label if count else "Non ci sono ancora valori registrati.")
+
+    baseline_by_key = {field["key"]: field for field in starting_point["fields"]}
+    comparisons = []
+    for key, name, recent_key, count_key in (("anxiety", "Ansia", "recent_anxiety_avg", "recent_anxiety_count"), ("stress", "Stress", "recent_stress_avg", "recent_stress_count")):
+        baseline_field, recent = baseline_by_key.get(key), snapshot.get(recent_key)
+        if baseline_field and isinstance(baseline_field["value"], (int, float)) and recent is not None:
+            comparisons.append(f"{name}: {baseline_field['value']}/10 all'inizio → {recent:.1f}/10 nei check-in recenti ({snapshot[count_key]} compilazioni)")
+    if comparisons:
+        with st.container(border=True):
+            for comparison in comparisons:
+                st.write(comparison)
+            st.caption("Variazione basata sulle compilazioni registrate.")
 
     with st.expander("Vedi il percorso nel dettaglio", expanded=False):
         st.markdown("#### Timeline")
@@ -958,6 +984,9 @@ def show_monitoring_tab():
             st.write(f"• {item['trigger']} ({item['count']} compilazioni)")
         df = entries_dataframe()
         if not df.empty:
+            for column in ("ansia", "stress", "umore_intensita"):
+                if column not in df:
+                    df[column] = pd.NA
             chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
             fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
             fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")

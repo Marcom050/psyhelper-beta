@@ -85,6 +85,16 @@ def _split_themes(value: Any) -> list[str]:
     return [part.strip().lower() for part in str(value or "").split(",") if part.strip()]
 
 
+def _prepare_measurements(df: pd.DataFrame) -> pd.DataFrame:
+    """Coerce optional diary measurements, preserving old numeric values."""
+    df = df.copy()
+    for column in ("umore_intensita", "ansia", "stress"):
+        if column not in df:
+            df[column] = pd.NA
+        df[column] = pd.to_numeric(df[column], errors="coerce").where(lambda values: values.between(0, 10))
+    return df
+
+
 def build_progress_journey_summary(
     wellness: Optional[Mapping[str, Any]],
     homework_data: Optional[Mapping[str, Any]] = None,
@@ -92,7 +102,7 @@ def build_progress_journey_summary(
     notes_data: Optional[Mapping[str, Any]] = None,
 ) -> dict[str, Any]:
     wellness = wellness or {}
-    df = mood_entries_dataframe(wellness)
+    df = _prepare_measurements(mood_entries_dataframe(wellness))
     assignments = list((homework_data or {}).get("assignments", wellness.get("homework_assignments", [])))
     submissions = list((homework_data or {}).get("submissions", wellness.get("homework_submissions", [])))
     onboarding = (wellness.get("post_consultation_onboardings") or [{}])[-1] if wellness.get("post_consultation_onboardings") else {}
@@ -125,15 +135,18 @@ def build_progress_journey_summary(
         })
 
     now = (df["data"].max() if not df.empty else pd.Timestamp.now()).tz_localize(None).normalize()
-    recent_14 = df[df["data"] >= now - pd.Timedelta(days=14)] if not df.empty else pd.DataFrame()
-    recent_7 = df[df["data"] >= now - pd.Timedelta(days=7)] if not df.empty else pd.DataFrame()
-    prev_7 = df[(df["data"] < now - pd.Timedelta(days=7)) & (df["data"] >= now - pd.Timedelta(days=14))] if not df.empty else pd.DataFrame()
+    recent_14 = df[df["data"] >= now - pd.Timedelta(days=14)] if not df.empty else df.iloc[0:0]
+    recent_7 = df[df["data"] >= now - pd.Timedelta(days=7)] if not df.empty else df.iloc[0:0]
+    prev_7 = df[(df["data"] < now - pd.Timedelta(days=7)) & (df["data"] >= now - pd.Timedelta(days=14))] if not df.empty else df.iloc[0:0]
 
     current_snapshot = {
         "window_days": 14,
-        "recent_mood_avg": float(recent_14["umore_intensita"].mean()) if not recent_14.empty else None,
-        "recent_anxiety_avg": float(recent_14["ansia"].mean()) if not recent_14.empty else None,
-        "recent_stress_avg": float(recent_14["stress"].mean()) if not recent_14.empty else None,
+        "recent_mood_avg": float(recent_14["umore_intensita"].mean()) if recent_14["umore_intensita"].notna().any() else None,
+        "recent_anxiety_avg": float(recent_14["ansia"].mean()) if recent_14["ansia"].notna().any() else None,
+        "recent_stress_avg": float(recent_14["stress"].mean()) if recent_14["stress"].notna().any() else None,
+        "recent_mood_count": int(recent_14["umore_intensita"].notna().sum()),
+        "recent_anxiety_count": int(recent_14["ansia"].notna().sum()),
+        "recent_stress_count": int(recent_14["stress"].notna().sum()),
         "homework_completed": len(completed_ids),
         "homework_assigned": len(assignments),
     }
@@ -142,9 +155,11 @@ def build_progress_journey_summary(
         delta = current_snapshot["recent_anxiety_avg"] - float(baseline["anxiety"])
         current_snapshot["anxiety_vs_baseline"] = round(delta, 2)
 
-    if not recent_7.empty and not prev_7.empty:
-        delta_anx = float(recent_7["ansia"].mean() - prev_7["ansia"].mean())
-        delta_stress = float(recent_7["stress"].mean() - prev_7["stress"].mean())
+    paired_recent = recent_7.dropna(subset=["ansia", "stress"])
+    paired_previous = prev_7.dropna(subset=["ansia", "stress"])
+    if not paired_recent.empty and not paired_previous.empty:
+        delta_anx = float(paired_recent["ansia"].mean() - paired_previous["ansia"].mean())
+        delta_stress = float(paired_recent["stress"].mean() - paired_previous["stress"].mean())
         if delta_anx <= -1 or delta_stress <= -1:
             evidence = [f"ansia: variazione media {delta_anx:.1f}", f"stress: variazione media {delta_stress:.1f}"]
             progress_markers.append("Possibile segnale da esplorare in seduta: nei dati recenti ansia/stress risultano in riduzione rispetto alla settimana precedente.")
@@ -171,7 +186,7 @@ def build_progress_journey_summary(
         if count >= 2:
             timeline_events.append(_timeline_event("attention_area", f"Area da attenzionare: {theme}", "Questo pensiero o comportamento compare più volte nei check-in recenti: possibile segnale da esplorare in seduta.", now.isoformat(), "mood_entries", evidence=[f"tema ricorrente: {theme} ({count} volte)"]))
 
-    if len(recent_7) >= 2 and not prev_7.empty and recent_7["ansia"].mean() <= prev_7["ansia"].mean() - 1 and recent_7["stress"].mean() <= prev_7["stress"].mean() - 1:
+    if len(paired_recent) >= 2 and not paired_previous.empty and paired_recent["ansia"].mean() <= paired_previous["ansia"].mean() - 1 and paired_recent["stress"].mean() <= paired_previous["stress"].mean() - 1:
         timeline_events.append(_timeline_event("maintained_progress", "Progresso mantenuto", "Il miglioramento sembra mantenersi nei check-in più recenti. Segnale descrittivo da discutere in seduta.", now.isoformat(), "mood_entries", evidence=["ansia e stress restano più bassi nel periodo recente"]))
 
     helpful_strategies = []
@@ -184,10 +199,6 @@ def build_progress_journey_summary(
             homework_impact.append({"homework": title, "status": "completed", "note": "Potrebbe essere utile discuterne in seduta."})
             event_date = assignment.get("assigned_at") or assignment.get("due_date")
             timeline_events.append(_timeline_event("homework", "Homework completato", title, event_date, "homework_submissions", importance="high", evidence=[f"homework completato: {title}"]))
-            step_keywords = ["evitamento", "piccolo passo", "esposizione", "paura", "ansia", "situazione evitata"]
-            text = f"{title} {assignment.get('instructions', '')}".lower()
-            if any(keyword in text for keyword in step_keywords):
-                timeline_events.append(_timeline_event("step_forward", "Passo avanti", "È presente un possibile passo avanti: il paziente ha affrontato o descritto un’azione collegata a un blocco precedente.", event_date, "homework_submissions", importance="high", evidence=[f"homework completato collegato a: {title}"]))
         else:
             homework_impact.append({"homework": title, "status": "pending", "note": "Tema da portare in seduta per capire ostacoli e supporti utili."})
 
