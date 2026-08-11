@@ -233,41 +233,51 @@ def achieved_goals(wellness: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def build_starting_point(profile: Mapping[str, Any] | None, wellness: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Build a labelled baseline without mixing in therapeutic goals.
+
+    The paths deliberately include both the current Italian profile keys and
+    the English keys used by older onboarding records.
+    """
     onboarding = ((wellness or {}).get("post_consultation_onboardings") or [{}])[-1]
-    baseline_paths = (
-        ("initial_baseline",),
-        ("initial_baseline", "perceived_difficulty"), ("initial_baseline", "mood"),
-        ("initial_baseline", "anxiety"), ("initial_baseline", "stress"),
+    sources = [profile or {}, onboarding, wellness or {}]
+    field_specs = (
+        ("mood", "Come mi sentivo all'inizio", False, (("initial_baseline", "umore"), ("initial_baseline", "mood"), ("steps", "baseline", "data", "umore"), ("steps", "baseline", "data", "mood"), ("baseline", "umore"), ("baseline", "mood"))),
+        ("anxiety", "Ansia all'inizio", True, (("initial_baseline", "ansia"), ("initial_baseline", "anxiety"), ("steps", "baseline", "data", "ansia"), ("steps", "baseline", "data", "anxiety"), ("baseline", "ansia"), ("baseline", "anxiety"))),
+        ("stress", "Stress all'inizio", True, (("initial_baseline", "stress"), ("steps", "baseline", "data", "stress"), ("baseline", "stress"))),
+        ("motivation", "Motivazione all'inizio", True, (("initial_baseline", "motivazione"), ("initial_baseline", "motivation"), ("steps", "baseline", "data", "motivazione"), ("steps", "baseline", "data", "motivation"), ("baseline", "motivazione"), ("baseline", "motivation"))),
+        ("perceived_difficulty", "Cosa pesava di più", False, (("initial_baseline", "perceived_difficulty"), ("steps", "baseline", "data", "perceived_difficulty"), ("baseline", "perceived_difficulty"))),
+        ("habits_to_change", "Cosa volevo cambiare", False, (("steps", "diary", "data", "habits_to_change"), ("diary", "habits_to_change"))),
+        ("automatic_thought", "Pensiero a cui volevo dare meno peso", False, (("steps", "cbt_entry", "data", "automatic_thought"), ("cbt_entry", "automatic_thought"))),
     )
-    detail_paths = (
-        ("steps", "baseline", "data", "perceived_difficulty"), ("steps", "baseline", "data", "mood"),
-        ("steps", "baseline", "data", "anxiety"), ("steps", "baseline", "data", "stress"),
-        ("steps", "diary", "data", "habits_to_change"), ("steps", "cbt_entry", "data", "automatic_thought"),
-        ("steps", "goals", "data", "first_change"),
-    )
-    details = []
-    for value in _values(profile, baseline_paths) + _values(onboarding, detail_paths):
-        details.extend(_text_items(value))
-    # Historic top-level aliases.
-    details.extend(item for value in _values(wellness, (("baseline", "perceived_difficulty"), ("baseline", "mood"), ("baseline", "anxiety"), ("baseline", "stress"), ("diary", "habits_to_change"), ("cbt_entry", "automatic_thought"))) for item in _text_items(value))
-    details = list(dict.fromkeys(details))[:5]
-    goals = extract_initial_goals(profile, wellness)[:5]
-    return {"details": details, "goals": goals, "empty": not details and not goals, "empty_message": EMPTY_BASELINE}
+    fields: list[dict[str, Any]] = []
+    for key, label, scale, paths in field_specs:
+        values = [value for source in sources for value in _values(source, paths)]
+        if not values:
+            continue
+        value = values[0]
+        if isinstance(value, (Mapping, list, tuple, set)):
+            text_values = _text_items(value)
+            if not text_values:
+                continue
+            value = "; ".join(text_values)
+        display_value = f"{value}/10" if scale and isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
+        fields.append({"key": key, "label": label, "value": value, "display_value": display_value})
+    return {"fields": fields, "details": fields, "empty": not fields, "empty_message": EMPTY_BASELINE}
 
 
 def build_patient_progress_recap(wellness: dict[str, Any], journey: Mapping[str, Any]) -> dict[str, Any]:
     reached = achieved_goals(wellness)
     automatic = list(journey.get("progress_markers") or [])
     completed = int((journey.get("current_snapshot") or {}).get("homework_completed") or 0)
-    if completed:
-        automatic.append(f"Hai completato {completed} homework.")
     for event in journey.get("timeline_events") or []:
         if event.get("type") in {"step_forward", "improvement", "maintained_progress"}:
             text = _clean_title(event.get("description") or event.get("title"))
             if text:
                 automatic.append(f"Cambiamento emerso dalle compilazioni: {text}")
     automatic = list(dict.fromkeys(automatic))[:6]
-    return {"achieved_goals": reached, "automatic_signals": automatic, "empty": not reached and not automatic, "empty_message": EMPTY_PROGRESS}
+    activities = [f"Hai completato {completed} {'esercizio assegnato' if completed == 1 else 'esercizi assegnati'}."] if completed else []
+    return {"achieved_goals": reached, "activities": activities, "automatic_signals": automatic,
+            "empty": not reached and not activities and not automatic, "empty_message": EMPTY_PROGRESS}
 
 
 def source_label(source: str) -> str:

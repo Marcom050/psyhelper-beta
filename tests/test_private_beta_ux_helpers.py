@@ -286,7 +286,25 @@ def test_progress_journey_copy_present_for_patient_and_therapist():
     assert "Passi avanti" in source
     assert "Momenti di difficoltà" in source
     assert "I miei obiettivi" in source
+    assert "Quello che ho fatto finora" in source
+    assert "Progressi riconosciuti" in source
+    assert "Attività svolte" in source
+    assert "Segnali del percorso" in source
+    assert "Come sta andando recentemente" in source
+    assert "Obiettivi iniziali" not in source
     assert "journey = build_progress_journey_summary(selected_wellness)" in source
+
+
+def test_optional_diary_measurements_require_explicit_opt_in():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    assert 'st.checkbox("Vuoi registrare anche ansia e stress?", value=False)' in source
+    assert 'if record_anxiety_stress:' in source
+    assert 'entry.update({"ansia": anxiety, "stress": stress})' in source
+    diary_start = source.index('def show_diary_tab')
+    diary_end = source.index('def show_monitoring_tab')
+    diary_source = source[diary_start:diary_end]
+    assert '"ansia": anxiety,' not in diary_source.split('entry = {', 1)[1].split('}', 1)[0]
+    assert '"stress": stress,' not in diary_source.split('entry = {', 1)[1].split('}', 1)[0]
 
 
 def test_initial_patient_onboarding_collects_baseline_without_monitoring_overwrite():

@@ -69,11 +69,42 @@ def test_recurring_trigger_generates_attention_area():
     assert any(event["type"] == "attention_area" and "lavoro" in event["title"] for event in res["timeline_events"])
 
 
-def test_avoidance_homework_completion_generates_step_forward():
+def test_homework_completion_is_activity_not_automatic_therapeutic_progress():
     assignments = [{"id": "a1", "template": "Piccolo passo su situazione evitata", "assigned_at": "2026-05-03"}]
     submissions = [{"assignment_id": "a1", "submitted_at": "2026-05-05"}]
     res = build_progress_journey_summary(_wellness(assignments=assignments, submissions=submissions))
-    assert any(event["type"] == "step_forward" for event in res["timeline_events"])
+    assert res["current_snapshot"]["homework_completed"] == 1
+    assert any(event["type"] == "homework" for event in res["timeline_events"])
+    assert not any(event["type"] == "step_forward" for event in res["timeline_events"])
+
+
+def test_optional_measurements_are_excluded_and_counts_are_exposed():
+    entries = [
+        {"data": "2026-05-23", "umore_intensita": 6},
+        {"data": "2026-05-24", "umore_intensita": 7, "ansia": None, "stress": None},
+        {"data": "2026-05-25", "umore_intensita": 8, "ansia": 6, "stress": 5},
+    ]
+    snapshot = build_progress_journey_summary(_wellness(entries=entries))["current_snapshot"]
+    assert snapshot["recent_anxiety_avg"] == 6
+    assert snapshot["recent_stress_avg"] == 5
+    assert snapshot["recent_anxiety_count"] == snapshot["recent_stress_count"] == 1
+
+
+def test_missing_optional_measurements_do_not_create_default_four():
+    snapshot = build_progress_journey_summary(_wellness(entries=[
+        {"data": "2026-05-24", "umore_intensita": 7},
+    ]))["current_snapshot"]
+    assert snapshot["recent_anxiety_avg"] is None
+    assert snapshot["recent_stress_avg"] is None
+    assert snapshot["recent_anxiety_count"] == snapshot["recent_stress_count"] == 0
+
+
+def test_legacy_numeric_four_remains_a_valid_recorded_measurement():
+    snapshot = build_progress_journey_summary(_wellness(entries=[
+        {"data": "2026-05-24", "ansia": 4, "stress": 4},
+    ]))["current_snapshot"]
+    assert snapshot["recent_anxiety_avg"] == snapshot["recent_stress_avg"] == 4
+    assert snapshot["recent_anxiety_count"] == snapshot["recent_stress_count"] == 1
 
 
 def test_insufficient_data_does_not_generate_false_clinical_signals():

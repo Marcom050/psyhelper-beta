@@ -128,7 +128,9 @@ def test_recap_only_manual_confirmation_is_achieved():
     journey = {"progress_markers": ["Possibile miglioramento osservato"], "current_snapshot": {"homework_completed": 2}, "timeline_events": [{"type": "step_forward", "description": "Hai descritto un piccolo passo"}]}
     recap = build_patient_progress_recap(wellness, journey)
     assert recap["achieved_goals"] == []
-    assert len(recap["automatic_signals"]) == 3
+    assert len(recap["automatic_signals"]) == 2
+    assert recap["activities"] == ["Hai completato 2 esercizi assegnati."]
+    assert all("homework" not in signal.lower() for signal in recap["automatic_signals"])
     assert wellness["journey_goals"][0]["status"] == "active"
     update_goal_by_therapist(wellness, goal["id"], achieved=True, note="", actor_username="t", patient_owner="t")
     assert build_patient_progress_recap(wellness, journey)["achieved_goals"][0]["title"] == "Uscire di casa"
@@ -138,5 +140,22 @@ def test_starting_point_uses_aliases_without_raw_dicts():
     profile = {"initial_baseline": {"mood": "teso", "anxiety": 7}}
     wellness = {"diary": {"habits_to_change": "evitare telefonate"}, "cbt_entry": {"automatic_thought": "non ce la faccio"}}
     summary = build_starting_point(profile, wellness)
-    assert summary["details"] == ["teso", "7", "evitare telefonate", "non ce la faccio"]
-    assert all(not isinstance(item, dict) for item in summary["details"])
+    assert [(field["label"], field["display_value"]) for field in summary["fields"]] == [
+        ("Come mi sentivo all'inizio", "teso"),
+        ("Ansia all'inizio", "7/10"),
+        ("Cosa volevo cambiare", "evitare telefonate"),
+        ("Pensiero a cui volevo dare meno peso", "non ce la faccio"),
+    ]
+    assert all(field["display_value"] != "7" for field in summary["fields"])
+    assert "goals" not in summary
+
+
+def test_starting_point_supports_current_italian_baseline_keys_and_skips_empty_values():
+    summary = build_starting_point({"initial_baseline": {
+        "umore": "preoccupato", "ansia": 9, "stress": 8, "motivazione": 6,
+        "perceived_difficulty": "il lavoro", "mood": "alias non prioritario",
+    }}, {})
+    assert [(field["key"], field["display_value"]) for field in summary["fields"]] == [
+        ("mood", "preoccupato"), ("anxiety", "9/10"), ("stress", "8/10"),
+        ("motivation", "6/10"), ("perceived_difficulty", "il lavoro"),
+    ]
