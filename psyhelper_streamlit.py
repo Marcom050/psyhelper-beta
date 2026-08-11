@@ -816,6 +816,12 @@ def show_diary_tab():
     st.subheader("📝 Diario CBT")
     st.caption("Prima i dati essenziali; i dettagli restano disponibili qui sotto.")
 
+    record_anxiety_stress = st.checkbox(
+        "Vuoi registrare anche ansia e stress?",
+        value=False,
+        key="diary_record_anxiety_stress",
+    )
+
     with st.form("mood_entry_form"):
         entry_date = st.date_input("Data", value=date.today(), help="Scegli il giorno dell'episodio.")
         mood = st.selectbox("Che emozione hai sentito di più?", MOOD_OPTIONS, help="Scegli quella più presente in quel momento.")
@@ -842,7 +848,6 @@ def show_diary_tab():
         )
 
         with st.expander("Aggiungi qualche dettaglio, se ti aiuta", expanded=False):
-            record_anxiety_stress = st.checkbox("Vuoi registrare anche ansia e stress?", value=False)
             anxiety = stress = None
             if record_anxiety_stress:
                 anxiety = st.slider("Quanta ansia hai sentito?", 0, 10, 4, help="Indica la tua percezione da 0 a 10.")

@@ -107,6 +107,16 @@ def test_legacy_numeric_four_remains_a_valid_recorded_measurement():
     assert snapshot["recent_anxiety_count"] == snapshot["recent_stress_count"] == 1
 
 
+def test_new_optional_measurements_use_the_values_selected_in_the_diary():
+    snapshot = build_progress_journey_summary(_wellness(entries=[
+        {"data": "2026-05-24", "ansia": 2, "stress": 8},
+        {"data": "2026-05-25", "ansia": 6, "stress": 10},
+    ]))["current_snapshot"]
+    assert snapshot["recent_anxiety_avg"] == 4
+    assert snapshot["recent_stress_avg"] == 9
+    assert snapshot["recent_anxiety_count"] == snapshot["recent_stress_count"] == 2
+
+
 def test_insufficient_data_does_not_generate_false_clinical_signals():
     entries = [{"data": "2026-05-24", "ansia": 6, "stress": 6, "umore_intensita": 5, "trigger": "lavoro"}]
     res = build_progress_journey_summary(_wellness(entries=entries))
