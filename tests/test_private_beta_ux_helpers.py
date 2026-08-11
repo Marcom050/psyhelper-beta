@@ -297,12 +297,24 @@ def test_progress_journey_copy_present_for_patient_and_therapist():
 
 def test_optional_diary_measurements_require_explicit_opt_in():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
-    assert 'st.checkbox("Vuoi registrare anche ansia e stress?", value=False)' in source
-    assert 'if record_anxiety_stress:' in source
-    assert 'entry.update({"ansia": anxiety, "stress": stress})' in source
     diary_start = source.index('def show_diary_tab')
     diary_end = source.index('def show_monitoring_tab')
     diary_source = source[diary_start:diary_end]
+    form_start = diary_source.index('with st.form("mood_entry_form")')
+    checkbox_start = diary_source.index('record_anxiety_stress = st.checkbox(')
+
+    # The opt-in must live outside (and before) the form so toggling it causes
+    # Streamlit to rerun immediately and render the conditional sliders.
+    assert checkbox_start < form_start
+    assert 'key="diary_record_anxiety_stress"' in diary_source[checkbox_start:form_start]
+    assert 'value=False' in diary_source[checkbox_start:form_start]
+    assert 'if record_anxiety_stress:' in source
+    assert 'entry.update({"ansia": anxiety, "stress": stress})' in source
+    conditional_start = diary_source.index('if record_anxiety_stress:', form_start)
+    submit_start = diary_source.index('st.form_submit_button("Salva scheda"', form_start)
+    conditional_source = diary_source[conditional_start:submit_start]
+    assert 'st.slider("Quanta ansia hai sentito?"' in conditional_source
+    assert 'st.slider("Quanto stress hai sentito?"' in conditional_source
     assert '"ansia": anxiety,' not in diary_source.split('entry = {', 1)[1].split('}', 1)[0]
     assert '"stress": stress,' not in diary_source.split('entry = {', 1)[1].split('}', 1)[0]
 
