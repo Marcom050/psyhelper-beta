@@ -76,6 +76,30 @@ def _canonical(value: Mapping[str, Any]) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
 
 
+def _legacy_identity(source_type: str, item: Mapping[str, Any]) -> str:
+    """Build the strongest source-specific identity available without writing an ID.
+
+    Stable source fields are preferred so later content/status edits do not
+    invalidate a saved reference. If none exist, the canonical record digest is
+    the minimum unavoidable fallback. Exact duplicate legacy records are
+    intentionally indistinguishable and are collapsed by the candidate builder:
+    without changing the source there is no honest, order-independent way to
+    tell those records apart.
+    """
+    identity_fields = {
+        "next_session": ("created_at", "updated_at", "type"),
+        "shared_private_area": ("created_at", "shared_at", "updated_at"),
+        "homework_submission": ("assignment_id", "submitted_at", "created_at"),
+        "diary_entry": ("data", "date", "created_at", "creata_il"),
+        "journey_goal": ("created_at", "source"),
+        "timeline_summary": ("date", "data", "created_at", "type", "tipo"),
+    }[source_type]
+    stable = {field: item[field] for field in identity_fields if item.get(field) not in (None, "")}
+    seed = _canonical(stable) if stable else _canonical(item)
+    digest = hashlib.sha256(seed.encode()).hexdigest()[:24]
+    return f"{quote(seed, safe='')}:{digest}"
+
+
 def source_reference(source_type: str, item: Mapping[str, Any], *, legacy_index: int = 0) -> str:
     """Return a namespaced reference, including a stable legacy fallback."""
     if source_type not in ALLOWED_SOURCE_TYPES:
@@ -84,8 +108,9 @@ def source_reference(source_type: str, item: Mapping[str, Any], *, legacy_index:
     if raw_id not in (None, ""):
         identifier = f"id:{quote(str(raw_id), safe='')}"
     else:
-        digest = hashlib.sha256(f"{source_type}:{legacy_index}:{_canonical(item)}".encode()).hexdigest()[:24]
-        identifier = f"legacy:{digest}"
+        # ``legacy_index`` is retained in the public signature for backwards
+        # compatibility, but no longer influences newly generated references.
+        identifier = f"legacy:{_legacy_identity(source_type, item)}"
     return f"{REFERENCE_PREFIX}:{source_type}:{identifier}"
 
 
@@ -117,11 +142,10 @@ def _mapping_items(value: Any) -> Iterable[tuple[int, Mapping[str, Any]]]:
     return ((index, item) for index, item in enumerate(value) if isinstance(item, Mapping))
 
 
-def build_bridge_candidates(wellness: Mapping[str, Any] | None, *, policy: RecencyPolicy | None = None,
-                            now: datetime | None = None) -> list[dict[str, Any]]:
+def _build_candidates(wellness: Mapping[str, Any] | None, *, policy: RecencyPolicy,
+                      now: datetime, apply_recency: bool) -> list[dict[str, Any]]:
     """Build display candidates without mutating or persisting the wellness input."""
-    wellness, policy = wellness or {}, policy or RecencyPolicy()
-    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    wellness = wellness or {}
     candidates: list[dict[str, Any]] = []
 
     # Explicit patient notes for the next session, currently produced by onboarding.
@@ -149,7 +173,7 @@ def build_bridge_candidates(wellness: Mapping[str, Any] | None, *, policy: Recen
             candidates.append(candidate)
 
     for index, item in _mapping_items(wellness.get("homework_submissions")):
-        if _recent(item, ("submitted_at", "created_at", "date"), policy.homework_days, now):
+        if not apply_recency or _recent(item, ("submitted_at", "created_at", "date"), policy.homework_days, now):
             free_note = item.get("free_note") or item.get("notes") or item.get("note")
             content = free_note or homework_readable_summary(item, max_chars=10_000)
             candidate = _candidate("homework_submission", item, index, title=item.get("template") or "Homework completato",
@@ -158,7 +182,7 @@ def build_bridge_candidates(wellness: Mapping[str, Any] | None, *, policy: Recen
                 candidates.append(candidate)
 
     for index, item in _mapping_items(wellness.get("mood_entries")):
-        if _recent(item, ("data", "date", "created_at", "creata_il"), policy.diary_days, now):
+        if not apply_recency or _recent(item, ("data", "date", "created_at", "creata_il"), policy.diary_days, now):
             content = item.get("note") or item.get("notes") or item.get("pensiero_automatico") or item.get("trigger") or item.get("comportamento")
             candidate = _candidate("diary_entry", item, index, title=item.get("title") or item.get("umore") or "Diario CBT",
                                    content=content, occurred_at=item.get("data") or item.get("date") or item.get("created_at"), rank=30)
@@ -174,7 +198,7 @@ def build_bridge_candidates(wellness: Mapping[str, Any] | None, *, policy: Recen
             candidates.append(candidate)
 
     for index, item in _mapping_items(wellness.get("timeline_events")):
-        if _recent(item, ("date", "data", "created_at"), policy.timeline_days, now):
+        if not apply_recency or _recent(item, ("date", "data", "created_at"), policy.timeline_days, now):
             candidate = _candidate("timeline_summary", item, index, title=item.get("title") or item.get("titolo") or "Sintesi del percorso",
                                    content=item.get("description") or item.get("dettaglio"), occurred_at=item.get("date") or item.get("data"), rank=50)
             if candidate:
@@ -182,7 +206,17 @@ def build_bridge_candidates(wellness: Mapping[str, Any] | None, *, policy: Recen
 
     # Stable priority order, with recent items first inside the same source band.
     candidates.sort(key=lambda c: (c["rank"], -(_timestamp(c["occurred_at"]) or datetime.min.replace(tzinfo=timezone.utc)).timestamp(), c["ref"]))
-    return candidates
+    # Exact legacy duplicates have the same source identity and cannot be
+    # distinguished without an unstable positional index or a persisted ID.
+    return list({candidate["ref"]: candidate for candidate in candidates}.values())
+
+
+def build_bridge_candidates(wellness: Mapping[str, Any] | None, *, policy: RecencyPolicy | None = None,
+                            now: datetime | None = None) -> list[dict[str, Any]]:
+    """Build new-selection candidates; recency is applied only at this stage."""
+    policy = policy or RecencyPolicy()
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    return _build_candidates(wellness, policy=policy, now=current, apply_recency=True)
 
 
 def validate_bridge_payload(payload: Mapping[str, Any] | SessionBridgePayload, *, max_items: int = DEFAULT_MAX_ITEMS,
@@ -214,11 +248,30 @@ def validate_bridge_payload(payload: Mapping[str, Any] | SessionBridgePayload, *
 
 def resolve_bridge_references(wellness: Mapping[str, Any] | None, refs: Sequence[str], *,
                               policy: RecencyPolicy | None = None, now: datetime | None = None) -> list[dict[str, Any]]:
-    candidates = {candidate["ref"]: candidate for candidate in build_bridge_candidates(wellness, policy=policy, now=now)}
+    policy = policy or RecencyPolicy()
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    candidates = {candidate["ref"]: candidate for candidate in _build_candidates(
+        wellness, policy=policy, now=current, apply_recency=False
+    )}
     missing = [ref for ref in refs if ref not in candidates]
     if missing:
         raise SessionBridgeReferenceError(f"Unresolvable Session Bridge reference(s): {', '.join(missing)}")
     return [candidates[ref].copy() for ref in refs]
+
+
+def _unavailable_reason(wellness: Mapping[str, Any] | None, ref: str) -> str:
+    """Classify privacy removals without ever returning their source content."""
+    if ref.startswith(f"{REFERENCE_PREFIX}:shared_private_area:"):
+        for index, item in _mapping_items((wellness or {}).get("private_area_entries")):
+            if source_reference("shared_private_area", item, legacy_index=index) != ref:
+                continue
+            if item.get("share_status") == "revoked" or item.get("revoked_at"):
+                return "revoked"
+            if item.get("share_status") != "shared":
+                return "not_shared"
+            if str(item.get("created_by") or item.get("author_role") or "patient").lower() == "therapist":
+                return "privacy_restricted"
+    return "source_unavailable"
 
 
 def build_bridge_preview(wellness: Mapping[str, Any] | None, payload: Mapping[str, Any] | SessionBridgePayload, *,
@@ -226,11 +279,26 @@ def build_bridge_preview(wellness: Mapping[str, Any] | None, payload: Mapping[st
                          max_items: int = DEFAULT_MAX_ITEMS, text_max_length: int = DEFAULT_TEXT_MAX_LENGTH) -> dict[str, Any]:
     """Calculate an ephemeral preview by resolving source data at read time."""
     valid = validate_bridge_payload(payload, max_items=max_items, text_max_length=text_max_length)
-    items = resolve_bridge_references(wellness, valid.selected_refs, policy=policy, now=now)
+    policy = policy or RecencyPolicy()
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    available = {candidate["ref"]: candidate for candidate in _build_candidates(
+        wellness, policy=policy, now=current, apply_recency=False
+    )}
+    items = [available[ref].copy() for ref in valid.selected_refs if ref in available]
+    unavailable_refs = [
+        {"ref": ref, "reason": _unavailable_reason(wellness, ref)}
+        for ref in valid.selected_refs if ref not in available
+    ]
     for item in items:
         item.pop("selected", None)
         item["is_priority"] = item["ref"] == valid.priority_ref
-    return {"items": items, "priority_ref": valid.priority_ref, "optional_text": valid.optional_text}
+    resolved_priority = valid.priority_ref if valid.priority_ref in available else None
+    return {
+        "items": items,
+        "priority_ref": resolved_priority,
+        "optional_text": valid.optional_text,
+        "unavailable_refs": unavailable_refs,
+    }
 
 
 # Concise aliases for callers that use the domain name rather than the UI name.

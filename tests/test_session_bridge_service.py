@@ -5,7 +5,6 @@ import pytest
 
 from services.session_bridge_service import (
     RecencyPolicy,
-    SessionBridgeReferenceError,
     SessionBridgeValidationError,
     build_bridge_candidates,
     build_bridge_preview,
@@ -66,12 +65,28 @@ def test_recency_policy_is_explicit_and_configurable():
     assert not any(item["source_type"] == "diary_entry" for item in candidates)
 
 
-def test_legacy_references_are_deterministic_namespaced_and_distinct_by_position():
+def test_legacy_references_are_deterministic_namespaced_and_not_position_dependent():
     item = {"title": "Legacy", "content": "same"}
     first = source_reference("journey_goal", item, legacy_index=0)
     assert first == source_reference("journey_goal", deepcopy(item), legacy_index=0)
     assert first.startswith("session_bridge:journey_goal:legacy:")
-    assert first != source_reference("journey_goal", item, legacy_index=1)
+    assert first == source_reference("journey_goal", item, legacy_index=1)
+
+
+def test_reordering_identifiable_legacy_records_does_not_change_references():
+    first = {"assignment_id": "hw-a", "submitted_at": "2026-08-10T00:00:00Z", "summary": "A"}
+    second = {"assignment_id": "hw-b", "submitted_at": "2026-08-11T00:00:00Z", "summary": "B"}
+    wellness = {"homework_submissions": [first, second]}
+    before = {item["ref"] for item in build_bridge_candidates(wellness, now=NOW)}
+    wellness["homework_submissions"].reverse()
+    after = {item["ref"] for item in build_bridge_candidates(wellness, now=NOW)}
+    assert before == after
+
+
+def test_exact_duplicate_legacy_records_are_explicitly_collapsed():
+    duplicate = {"submitted_at": "2026-08-10T00:00:00Z", "template": "Nota", "summary": "Uguale"}
+    candidates = build_bridge_candidates({"homework_submissions": [duplicate, deepcopy(duplicate)]}, now=NOW)
+    assert len(candidates) == 1
 
 
 @pytest.mark.parametrize("payload,message", [
@@ -103,9 +118,41 @@ def test_preview_resolves_current_source_content_without_copying_it_into_payload
     assert build_bridge_preview(wellness, payload, now=NOW)["items"][1]["content"] == "Testo aggiornato"
 
 
-def test_preview_rejects_reference_that_is_missing_or_no_longer_shareable():
+def test_selected_item_remains_resolvable_after_recency_window_but_is_not_proposed():
+    wellness = sample_wellness()
+    ref = next(item["ref"] for item in build_bridge_candidates(wellness, now=NOW) if item["source_type"] == "homework_submission")
+    later = datetime(2026, 10, 13, 12, tzinfo=timezone.utc)
+    assert ref not in {item["ref"] for item in build_bridge_candidates(wellness, now=later)}
+    preview = build_bridge_preview(wellness, {"selected_refs": [ref], "priority_ref": ref}, now=later)
+    assert preview["items"][0]["ref"] == ref
+    assert preview["unavailable_refs"] == []
+
+
+def test_deleted_item_does_not_break_remaining_preview_and_invalid_priority_is_cleared():
+    wellness = sample_wellness()
+    candidates = build_bridge_candidates(wellness, now=NOW)
+    refs = [candidates[0]["ref"], candidates[2]["ref"]]
+    wellness["homework_submissions"].pop(0)
+    preview = build_bridge_preview(wellness, {"selected_refs": refs, "priority_ref": refs[1]}, now=NOW)
+    assert [item["ref"] for item in preview["items"]] == [refs[0]]
+    assert preview["priority_ref"] is None
+    assert preview["unavailable_refs"] == [{"ref": refs[1], "reason": "source_unavailable"}]
+    assert all(item["is_priority"] is False for item in preview["items"])
+
+
+def test_revoked_note_is_not_shown_and_is_reported_unavailable():
     wellness = sample_wellness()
     ref = next(item["ref"] for item in build_bridge_candidates(wellness, now=NOW) if item["source_type"] == "shared_private_area")
     wellness["private_area_entries"][0]["share_status"] = "revoked"
-    with pytest.raises(SessionBridgeReferenceError, match="Unresolvable"):
-        build_bridge_preview(wellness, {"selected_refs": [ref], "priority_ref": ref}, now=NOW)
+    preview = build_bridge_preview(wellness, {"selected_refs": [ref], "priority_ref": ref}, now=NOW)
+    assert preview["items"] == []
+    assert preview["priority_ref"] is None
+    assert preview["unavailable_refs"] == [{"ref": ref, "reason": "revoked"}]
+
+
+def test_active_goals_and_next_session_items_do_not_age_out():
+    wellness = sample_wellness()
+    much_later = datetime(2030, 1, 1, tzinfo=timezone.utc)
+    types = {item["source_type"] for item in build_bridge_candidates(wellness, now=much_later)}
+    assert "journey_goal" in types
+    assert "next_session" in types
