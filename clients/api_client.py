@@ -26,6 +26,7 @@ from api.schemas.homework import (
 )
 from api.schemas.reports import ClinicalReportResponse, WeeklyRecapResponse
 from api.schemas.wellness import JourneyGoalResponse, MoodEntryResponse, WellnessResponse
+from api.schemas.session_bridge import SessionBridgeResponse
 from clients.exceptions import (
     APIConnectionError,
     APIHTTPError,
@@ -155,6 +156,22 @@ class PsyHelperAPIClient:
             response_model=WellnessResponse,
         )
         return response["wellness"]
+
+    def get_session_bridge(self, username: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        response = self._request(
+            "GET", f"/clients/{safe_username}/session-bridge", username=username,
+            response_model=SessionBridgeResponse,
+        )
+        return response["session_bridge"]
+
+    def save_session_bridge(self, username: str, session_bridge: dict[str, Any]) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        response = self._request(
+            "PUT", f"/clients/{safe_username}/session-bridge", username=username,
+            json=session_bridge, response_model=SessionBridgeResponse,
+        )
+        return response["session_bridge"]
 
     def create_mood_entry(self, username: str, mood_entry: dict[str, Any]) -> dict[str, Any]:
         safe_username = quote(username, safe="")

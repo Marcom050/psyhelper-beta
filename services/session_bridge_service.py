@@ -246,6 +246,41 @@ def validate_bridge_payload(payload: Mapping[str, Any] | SessionBridgePayload, *
     return SessionBridgePayload(tuple(refs), priority, optional_text)
 
 
+def empty_session_bridge() -> dict[str, Any]:
+    """Return the canonical state used when a legacy document has no bridge."""
+    return {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+
+
+def validate_session_bridge_state(payload: Mapping[str, Any] | SessionBridgePayload) -> dict[str, Any]:
+    """Validate the persistable state, including its canonical empty form."""
+    data = payload.to_dict() if isinstance(payload, SessionBridgePayload) else payload
+    if data.get("selected_refs") == [] and data.get("priority_ref") is None:
+        optional_text = data.get("optional_text", "")
+        if not isinstance(optional_text, str) or len(optional_text) > DEFAULT_TEXT_MAX_LENGTH:
+            raise SessionBridgeValidationError(
+                f"optional_text must contain at most {DEFAULT_TEXT_MAX_LENGTH} characters"
+            )
+        return {**empty_session_bridge(), "optional_text": optional_text}
+    return validate_bridge_payload(payload).to_dict()
+
+
+def get_session_bridge(wellness: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Read and validate the persisted state without mutating the document."""
+    if not isinstance(wellness, Mapping) or "session_bridge" not in wellness:
+        return empty_session_bridge()
+    stored = wellness["session_bridge"]
+    if not isinstance(stored, Mapping):
+        raise SessionBridgeValidationError("session_bridge must be an object")
+    return validate_session_bridge_state(stored)
+
+
+def save_session_bridge(wellness: dict[str, Any], payload: Mapping[str, Any] | SessionBridgePayload) -> dict[str, Any]:
+    """Validate and replace only the current Session Bridge state."""
+    valid = validate_session_bridge_state(payload)
+    wellness["session_bridge"] = valid
+    return valid
+
+
 def resolve_bridge_references(wellness: Mapping[str, Any] | None, refs: Sequence[str], *,
                               policy: RecencyPolicy | None = None, now: datetime | None = None) -> list[dict[str, Any]]:
     policy = policy or RecencyPolicy()

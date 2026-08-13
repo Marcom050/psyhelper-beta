@@ -61,6 +61,40 @@ class PsyHelperAPITest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_session_bridge_empty_put_round_trip_and_isolation(self):
+        self.signup("patient_a", subscription_status="active")
+        self.signup("patient_b", subscription_status="active")
+        headers_a = self.auth_headers("patient_a")
+        headers_b = self.auth_headers("patient_b")
+        empty = {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+        self.assertEqual(
+            self.client.get("/clients/patient_a/session-bridge", headers=headers_a).json()["session_bridge"],
+            empty,
+        )
+        ref = "session_bridge:journey_goal:id:goal-1"
+        payload = {"selected_refs": [ref], "priority_ref": ref, "optional_text": "Nota"}
+        saved = self.client.put("/clients/patient_a/session-bridge", headers=headers_a, json=payload)
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()["session_bridge"], payload)
+        self.assertEqual(
+            self.client.get("/clients/patient_a/session-bridge", headers=headers_a).json()["session_bridge"], payload
+        )
+        self.assertEqual(
+            self.client.get("/clients/patient_b/session-bridge", headers=headers_b).json()["session_bridge"], empty
+        )
+        self.assertEqual(
+            self.client.put("/clients/patient_a/session-bridge", headers=headers_b, json=payload).status_code, 401
+        )
+
+    def test_session_bridge_owner_therapist_cannot_write(self):
+        self.signup("therapist", role="therapist", subscription_status="active")
+        self.signup("patient", role="client", therapist_username="therapist")
+        payload = {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+        response = self.client.put(
+            "/clients/patient/session-bridge", headers=self.auth_headers("therapist"), json=payload
+        )
+        self.assertEqual(response.status_code, 422)
+
     def test_shared_journey_goal_http_flow_enforces_owner_and_patient_roles(self):
         self.signup("therapist_a", role="therapist", subscription_status="active")
         self.signup("therapist_b", role="therapist", subscription_status="active")
