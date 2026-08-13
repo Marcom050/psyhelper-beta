@@ -8,7 +8,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from api.exceptions import APIError
-from api.routers import auth, chat, homework, reports, therapists, wellness, mobile_v1, admin, post_consultation_onboarding
+from api.routers import auth, chat, homework, reports, therapists, wellness, mobile_v1, admin, post_consultation_onboarding, session_bridge
 from database.postgres.connection import db_healthcheck
 
 
@@ -59,3 +59,4 @@ app.include_router(therapists.router)
 app.include_router(mobile_v1.router)
 app.include_router(admin.router)
 app.include_router(post_consultation_onboarding.router)
+app.include_router(session_bridge.router)

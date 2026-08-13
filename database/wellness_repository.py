@@ -17,6 +17,11 @@ def default_wellness_data():
         "timeline_events": [],
         "journey_goals": [],
         "private_area_entries": [],
+        "session_bridge": {
+            "selected_refs": [],
+            "priority_ref": None,
+            "optional_text": "",
+        },
     }
 
 
@@ -27,6 +32,11 @@ def ensure_wellness_schema(wellness):
     wellness.setdefault("timeline_events", [])
     wellness.setdefault("journey_goals", [])
     wellness.setdefault("private_area_entries", [])
+    wellness.setdefault("session_bridge", {
+        "selected_refs": [],
+        "priority_ref": None,
+        "optional_text": "",
+    })
     # Older exports may include mindfulness logs; they are no longer shown in the clinical product.
     wellness.pop("mindfulness_log", None)
     return wellness

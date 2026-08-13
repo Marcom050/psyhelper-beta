@@ -44,6 +44,17 @@ class PsyHelperAPIClientTest(unittest.TestCase):
             timeout=2.5,
         )
 
+    def test_session_bridge_client_methods(self):
+        bridge = {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+        client, session = self.make_client(FakeResponse(payload={"username": "a/b", "session_bridge": bridge}))
+        self.assertEqual(client.get_session_bridge("a/b"), bridge)
+        self.assertEqual(session.request.call_args.args[:2], ("GET", "http://api.local/clients/a%2Fb/session-bridge"))
+
+        session.request.reset_mock()
+        self.assertEqual(client.save_session_bridge("a/b", bridge), bridge)
+        self.assertEqual(session.request.call_args.args[:2], ("PUT", "http://api.local/clients/a%2Fb/session-bridge"))
+        self.assertEqual(session.request.call_args.kwargs["json"], bridge)
+
     def test_api_client_success_path_and_parsing_response(self):
         client, session = self.make_client(
             FakeResponse(
