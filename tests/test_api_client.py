@@ -45,7 +45,7 @@ class PsyHelperAPIClientTest(unittest.TestCase):
         )
 
     def test_session_bridge_client_methods(self):
-        bridge = {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+        bridge = {"selected_refs": [], "priority_ref": None, "optional_text": "", "week_rating": None}
         client, session = self.make_client(FakeResponse(payload={"username": "a/b", "session_bridge": bridge}))
         self.assertEqual(client.get_session_bridge("a/b"), bridge)
         self.assertEqual(session.request.call_args.args[:2], ("GET", "http://api.local/clients/a%2Fb/session-bridge"))

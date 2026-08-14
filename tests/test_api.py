@@ -66,13 +66,13 @@ class PsyHelperAPITest(unittest.TestCase):
         self.signup("patient_b", subscription_status="active")
         headers_a = self.auth_headers("patient_a")
         headers_b = self.auth_headers("patient_b")
-        empty = {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+        empty = {"selected_refs": [], "priority_ref": None, "optional_text": "", "week_rating": None}
         self.assertEqual(
             self.client.get("/clients/patient_a/session-bridge", headers=headers_a).json()["session_bridge"],
             empty,
         )
         ref = "session_bridge:journey_goal:id:goal-1"
-        payload = {"selected_refs": [ref], "priority_ref": ref, "optional_text": "Nota"}
+        payload = {"selected_refs": [ref], "priority_ref": ref, "optional_text": "Nota", "week_rating": 5}
         saved = self.client.put("/clients/patient_a/session-bridge", headers=headers_a, json=payload)
         self.assertEqual(saved.status_code, 200, saved.text)
         self.assertEqual(saved.json()["session_bridge"], payload)
@@ -94,6 +94,17 @@ class PsyHelperAPITest(unittest.TestCase):
             "/clients/patient/session-bridge", headers=self.auth_headers("therapist"), json=payload
         )
         self.assertEqual(response.status_code, 422)
+
+    def test_session_bridge_api_rejects_invalid_week_ratings(self):
+        self.signup("patient", subscription_status="active")
+        headers = self.auth_headers("patient")
+        payload = {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+
+        for invalid in (0, 6, True, 1.5, "3"):
+            response = self.client.put(
+                "/clients/patient/session-bridge", headers=headers, json={**payload, "week_rating": invalid}
+            )
+            self.assertEqual(response.status_code, 422, (invalid, response.text))
 
     def test_shared_journey_goal_http_flow_enforces_owner_and_patient_roles(self):
         self.signup("therapist_a", role="therapist", subscription_status="active")
