@@ -53,12 +53,14 @@ class SessionBridgePayload:
     selected_refs: tuple[str, ...]
     priority_ref: str
     optional_text: str = ""
+    week_rating: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "selected_refs": list(self.selected_refs),
             "priority_ref": self.priority_ref,
             "optional_text": self.optional_text,
+            "week_rating": self.week_rating,
         }
 
 
@@ -243,12 +245,15 @@ def validate_bridge_payload(payload: Mapping[str, Any] | SessionBridgePayload, *
         optional_text = ""
     if not isinstance(optional_text, str) or len(optional_text) > text_max_length:
         raise SessionBridgeValidationError(f"optional_text must contain at most {text_max_length} characters")
-    return SessionBridgePayload(tuple(refs), priority, optional_text)
+    week_rating = data.get("week_rating")
+    if week_rating is not None and (type(week_rating) is not int or not 1 <= week_rating <= 5):
+        raise SessionBridgeValidationError("week_rating must be null or an integer from 1 to 5")
+    return SessionBridgePayload(tuple(refs), priority, optional_text, week_rating)
 
 
 def empty_session_bridge() -> dict[str, Any]:
     """Return the canonical state used when a legacy document has no bridge."""
-    return {"selected_refs": [], "priority_ref": None, "optional_text": ""}
+    return {"selected_refs": [], "priority_ref": None, "optional_text": "", "week_rating": None}
 
 
 def validate_session_bridge_state(payload: Mapping[str, Any] | SessionBridgePayload) -> dict[str, Any]:
@@ -260,7 +265,10 @@ def validate_session_bridge_state(payload: Mapping[str, Any] | SessionBridgePayl
             raise SessionBridgeValidationError(
                 f"optional_text must contain at most {DEFAULT_TEXT_MAX_LENGTH} characters"
             )
-        return {**empty_session_bridge(), "optional_text": optional_text}
+        week_rating = data.get("week_rating")
+        if week_rating is not None and (type(week_rating) is not int or not 1 <= week_rating <= 5):
+            raise SessionBridgeValidationError("week_rating must be null or an integer from 1 to 5")
+        return {**empty_session_bridge(), "optional_text": optional_text, "week_rating": week_rating}
     return validate_bridge_payload(payload).to_dict()
 
 

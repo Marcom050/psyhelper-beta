@@ -21,6 +21,7 @@ def default_wellness_data():
             "selected_refs": [],
             "priority_ref": None,
             "optional_text": "",
+            "week_rating": None,
         },
     }
 
@@ -36,6 +37,7 @@ def ensure_wellness_schema(wellness):
         "selected_refs": [],
         "priority_ref": None,
         "optional_text": "",
+        "week_rating": None,
     })
     # Older exports may include mindfulness logs; they are no longer shown in the clinical product.
     wellness.pop("mindfulness_log", None)
