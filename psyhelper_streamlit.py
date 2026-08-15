@@ -100,6 +100,7 @@ from services.post_consultation_onboarding_service import (
 
 LOGGER = logging.getLogger(__name__)
 SHOW_DEBUG_UI = os.getenv("SHOW_DEBUG_UI", "").lower() == "true"
+SESSION_BRIDGE_VIEW_KEY = "patient_session_bridge_view"
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 
@@ -418,7 +419,7 @@ def role_nav_sections(role):
         return therapist_sections + admin_sections
     return [
         "💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio",
-        "📋 Resoconto", "🧭 Per la prossima seduta",
+        "📋 Resoconto",
     ]
 
 
@@ -2213,7 +2214,7 @@ def show_session_bridge_tab():
 
 
 def render_client_app_tabs():
-    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto", "🧭 Per la prossima seduta"])
+    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
     with app_tabs[0]:
         show_chat_tab()
     with app_tabs[1]:
@@ -2226,8 +2227,27 @@ def render_client_app_tabs():
         show_monitoring_tab()
     with app_tabs[5]:
         show_report_tab()
-    with app_tabs[6]:
+
+
+def render_client_navigation():
+    """Render either the patient dashboard or its dedicated Session Bridge view."""
+    if session_adapter.get_ui_state(SESSION_BRIDGE_VIEW_KEY, False):
+        if st.button("← Torna al percorso", key="session_bridge_back_to_dashboard"):
+            session_adapter.set_ui_state(SESSION_BRIDGE_VIEW_KEY, False)
+            st.rerun()
+            return
         show_session_bridge_tab()
+        return
+
+    if st.button(
+        "Prepara la prossima seduta",
+        key="session_bridge_open",
+        type="primary",
+    ):
+        session_adapter.set_ui_state(SESSION_BRIDGE_VIEW_KEY, True)
+        st.rerun()
+        return
+    render_client_app_tabs()
 
 
 def render_client_footer_actions():
@@ -2264,7 +2284,7 @@ def render_authenticated_app():
     ensure_subscription_or_stop(current_metadata)
     render_onboarding_or_stop()
     render_post_free_consultation_onboarding_or_stop()
-    render_client_app_tabs()
+    render_client_navigation()
     render_client_footer_actions()
 
 
