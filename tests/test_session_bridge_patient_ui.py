@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import psyhelper_streamlit as app
@@ -30,13 +29,82 @@ def bridge_wellness():
     }
 
 
-def test_patient_tab_is_additive_and_keeps_previous_tabs():
-    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
-    tab_line = next(line for line in source.splitlines() if "app_tabs = st.tabs" in line)
-    for previous in ("Chat", "Diario CBT", "Area privata", "Homework CBT", "Monitoraggio", "Resoconto"):
-        assert previous in tab_line
-    assert "Per la prossima seduta" in tab_line
-    assert "show_session_bridge_tab()" in source
+def test_patient_tabs_keep_the_six_existing_sections_in_order_without_bridge():
+    expected = ["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"]
+    tab_contexts = [Mock() for _ in expected]
+    for context in tab_contexts:
+        context.__enter__ = Mock(return_value=context)
+        context.__exit__ = Mock(return_value=False)
+
+    with patch.object(app.st, "tabs", return_value=tab_contexts) as tabs, \
+            patch.object(app, "show_chat_tab"), patch.object(app, "show_diary_tab"), \
+            patch.object(app, "show_private_area_tab"), patch.object(app, "show_homework_tab"), \
+            patch.object(app, "show_monitoring_tab"), patch.object(app, "show_report_tab"):
+        app.render_client_app_tabs()
+
+    tabs.assert_called_once_with(expected)
+    assert "Per la prossima seduta" not in tabs.call_args.args[0]
+
+
+def test_patient_dashboard_shows_cta_and_cta_opens_dedicated_bridge_view():
+    ui_state = {}
+    adapter = Mock()
+    adapter.get_ui_state.side_effect = lambda key, default=None: ui_state.get(key, default)
+    adapter.set_ui_state.side_effect = lambda key, value: ui_state.__setitem__(key, value)
+
+    with patch.object(app, "session_adapter", adapter), \
+            patch.object(app.st, "button", return_value=True) as button, \
+            patch.object(app.st, "rerun") as rerun, \
+            patch.object(app, "render_client_app_tabs") as tabs, \
+            patch.object(app, "show_session_bridge_tab") as bridge:
+        app.render_client_navigation()
+
+    button.assert_called_once_with("Prepara la prossima seduta", key="session_bridge_open", type="primary")
+    assert ui_state[app.SESSION_BRIDGE_VIEW_KEY] is True
+    rerun.assert_called_once_with()
+    tabs.assert_not_called()
+    bridge.assert_not_called()
+
+
+def test_bridge_back_returns_to_dashboard_without_losing_draft_or_saving():
+    draft_key = "session_bridge_draft:patient"
+    draft = {"selected_refs": ["diary:1"], "priority_ref": "diary:1", "optional_text": "Bozza", "week_rating": 4}
+    ui_state = {app.SESSION_BRIDGE_VIEW_KEY: True, draft_key: draft.copy()}
+    adapter = Mock()
+    adapter.get_ui_state.side_effect = lambda key, default=None: ui_state.get(key, default)
+    adapter.set_ui_state.side_effect = lambda key, value: ui_state.__setitem__(key, value)
+
+    with patch.object(app, "session_adapter", adapter), \
+            patch.object(app.st, "button", return_value=True) as button, \
+            patch.object(app.st, "rerun") as rerun, \
+            patch.object(app, "render_client_app_tabs") as tabs, \
+            patch.object(app, "show_session_bridge_tab") as bridge, \
+            patch.object(app, "save_session_bridge_for") as save:
+        app.render_client_navigation()
+
+    button.assert_called_once_with("← Torna al percorso", key="session_bridge_back_to_dashboard")
+    assert ui_state[app.SESSION_BRIDGE_VIEW_KEY] is False
+    assert ui_state[draft_key] == draft
+    rerun.assert_called_once_with()
+    tabs.assert_not_called()
+    bridge.assert_not_called()
+    save.assert_not_called()
+
+
+def test_bridge_view_is_dedicated_and_entry_does_not_save():
+    adapter = Mock()
+    adapter.get_ui_state.return_value = True
+
+    with patch.object(app, "session_adapter", adapter), \
+            patch.object(app.st, "button", return_value=False), \
+            patch.object(app, "render_client_app_tabs") as tabs, \
+            patch.object(app, "show_session_bridge_tab") as bridge, \
+            patch.object(app, "save_session_bridge_for") as save:
+        app.render_client_navigation()
+
+    bridge.assert_called_once_with()
+    tabs.assert_not_called()
+    save.assert_not_called()
 
 
 def test_empty_and_saved_bridge_load_through_local_boundary():
