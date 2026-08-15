@@ -167,6 +167,61 @@ def test_ui_candidate_subset_contains_only_recent_diary_and_completed_submission
     assert all(len(items) <= app.SESSION_BRIDGE_CANDIDATES_PER_SECTION for items in visible.values())
 
 
+def test_compact_bridge_hides_technical_headings_and_empty_preview():
+    ui_state = {}
+    adapter = Mock()
+    adapter.get_username.return_value = "patient"
+    adapter.get_wellness.return_value = bridge_wellness()
+    adapter.has_ui_state.side_effect = lambda key: key in ui_state
+    adapter.get_ui_state.side_effect = lambda key, default=None: ui_state.get(key, default)
+    adapter.set_ui_state.side_effect = lambda key, value: ui_state.__setitem__(key, value)
+
+    with patch.object(app, "session_adapter", adapter), \
+            patch.object(app, "load_session_bridge_for", return_value=empty_session_bridge()), \
+            patch.object(app, "session_bridge_candidates_for_ui", return_value={
+                "diary_entry": [], "homework_submission": [],
+            }), patch.object(app.st, "radio", return_value=None), \
+            patch.object(app.st, "text_area", return_value="") as text_area, \
+            patch.object(app.st, "button", return_value=False), \
+            patch.object(app.st, "subheader") as subheader, \
+            patch.object(app.st, "markdown") as markdown:
+        app.show_session_bridge_tab()
+
+    headings = [call.args[0] for call in subheader.call_args_list]
+    assert headings == ["Dal tuo diario", "Attività completate"]
+    assert "Settimana" not in headings
+    assert "Testo libero" not in headings
+    assert "Per la prossima seduta" not in headings
+    markdown.assert_any_call("#### C'è qualcos'altro che vuoi portare con te?")
+    text_area.assert_called_once_with(
+        "C'è qualcos'altro che vuoi portare con te?",
+        max_chars=app.DEFAULT_TEXT_MAX_LENGTH,
+        key="session_bridge_optional_text:patient",
+        label_visibility="collapsed",
+    )
+
+
+def test_compact_bridge_shows_preview_when_optional_text_has_content():
+    draft = {**empty_session_bridge(), "optional_text": "Un pensiero da portare"}
+    adapter = Mock()
+    adapter.get_username.return_value = "patient"
+    adapter.get_wellness.return_value = bridge_wellness()
+    adapter.has_ui_state.return_value = True
+    adapter.get_ui_state.side_effect = lambda key, default=None: draft
+
+    with patch.object(app, "session_adapter", adapter), \
+            patch.object(app, "load_session_bridge_for", return_value=draft), \
+            patch.object(app, "session_bridge_candidates_for_ui", return_value={
+                "diary_entry": [], "homework_submission": [],
+            }), patch.object(app.st, "radio", return_value=None), \
+            patch.object(app.st, "text_area", return_value=draft["optional_text"]), \
+            patch.object(app.st, "button", return_value=False), \
+            patch.object(app.st, "subheader") as subheader:
+        app.show_session_bridge_tab()
+
+    assert "Per la prossima seduta" in [call.args[0] for call in subheader.call_args_list]
+
+
 def test_local_and_http_save_have_equivalent_result_and_update_session_wellness():
     local_wellness = bridge_wellness()
     ref = source_reference("diary_entry", local_wellness["mood_entries"][0])
