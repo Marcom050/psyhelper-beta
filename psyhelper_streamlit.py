@@ -2085,6 +2085,28 @@ def _session_bridge_card(candidate, origin):
     )
 
 
+def _session_bridge_preview_item(item, origin, is_priority):
+    """Render a selected item with denser, preview-only visual styling."""
+    summary = escape(str(item.get("content") or item.get("title") or ""))
+    if len(summary) > 180:
+        summary = f"{summary[:177].rstrip()}…"
+    priority = (
+        '<span style="color:#8b5e00;font-size:.8rem;font-weight:600">'
+        '★ Vorrei partire da questo</span>'
+        if is_priority else ""
+    )
+    st.markdown(
+        '<div style="margin:.05rem 0 .1rem;padding:.35rem 0 .15rem;'
+        'border-bottom:1px solid rgba(107,114,128,.18)">'
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem">'
+        f'<span style="color:#6b7280;font-size:.78rem;line-height:1.2">{escape(origin)} · '
+        f"{escape(_session_bridge_date(item.get('occurred_at')))}</span>{priority}</div>"
+        f'<div style="margin-top:.1rem;line-height:1.3">{summary}</div>'
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _session_bridge_draft_preview(wellness, draft):
     """Resolve draft references through the domain preview, including unavailable refs."""
     selected = list(draft["selected_refs"])
@@ -2164,7 +2186,11 @@ def show_session_bridge_tab():
     )
     draft["selected_refs"] = selected_refs
 
-    st.markdown("#### C'è qualcos'altro che vuoi portare con te?")
+    st.markdown(
+        "#### C'è qualcos'altro che vuoi portare con te? "
+        '<span style="color:#6b7280;font-size:.78rem;font-weight:400">Facoltativo</span>',
+        unsafe_allow_html=True,
+    )
     st.caption("Sensazioni, pensieri, situazioni o qualcosa che ti è rimasto in mente.")
     text_key = f"session_bridge_optional_text:{username}"
     if not session_adapter.has_ui_state(text_key):
@@ -2174,6 +2200,7 @@ def show_session_bridge_tab():
         max_chars=DEFAULT_TEXT_MAX_LENGTH,
         key=text_key,
         label_visibility="collapsed",
+        height=68,
     )
 
     if draft["selected_refs"] or draft["optional_text"].strip():
@@ -2185,15 +2212,22 @@ def show_session_bridge_tab():
             preview = {"items": [], "unavailable_refs": []}
         for item in preview["items"]:
             ref = item["ref"]
-            _session_bridge_card(item, "Diario" if item["source_type"] == "diary_entry" else "Attività completata")
-            left, right = st.columns(2)
-            if left.button("Rimuovi", key=f"session_bridge_remove:{username}:{ref}", use_container_width=True):
+            is_priority = draft.get("priority_ref") == ref
+            _session_bridge_preview_item(
+                item,
+                "Diario" if item["source_type"] == "diary_entry" else "Attività completata",
+                is_priority,
+            )
+            remove_action, priority_action, _ = st.columns(
+                [1, 1.65, 4], gap="small", vertical_alignment="center",
+            )
+            if remove_action.button("Rimuovi", key=f"session_bridge_remove:{username}:{ref}"):
                 update_session_bridge_selection(draft, ref, False)
                 session_adapter.set_ui_state(f"session_bridge_select:{username}:{ref}", False)
                 st.rerun()
-            if draft.get("priority_ref") == ref:
-                right.caption("Punto da cui vorrei partire")
-            elif right.button("Vorrei partire da questo", key=f"session_bridge_priority:{username}:{ref}", use_container_width=True):
+            if not is_priority and priority_action.button(
+                "Parti da questo", key=f"session_bridge_priority:{username}:{ref}",
+            ):
                 update_session_bridge_priority(draft, ref)
                 st.rerun()
         if preview["unavailable_refs"]:
