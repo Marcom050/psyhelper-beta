@@ -102,6 +102,14 @@ def test_payload_validation_rules(payload, message):
         validate_bridge_payload(payload)
 
 
+def test_selected_items_do_not_require_a_priority():
+    ref = "session_bridge:diary_entry:id:entry-1"
+    payload = validate_bridge_payload({"selected_refs": [ref], "priority_ref": None})
+
+    assert payload.selected_refs == (ref,)
+    assert payload.priority_ref is None
+
+
 def test_preview_resolves_current_source_content_without_copying_it_into_payload():
     wellness = sample_wellness()
     candidates = build_bridge_candidates(wellness, now=NOW)
@@ -116,6 +124,16 @@ def test_preview_resolves_current_source_content_without_copying_it_into_payload
 
     wellness["private_area_entries"][0]["content"] = "Testo aggiornato"
     assert build_bridge_preview(wellness, payload, now=NOW)["items"][1]["content"] == "Testo aggiornato"
+
+
+def test_preview_marks_no_item_as_priority_when_priority_is_null():
+    wellness = sample_wellness()
+    selected = [item["ref"] for item in build_bridge_candidates(wellness, now=NOW)[:2]]
+
+    preview = build_bridge_preview(wellness, {"selected_refs": selected, "priority_ref": None}, now=NOW)
+
+    assert preview["priority_ref"] is None
+    assert not any(item["is_priority"] for item in preview["items"])
 
 
 def test_selected_item_remains_resolvable_after_recency_window_but_is_not_proposed():

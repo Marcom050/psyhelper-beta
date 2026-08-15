@@ -51,7 +51,7 @@ class SessionBridgePayload:
     """Minimal persistable bridge payload; it deliberately contains no copy."""
 
     selected_refs: tuple[str, ...]
-    priority_ref: str
+    priority_ref: str | None
     optional_text: str = ""
     week_rating: int | None = None
 
@@ -232,9 +232,9 @@ def validate_bridge_payload(payload: Mapping[str, Any] | SessionBridgePayload, *
     if len(refs) > max_items:
         raise SessionBridgeValidationError(f"At most {max_items} items may be selected")
     priority = data.get("priority_ref")
-    if not isinstance(priority, str) or not priority:
-        raise SessionBridgeValidationError("Exactly one priority is required")
-    if priority not in refs:
+    if priority is not None and (not isinstance(priority, str) or not priority):
+        raise SessionBridgeValidationError("priority_ref must be null or a non-empty reference")
+    if priority is not None and priority not in refs:
         raise SessionBridgeValidationError("The priority must be one of the selected items")
     for ref in refs:
         parts = ref.split(":", 3)

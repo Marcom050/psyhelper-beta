@@ -79,6 +79,17 @@ def test_optional_text_preview_save_and_unavailable_item():
     assert unavailable["unavailable_refs"] == [{"ref": ref, "reason": "source_unavailable"}]
 
 
+def test_ui_preview_and_save_allow_selected_item_without_priority():
+    wellness = bridge_wellness()
+    ref = source_reference("diary_entry", wellness["mood_entries"][0])
+    draft = {"selected_refs": [ref], "priority_ref": None, "optional_text": "", "week_rating": None}
+
+    preview = app._session_bridge_draft_preview(wellness, draft)
+
+    assert preview["priority_ref"] is None
+    assert preview["items"][0]["is_priority"] is False
+
+
 def test_ui_candidate_subset_contains_only_recent_diary_and_completed_submissions():
     visible = app.session_bridge_candidates_for_ui(bridge_wellness(), now=NOW)
     assert set(visible) == {"diary_entry", "homework_submission"}
@@ -89,8 +100,9 @@ def test_ui_candidate_subset_contains_only_recent_diary_and_completed_submission
 
 
 def test_local_and_http_save_have_equivalent_result_and_update_session_wellness():
-    payload = {**empty_session_bridge(), "optional_text": "Promemoria", "week_rating": 5}
     local_wellness = bridge_wellness()
+    ref = source_reference("diary_entry", local_wellness["mood_entries"][0])
+    payload = {"selected_refs": [ref], "priority_ref": None, "optional_text": "Promemoria", "week_rating": 5}
     with patch.object(app, "use_http_api", return_value=False), patch.object(app, "save_user_data") as persist:
         local = app.save_session_bridge_for("patient", local_wellness, payload)
     persist.assert_called_once_with("patient")

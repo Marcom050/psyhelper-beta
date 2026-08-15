@@ -2084,13 +2084,7 @@ def _session_bridge_draft_preview(wellness, draft):
     selected = list(draft["selected_refs"])
     if not selected:
         return {"items": [], "priority_ref": None, "optional_text": draft["optional_text"], "unavailable_refs": []}
-    preview_payload = {**draft, "priority_ref": draft.get("priority_ref") or selected[0]}
-    preview = build_bridge_preview(wellness, preview_payload)
-    if not draft.get("priority_ref"):
-        preview["priority_ref"] = None
-        for item in preview["items"]:
-            item["is_priority"] = False
-    return preview
+    return build_bridge_preview(wellness, draft)
 
 
 def show_session_bridge_tab():
