@@ -38,6 +38,14 @@ def test_save_replaces_only_bridge_and_preserves_unknown_wellness_keys():
     assert get_session_bridge(wellness) == payload
 
 
+def test_selected_references_round_trip_without_optional_priority():
+    payload = {"selected_refs": [REF], "priority_ref": None, "optional_text": "", "week_rating": None}
+    wellness = {}
+
+    assert save_session_bridge(wellness, payload) == payload
+    assert get_session_bridge(wellness) == payload
+
+
 @pytest.mark.parametrize("payload", [
     {"selected_refs": [REF, REF], "priority_ref": REF, "optional_text": ""},
     {"selected_refs": [REF], "priority_ref": "session_bridge:journey_goal:id:other", "optional_text": ""},

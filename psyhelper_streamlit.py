@@ -69,6 +69,16 @@ from services.private_area_service import (
     share_private_entry,
     update_private_entry,
 )
+from services.session_bridge_service import (
+    DEFAULT_MAX_ITEMS,
+    DEFAULT_TEXT_MAX_LENGTH,
+    SessionBridgeValidationError,
+    build_bridge_candidates,
+    build_bridge_preview,
+    get_session_bridge,
+    save_session_bridge,
+    validate_session_bridge_state,
+)
 from services.progress_journey_service import build_progress_journey_summary
 from services.journey_goal_service import (
     JourneyGoalError,
@@ -406,7 +416,10 @@ def role_nav_sections(role):
         return therapist_sections
     if role == "admin":
         return therapist_sections + admin_sections
-    return ["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"]
+    return [
+        "💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio",
+        "📋 Resoconto", "🧭 Per la prossima seduta",
+    ]
 
 
 def onboarding_status_label(status):
@@ -1997,8 +2010,210 @@ def render_post_free_consultation_onboarding_or_stop():
         open_post_free_consultation_onboarding_dialog(onboarding, profile, wellness)
 
 
+SESSION_BRIDGE_VISIBLE_SOURCE_TYPES = frozenset({"diary_entry", "homework_submission"})
+SESSION_BRIDGE_CANDIDATES_PER_SECTION = 3
+
+
+def session_bridge_candidates_for_ui(wellness, *, now=None, per_section=SESSION_BRIDGE_CANDIDATES_PER_SECTION):
+    """Return the deliberately small source subset exposed by the first patient UI."""
+    visible = {source_type: [] for source_type in SESSION_BRIDGE_VISIBLE_SOURCE_TYPES}
+    for candidate in build_bridge_candidates(wellness, now=now):
+        source_type = candidate["source_type"]
+        if source_type in visible and len(visible[source_type]) < per_section:
+            visible[source_type].append(candidate)
+    return visible
+
+
+def load_session_bridge_for(username, wellness):
+    """Use the existing persistence boundary in both supported runtime modes."""
+    if not use_http_api():
+        return get_session_bridge(wellness)
+    return api_client().get_session_bridge(username)
+
+
+def save_session_bridge_for(username, wellness, payload):
+    """Persist explicitly, without putting validation or domain rules in Streamlit."""
+    if not use_http_api():
+        saved = save_session_bridge(wellness, payload)
+        save_user_data(username)
+        return saved
+    saved = api_client().save_session_bridge(username, payload)
+    wellness["session_bridge"] = saved
+    return saved
+
+
+def update_session_bridge_selection(draft, ref, selected):
+    """Update only transient widget state; persisted validation remains in the domain service."""
+    refs = list(draft.get("selected_refs", []))
+    if selected and ref not in refs and len(refs) < DEFAULT_MAX_ITEMS:
+        refs.append(ref)
+    elif not selected and ref in refs:
+        refs.remove(ref)
+        if draft.get("priority_ref") == ref:
+            draft["priority_ref"] = None
+    draft["selected_refs"] = refs
+    return draft
+
+
+def update_session_bridge_priority(draft, ref):
+    """Keep the draft priority singular and limited to its current selection."""
+    draft["priority_ref"] = ref if ref in draft.get("selected_refs", []) else None
+    return draft
+
+
+def _session_bridge_date(value):
+    if not value:
+        return "Data non disponibile"
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).strftime("%d/%m/%Y")
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _session_bridge_card(candidate, origin):
+    summary = escape(str(candidate.get("content") or candidate.get("title") or ""))
+    if len(summary) > 180:
+        summary = f"{summary[:177].rstrip()}…"
+    st.markdown(
+        f"**{escape(_session_bridge_date(candidate.get('occurred_at')))} · {escape(origin)}**  \n{summary}"
+    )
+
+
+def _session_bridge_draft_preview(wellness, draft):
+    """Resolve draft references through the domain preview, including unavailable refs."""
+    selected = list(draft["selected_refs"])
+    if not selected:
+        return {"items": [], "priority_ref": None, "optional_text": draft["optional_text"], "unavailable_refs": []}
+    return build_bridge_preview(wellness, draft)
+
+
+def show_session_bridge_tab():
+    st.header("Per la prossima seduta")
+    st.caption(
+        "Uno spazio breve per ricordare ciò che potresti voler riprendere nella prossima seduta. "
+        "Puoi scegliere solo ciò che ti è utile."
+    )
+    username = session_adapter.get_username()
+    wellness = session_adapter.get_wellness()
+    draft_key = f"session_bridge_draft:{username}"
+    try:
+        persisted = load_session_bridge_for(username, wellness)
+    except APIClientError as error:
+        show_api_error(error)
+        return
+    if not session_adapter.has_ui_state(draft_key):
+        session_adapter.set_ui_state(draft_key, validate_session_bridge_state(persisted))
+    draft = session_adapter.get_ui_state(draft_key)
+
+    st.subheader("Settimana")
+    rating_labels = {
+        1: "Molto difficile", 2: "Difficile", 3: "Così così", 4: "Buona", 5: "Molto buona",
+    }
+    rating_key = f"session_bridge_week_rating:{username}"
+    if not session_adapter.has_ui_state(rating_key):
+        session_adapter.set_ui_state(rating_key, draft.get("week_rating"))
+    rating = st.radio(
+        "Com'è stata questa settimana, nel complesso?",
+        options=list(rating_labels),
+        index=None,
+        format_func=lambda value: rating_labels[value],
+        horizontal=True,
+        key=rating_key,
+    )
+    if rating is not None and st.button("Rimuovi la risposta", key=f"session_bridge_clear_rating:{username}"):
+        session_adapter.set_ui_state(rating_key, None)
+        draft["week_rating"] = None
+        st.rerun()
+    draft["week_rating"] = rating
+
+    candidates = session_bridge_candidates_for_ui(wellness)
+    selected_refs = list(draft.get("selected_refs", []))
+
+    def render_candidates(title, source_type, origin, empty_copy):
+        nonlocal selected_refs
+        st.subheader(title)
+        source_candidates = candidates[source_type]
+        if not source_candidates:
+            st.caption(empty_copy)
+            return
+        for candidate in source_candidates:
+            ref = candidate["ref"]
+            _session_bridge_card(candidate, origin)
+            checkbox_key = f"session_bridge_select:{username}:{ref}"
+            if not session_adapter.has_ui_state(checkbox_key):
+                session_adapter.set_ui_state(checkbox_key, ref in selected_refs)
+            checked = st.checkbox(
+                "Porta in seduta",
+                key=checkbox_key,
+                disabled=ref not in selected_refs and len(selected_refs) >= DEFAULT_MAX_ITEMS,
+            )
+            transient = {"selected_refs": selected_refs, "priority_ref": draft.get("priority_ref")}
+            update_session_bridge_selection(transient, ref, checked)
+            selected_refs = transient["selected_refs"]
+            draft["priority_ref"] = transient["priority_ref"]
+            st.divider()
+
+    render_candidates("Dal tuo diario", "diary_entry", "Diario", "Nessun elemento recente del Diario da mostrare.")
+    render_candidates(
+        "Attività completate", "homework_submission", "Attività completata",
+        "Nessuna attività completata recente da mostrare.",
+    )
+    draft["selected_refs"] = selected_refs
+
+    st.subheader("Testo libero")
+    st.caption("Sensazioni, pensieri, situazioni o qualcosa che ti è rimasto in mente questa settimana.")
+    text_key = f"session_bridge_optional_text:{username}"
+    if not session_adapter.has_ui_state(text_key):
+        session_adapter.set_ui_state(text_key, draft.get("optional_text", ""))
+    draft["optional_text"] = st.text_area(
+        "C'è qualcos'altro che vuoi portare con te?",
+        max_chars=DEFAULT_TEXT_MAX_LENGTH,
+        key=text_key,
+    )
+
+    st.subheader("Per la prossima seduta")
+    try:
+        preview = _session_bridge_draft_preview(wellness, draft)
+    except SessionBridgeValidationError as error:
+        st.error(str(error))
+        preview = {"items": [], "unavailable_refs": []}
+    if not preview["items"] and not preview["unavailable_refs"]:
+        st.caption("Gli elementi che scegli compariranno qui.")
+    for item in preview["items"]:
+        ref = item["ref"]
+        _session_bridge_card(item, "Diario" if item["source_type"] == "diary_entry" else "Attività completata")
+        left, right = st.columns(2)
+        if left.button("Rimuovi", key=f"session_bridge_remove:{username}:{ref}", use_container_width=True):
+            update_session_bridge_selection(draft, ref, False)
+            session_adapter.set_ui_state(f"session_bridge_select:{username}:{ref}", False)
+            st.rerun()
+        if draft.get("priority_ref") == ref:
+            right.caption("Punto da cui vorrei partire")
+        elif right.button("Vorrei partire da questo", key=f"session_bridge_priority:{username}:{ref}", use_container_width=True):
+            update_session_bridge_priority(draft, ref)
+            st.rerun()
+    if preview["unavailable_refs"]:
+        st.caption("Un elemento salvato non è più disponibile. Puoi rimuoverlo prima di salvare di nuovo.")
+        for unavailable in preview["unavailable_refs"]:
+            ref = unavailable["ref"]
+            if st.button("Rimuovi elemento non disponibile", key=f"session_bridge_remove_unavailable:{username}:{ref}"):
+                update_session_bridge_selection(draft, ref, False)
+                st.rerun()
+
+    if st.button("Salva per la prossima seduta", type="primary", use_container_width=True):
+        try:
+            saved = save_session_bridge_for(username, wellness, draft)
+        except SessionBridgeValidationError as error:
+            st.error(str(error))
+        except APIClientError as error:
+            show_api_error(error)
+        else:
+            session_adapter.set_ui_state(draft_key, saved.copy())
+            st.success("Salvato. Puoi tornare qui e modificarlo quando vuoi.")
+
+
 def render_client_app_tabs():
-    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
+    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto", "🧭 Per la prossima seduta"])
     with app_tabs[0]:
         show_chat_tab()
     with app_tabs[1]:
@@ -2011,6 +2226,8 @@ def render_client_app_tabs():
         show_monitoring_tab()
     with app_tabs[5]:
         show_report_tab()
+    with app_tabs[6]:
+        show_session_bridge_tab()
 
 
 def render_client_footer_actions():

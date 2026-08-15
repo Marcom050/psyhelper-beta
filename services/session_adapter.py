@@ -60,6 +60,18 @@ class SessionAdapter:
         for key in keys:
             self._pop(key, None)
 
+    def has_ui_state(self, key: str) -> bool:
+        """Report whether a namespaced Streamlit widget/draft value exists."""
+        return key in self._session_state
+
+    def get_ui_state(self, key: str, default: Any = None) -> Any:
+        """Read transient UI state without exposing Streamlit outside this adapter."""
+        return self._get(key, default)
+
+    def set_ui_state(self, key: str, value: Any) -> None:
+        """Write transient UI state without mixing it into persisted account data."""
+        self._set(key, value)
+
     def get_session_data(self) -> AppSessionData:
         return AppSessionData(
             username=self.get_username(),
