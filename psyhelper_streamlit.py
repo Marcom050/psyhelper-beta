@@ -2076,7 +2076,12 @@ def _session_bridge_card(candidate, origin):
     if len(summary) > 180:
         summary = f"{summary[:177].rstrip()}…"
     st.markdown(
-        f"**{escape(_session_bridge_date(candidate.get('occurred_at')))} · {escape(origin)}**  \n{summary}"
+        '<div style="margin:.15rem 0 .25rem">'
+        f'<div style="color:#6b7280;font-size:.82rem;line-height:1.25">'
+        f"{escape(_session_bridge_date(candidate.get('occurred_at')))} · {escape(origin)}</div>"
+        f'<div style="margin-top:.15rem;line-height:1.35">{summary}</div>'
+        "</div>",
+        unsafe_allow_html=True,
     )
 
 
@@ -2106,7 +2111,6 @@ def show_session_bridge_tab():
         session_adapter.set_ui_state(draft_key, validate_session_bridge_state(persisted))
     draft = session_adapter.get_ui_state(draft_key)
 
-    st.subheader("Settimana")
     rating_labels = {
         1: "Molto difficile", 2: "Difficile", 3: "Così così", 4: "Buona", 5: "Molto buona",
     }
@@ -2152,7 +2156,6 @@ def show_session_bridge_tab():
             update_session_bridge_selection(transient, ref, checked)
             selected_refs = transient["selected_refs"]
             draft["priority_ref"] = transient["priority_ref"]
-            st.divider()
 
     render_candidates("Dal tuo diario", "diary_entry", "Diario", "Nessun elemento recente del Diario da mostrare.")
     render_candidates(
@@ -2161,8 +2164,8 @@ def show_session_bridge_tab():
     )
     draft["selected_refs"] = selected_refs
 
-    st.subheader("Testo libero")
-    st.caption("Sensazioni, pensieri, situazioni o qualcosa che ti è rimasto in mente questa settimana.")
+    st.markdown("#### C'è qualcos'altro che vuoi portare con te?")
+    st.caption("Sensazioni, pensieri, situazioni o qualcosa che ti è rimasto in mente.")
     text_key = f"session_bridge_optional_text:{username}"
     if not session_adapter.has_ui_state(text_key):
         session_adapter.set_ui_state(text_key, draft.get("optional_text", ""))
@@ -2170,36 +2173,38 @@ def show_session_bridge_tab():
         "C'è qualcos'altro che vuoi portare con te?",
         max_chars=DEFAULT_TEXT_MAX_LENGTH,
         key=text_key,
+        label_visibility="collapsed",
     )
 
-    st.subheader("Per la prossima seduta")
-    try:
-        preview = _session_bridge_draft_preview(wellness, draft)
-    except SessionBridgeValidationError as error:
-        st.error(str(error))
-        preview = {"items": [], "unavailable_refs": []}
-    if not preview["items"] and not preview["unavailable_refs"]:
-        st.caption("Gli elementi che scegli compariranno qui.")
-    for item in preview["items"]:
-        ref = item["ref"]
-        _session_bridge_card(item, "Diario" if item["source_type"] == "diary_entry" else "Attività completata")
-        left, right = st.columns(2)
-        if left.button("Rimuovi", key=f"session_bridge_remove:{username}:{ref}", use_container_width=True):
-            update_session_bridge_selection(draft, ref, False)
-            session_adapter.set_ui_state(f"session_bridge_select:{username}:{ref}", False)
-            st.rerun()
-        if draft.get("priority_ref") == ref:
-            right.caption("Punto da cui vorrei partire")
-        elif right.button("Vorrei partire da questo", key=f"session_bridge_priority:{username}:{ref}", use_container_width=True):
-            update_session_bridge_priority(draft, ref)
-            st.rerun()
-    if preview["unavailable_refs"]:
-        st.caption("Un elemento salvato non è più disponibile. Puoi rimuoverlo prima di salvare di nuovo.")
-        for unavailable in preview["unavailable_refs"]:
-            ref = unavailable["ref"]
-            if st.button("Rimuovi elemento non disponibile", key=f"session_bridge_remove_unavailable:{username}:{ref}"):
+    if draft["selected_refs"] or draft["optional_text"].strip():
+        st.subheader("Per la prossima seduta")
+        try:
+            preview = _session_bridge_draft_preview(wellness, draft)
+        except SessionBridgeValidationError as error:
+            st.error(str(error))
+            preview = {"items": [], "unavailable_refs": []}
+        for item in preview["items"]:
+            ref = item["ref"]
+            _session_bridge_card(item, "Diario" if item["source_type"] == "diary_entry" else "Attività completata")
+            left, right = st.columns(2)
+            if left.button("Rimuovi", key=f"session_bridge_remove:{username}:{ref}", use_container_width=True):
                 update_session_bridge_selection(draft, ref, False)
+                session_adapter.set_ui_state(f"session_bridge_select:{username}:{ref}", False)
                 st.rerun()
+            if draft.get("priority_ref") == ref:
+                right.caption("Punto da cui vorrei partire")
+            elif right.button("Vorrei partire da questo", key=f"session_bridge_priority:{username}:{ref}", use_container_width=True):
+                update_session_bridge_priority(draft, ref)
+                st.rerun()
+        if preview["unavailable_refs"]:
+            st.caption("Un elemento salvato non è più disponibile. Puoi rimuoverlo prima di salvare di nuovo.")
+            for unavailable in preview["unavailable_refs"]:
+                ref = unavailable["ref"]
+                if st.button("Rimuovi elemento non disponibile", key=f"session_bridge_remove_unavailable:{username}:{ref}"):
+                    update_session_bridge_selection(draft, ref, False)
+                    st.rerun()
+        if draft["optional_text"].strip():
+            st.caption(draft["optional_text"].strip())
 
     if st.button("Salva per la prossima seduta", type="primary", use_container_width=True):
         try:
