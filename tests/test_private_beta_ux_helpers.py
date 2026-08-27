@@ -157,7 +157,7 @@ def test_patient_delete_keys_and_pending_state_are_stable():
 def test_normal_demo_ui_hides_commercial_copy_and_analytics():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert "if SHOW_DEBUG_UI:\n    render_analytics_banner()" in source
-    assert 'st.header("👩‍⚕️ Dashboard terapeuta")' in source
+    assert 'st.header("Workspace terapeuta")' in source
     assert "Dashboard terapeuta · Private Beta" not in source
     assert 'initial_status = "trialing" if SETTINGS.commercial_gating_enabled else "active"' in source
 
@@ -280,8 +280,8 @@ def test_runtime_summary_state_uses_compatible_session_methods():
 def test_progress_journey_copy_present_for_patient_and_therapist():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert "Il mio percorso" in source
-    assert "Percorso e ricadute" in source
-    assert "Timeline del percorso" in source
+    assert "Percorso del paziente" in source
+    assert "Storico del percorso" in source
     assert "Non ci sono ancora eventi sufficienti per costruire una timeline del percorso." in source
     assert "Passi avanti" in source
     assert "Momenti di difficoltà" in source
