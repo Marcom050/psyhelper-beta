@@ -106,6 +106,154 @@ THERAPIST_BRIDGE_VIEW_KEY = "therapist_session_bridge_view"
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 
+# Global visual foundations. Keep product-wide presentation in this single block:
+# feature views should inherit these rules instead of introducing page-level CSS.
+DESIGN_SYSTEM_CSS = """
+<style>
+:root {
+  --psy-bg: #f5f7f6;
+  --psy-surface: #ffffff;
+  --psy-surface-subtle: #eef3f1;
+  --psy-text: #172321;
+  --psy-text-muted: #5f6f6b;
+  --psy-border: #dce5e2;
+  --psy-primary: #326b61;
+  --psy-primary-hover: #28584f;
+  --psy-success: #287a58;
+  --psy-warning: #9a681d;
+  --psy-error: #b54747;
+  --psy-info: #3d6472;
+  --psy-space-1: 0.25rem;
+  --psy-space-2: 0.5rem;
+  --psy-space-3: 0.75rem;
+  --psy-space-4: 1rem;
+  --psy-space-5: 1.5rem;
+  --psy-space-6: 2rem;
+  --psy-radius-sm: 0.375rem;
+  --psy-radius-md: 0.625rem;
+  --psy-radius-card: 0.875rem;
+  --psy-shadow-subtle: 0 1px 2px rgba(23, 35, 33, 0.05);
+  --psy-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+html, body, [class*="st-"] { font-family: var(--psy-font); }
+body { color: var(--psy-text); }
+[data-testid="stAppViewContainer"] { background: var(--psy-bg); }
+[data-testid="stHeader"] { background: rgba(245, 247, 246, 0.94); }
+[data-testid="stMain"] .block-container {
+  width: 100%;
+  max-width: 1180px;
+  padding: 2rem 2.25rem 3rem;
+}
+[data-testid="stSidebar"] { background: var(--psy-surface-subtle); border-right: 1px solid var(--psy-border); }
+[data-testid="stSidebarContent"] { padding-top: var(--psy-space-4); }
+
+h1, h2, h3 { color: var(--psy-text); letter-spacing: -0.018em; }
+h1 { font-size: 2rem !important; line-height: 1.2 !important; margin: 0 0 var(--psy-space-3) !important; }
+h2 { font-size: 1.5rem !important; line-height: 1.3 !important; margin: var(--psy-space-6) 0 var(--psy-space-3) !important; }
+h3 { font-size: 1.15rem !important; line-height: 1.4 !important; margin: var(--psy-space-5) 0 var(--psy-space-2) !important; }
+p, li, label { line-height: 1.55; }
+[data-testid="stCaptionContainer"], small { color: var(--psy-text-muted) !important; font-size: 0.82rem !important; }
+hr { border-color: var(--psy-border) !important; margin: var(--psy-space-6) 0 !important; }
+
+/* Product navigation */
+[data-baseweb="tab-list"] { gap: var(--psy-space-1); border-bottom: 1px solid var(--psy-border); overflow-x: auto; scrollbar-width: thin; }
+[data-baseweb="tab"] {
+  min-height: 2.75rem; padding: 0 var(--psy-space-4); color: var(--psy-text-muted);
+  border-radius: var(--psy-radius-sm) var(--psy-radius-sm) 0 0;
+  white-space: nowrap; font-weight: 550;
+}
+[data-baseweb="tab"]:hover { color: var(--psy-primary); background: var(--psy-surface-subtle); }
+[data-baseweb="tab"][aria-selected="true"] { color: var(--psy-primary); font-weight: 650; }
+[data-baseweb="tab-highlight"] { background-color: var(--psy-primary) !important; height: 2px; }
+
+/* Buttons: primary, secondary and disabled retain Streamlit semantics. */
+[data-testid="stButton"] button, [data-testid="stFormSubmitButton"] button, [data-testid="stDownloadButton"] button {
+  min-height: 2.5rem; padding: 0.5rem 1rem; border-radius: var(--psy-radius-md);
+  border-color: var(--psy-border); box-shadow: none; font-weight: 600; transition: background .15s, border-color .15s, color .15s;
+}
+[data-testid="stButton"] button:hover, [data-testid="stFormSubmitButton"] button:hover, [data-testid="stDownloadButton"] button:hover {
+  border-color: var(--psy-primary); color: var(--psy-primary); background: var(--psy-surface-subtle);
+}
+button[kind="primary"], [data-testid="stFormSubmitButton"] button[kind="primary"] {
+  color: #fff !important; background: var(--psy-primary) !important; border-color: var(--psy-primary) !important;
+}
+button[kind="primary"]:hover { background: var(--psy-primary-hover) !important; border-color: var(--psy-primary-hover) !important; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
+  outline: 3px solid rgba(50, 107, 97, .22) !important; outline-offset: 2px;
+}
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Form controls */
+[data-baseweb="input"] > div, [data-baseweb="textarea"] > div, [data-baseweb="select"] > div,
+[data-testid="stDateInput"] [data-baseweb="input"] > div, [data-testid="stNumberInput"] [data-baseweb="input"] > div {
+  background: var(--psy-surface) !important; border-color: var(--psy-border) !important;
+  border-radius: var(--psy-radius-md) !important; box-shadow: none !important;
+}
+[data-baseweb="input"] > div:focus-within, [data-baseweb="textarea"] > div:focus-within,
+[data-baseweb="select"] > div:focus-within { border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(50,107,97,.14) !important; }
+[data-testid="stWidgetLabel"] p { color: var(--psy-text); font-size: .9rem; font-weight: 600; }
+[data-testid="stSlider"] [role="slider"] { background: var(--psy-primary); }
+[data-testid="stCheckbox"] label, [data-testid="stRadio"] label { min-height: 2rem; }
+
+/* Deliberate grouping surfaces, expanders and dialogs */
+[data-testid="stVerticalBlockBorderWrapper"] { background: var(--psy-surface); border-color: var(--psy-border) !important; border-radius: var(--psy-radius-card); box-shadow: var(--psy-shadow-subtle); }
+[data-testid="stExpander"] { background: var(--psy-surface); border: 1px solid var(--psy-border); border-radius: var(--psy-radius-md); box-shadow: none; overflow: hidden; }
+[data-testid="stExpander"] summary { min-height: 2.75rem; padding: var(--psy-space-2) var(--psy-space-4); font-weight: 600; }
+[data-testid="stExpander"] summary:hover { background: var(--psy-surface-subtle); color: var(--psy-primary); }
+[data-testid="stDialog"] > div { border-radius: var(--psy-radius-card); }
+
+/* Status messages: semantic accent plus readable text, without large color fields. */
+[data-testid="stAlert"] { border-radius: var(--psy-radius-md); border: 1px solid var(--psy-border); box-shadow: none; padding: .75rem 1rem; }
+[data-testid="stAlert"] p { font-size: .9rem; }
+[data-testid="stNotificationContentInfo"] { border-left: 3px solid var(--psy-info); }
+[data-testid="stNotificationContentSuccess"] { border-left: 3px solid var(--psy-success); }
+[data-testid="stNotificationContentWarning"] { border-left: 3px solid var(--psy-warning); }
+[data-testid="stNotificationContentError"] { border-left: 3px solid var(--psy-error); }
+
+/* Metrics and data containers */
+[data-testid="stMetric"] { min-height: 6.25rem; padding: var(--psy-space-4); background: var(--psy-surface); border: 1px solid var(--psy-border); border-radius: var(--psy-radius-card); box-shadow: var(--psy-shadow-subtle); }
+[data-testid="stMetricLabel"] { color: var(--psy-text-muted); font-size: .82rem; }
+[data-testid="stMetricValue"] { color: var(--psy-text); font-size: 1.65rem; font-weight: 650; letter-spacing: -.02em; }
+[data-testid="stDataFrame"], [data-testid="stTable"] { overflow: hidden; border: 1px solid var(--psy-border); border-radius: var(--psy-radius-md); background: var(--psy-surface); }
+[data-testid="stPlotlyChart"] { border-radius: var(--psy-radius-card); overflow: hidden; }
+
+/* Shared project-owned primitives. */
+.psy-card { margin: var(--psy-space-3) 0; padding: var(--psy-space-4); background: var(--psy-surface); border: 1px solid var(--psy-border); border-radius: var(--psy-radius-card); box-shadow: var(--psy-shadow-subtle); }
+.psy-card__meta, .psy-helper { color: var(--psy-text-muted); font-size: .82rem; line-height: 1.4; }
+.psy-card__title { margin-top: var(--psy-space-1); color: var(--psy-text); font-size: 1.05rem; font-weight: 650; }
+.psy-card__body { margin-top: var(--psy-space-2); color: var(--psy-text); line-height: 1.5; }
+.psy-card__detail { margin-top: var(--psy-space-2); color: var(--psy-text-muted); font-size: .85rem; }
+.psy-badge { display: inline-flex; align-items: center; min-height: 1.5rem; padding: .125rem .5rem; border: 1px solid var(--psy-border); border-radius: 999px; background: var(--psy-surface-subtle); color: var(--psy-text-muted); font-size: .75rem; font-weight: 650; }
+.psy-badge--priority { border-color: #dfc58e; background: #fff8e8; color: #805515; }
+.psy-preview { padding: var(--psy-space-2) 0; border-bottom: 1px solid var(--psy-border); }
+.psy-notice { margin-bottom: var(--psy-space-5); padding: var(--psy-space-4); background: var(--psy-surface-subtle); border-left: 3px solid var(--psy-info); border-radius: var(--psy-radius-md); color: var(--psy-text); font-size: .9rem; line-height: 1.5; }
+
+[data-testid="stChatInput"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+[data-testid="stChatInput"] > div { border: 1px solid var(--psy-border) !important; border-radius: var(--psy-radius-card) !important; background: var(--psy-surface) !important; box-shadow: var(--psy-shadow-subtle) !important; padding: .2rem .45rem !important; }
+[data-testid="stChatInput"] textarea { background: transparent !important; border: 0 !important; box-shadow: none !important; color: var(--psy-text) !important; }
+[data-testid="stChatInput"] textarea::placeholder { color: var(--psy-text-muted) !important; }
+
+@media (max-width: 768px) {
+  [data-testid="stMain"] .block-container { padding: 1.25rem 1rem 2rem; }
+  h1 { font-size: 1.7rem !important; }
+  h2 { font-size: 1.3rem !important; }
+  [data-baseweb="tab"] { min-height: 2.5rem; padding: 0 .75rem; font-size: .88rem; }
+  [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  [data-testid="column"] { min-width: min(100%, 15rem) !important; flex: 1 1 15rem !important; }
+  [data-testid="stButton"] button, [data-testid="stFormSubmitButton"] button { min-height: 2.75rem; }
+}
+</style>
+"""
+
+
+def apply_global_styles():
+    """Apply PsyHelper's shared, token-based visual language once per rerun."""
+    st.markdown(DESIGN_SYSTEM_CSS, unsafe_allow_html=True)
+
+
+apply_global_styles()
+
 session_adapter = SessionAdapter()
 session_adapter.initialize_defaults()
 
@@ -218,7 +366,7 @@ if SETTINGS.commercial_gating_enabled and not session_adapter.is_beta_disclaimer
     st.stop()
 
 st.markdown("""
-<div style="background-color: #1f2937; padding: 16px; border-radius: 10px; border: 1px solid #6366f1; margin-bottom: 30px;">
+<div class="psy-notice">
     <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
     In caso di difficoltà gravi consulta un professionista della salute mentale o i servizi di emergenza se sei in pericolo immediato.<br><br>
     <strong>Privacy:</strong> Tutte le tue conversazioni e schede sono private e salvate solo sul tuo account.
@@ -279,12 +427,12 @@ def _timeline_card(event):
     non_diagnostic = "Sì" if event.get("non_diagnostic", True) else "—"
     st.markdown(
         f"""
-<div style="border: 1px solid #334155; border-radius: 12px; padding: 14px; margin: 10px 0; background: rgba(15, 23, 42, 0.35);">
-  <div style="font-size: 0.85rem; color: #94a3b8;">{date_label} · {event_type} · Importanza: {importance}</div>
-  <div style="font-size: 1.05rem; font-weight: 700; margin-top: 4px;">{title}</div>
-  <div style="margin-top: 6px;">{description}</div>
-  <div style="font-size: 0.85rem; color: #cbd5e1; margin-top: 8px;"><strong>Evidenze:</strong> {evidence_copy}</div>
-  <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Fonte: {source} · Lettura non diagnostica: {non_diagnostic}</div>
+<div class="psy-card">
+  <div class="psy-card__meta">{date_label} · {event_type} · Importanza: {importance}</div>
+  <div class="psy-card__title">{title}</div>
+  <div class="psy-card__body">{description}</div>
+  <div class="psy-card__detail"><strong>Evidenze:</strong> {evidence_copy}</div>
+  <div class="psy-card__meta">Fonte: {source} · Lettura non diagnostica: {non_diagnostic}</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -758,37 +906,7 @@ def render_homework_answers(submission):
 
 
 def render_chat_input_styles():
-    st.markdown(
-        """
-<style>
-[data-testid="stChatInput"] {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-}
-[data-testid="stChatInput"] > div {
-  border: 1px solid rgba(120, 130, 155, 0.35) !important;
-  border-radius: 18px !important;
-  background: rgba(17, 24, 39, 0.92) !important;
-  box-shadow: none !important;
-  padding: 0.2rem 0.45rem !important;
-}
-[data-testid="stChatInput"] textarea {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  color: #f3f4f6 !important;
-}
-[data-testid="stChatInput"] textarea::placeholder {
-  color: #9ca3af !important;
-}
-[data-testid="stChatInput"] button {
-  border-radius: 12px !important;
-}
-</style>
-""",
-        unsafe_allow_html=True,
-    )
+    """Compatibility hook: chat styling now inherits the global design system."""
 
 
 def show_chat_tab():
@@ -2100,10 +2218,10 @@ def _session_bridge_card(candidate, origin):
     if len(summary) > 180:
         summary = f"{summary[:177].rstrip()}…"
     st.markdown(
-        '<div style="margin:.15rem 0 .25rem">'
-        f'<div style="color:#6b7280;font-size:.82rem;line-height:1.25">'
+        '<div class="psy-card">'
+        f'<div class="psy-card__meta">'
         f"{escape(_session_bridge_date(candidate.get('occurred_at')))} · {escape(origin)}</div>"
-        f'<div style="margin-top:.15rem;line-height:1.35">{summary}</div>'
+        f'<div class="psy-card__body">{summary}</div>'
         "</div>",
         unsafe_allow_html=True,
     )
@@ -2115,17 +2233,16 @@ def _session_bridge_preview_item(item, origin, is_priority):
     if len(summary) > 180:
         summary = f"{summary[:177].rstrip()}…"
     priority = (
-        '<span style="color:#8b5e00;font-size:.8rem;font-weight:600">'
+        '<span class="psy-badge psy-badge--priority">'
         '★ Vorrei partire da questo</span>'
         if is_priority else ""
     )
     st.markdown(
-        '<div style="margin:.05rem 0 .1rem;padding:.35rem 0 .15rem;'
-        'border-bottom:1px solid rgba(107,114,128,.18)">'
+        '<div class="psy-preview">'
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem">'
-        f'<span style="color:#6b7280;font-size:.78rem;line-height:1.2">{escape(origin)} · '
+        f'<span class="psy-card__meta">{escape(origin)} · '
         f"{escape(_session_bridge_date(item.get('occurred_at')))}</span>{priority}</div>"
-        f'<div style="margin-top:.1rem;line-height:1.3">{summary}</div>'
+        f'<div class="psy-card__body">{summary}</div>'
         "</div>",
         unsafe_allow_html=True,
     )
