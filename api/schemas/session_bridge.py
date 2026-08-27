@@ -18,3 +18,7 @@ class SessionBridgeRequest(BaseModel):
 class SessionBridgeResponse(BaseModel):
     username: str
     session_bridge: dict
+
+
+class SessionBridgeActionRequest(BaseModel):
+    action: str

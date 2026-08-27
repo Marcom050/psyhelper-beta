@@ -23,6 +23,7 @@ ALLOWED_SOURCE_TYPES = frozenset({
 })
 DEFAULT_MAX_ITEMS = 5
 DEFAULT_TEXT_MAX_LENGTH = 500
+BRIDGE_STATUSES = frozenset({"draft", "ready", "reviewed", "archived"})
 
 
 class SessionBridgeValidationError(ValueError):
@@ -54,14 +55,24 @@ class SessionBridgePayload:
     priority_ref: str | None
     optional_text: str = ""
     week_rating: int | None = None
+    status: str = "draft"
+    ready_at: str | None = None
+    reviewed_at: str | None = None
+    archived_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "selected_refs": list(self.selected_refs),
             "priority_ref": self.priority_ref,
             "optional_text": self.optional_text,
             "week_rating": self.week_rating,
         }
+        if self.status != "draft" or any((self.ready_at, self.reviewed_at, self.archived_at)):
+            payload.update({
+                "status": self.status, "ready_at": self.ready_at,
+                "reviewed_at": self.reviewed_at, "archived_at": self.archived_at,
+            })
+        return payload
 
 
 def _timestamp(value: Any) -> datetime | None:
@@ -248,7 +259,16 @@ def validate_bridge_payload(payload: Mapping[str, Any] | SessionBridgePayload, *
     week_rating = data.get("week_rating")
     if week_rating is not None and (type(week_rating) is not int or not 1 <= week_rating <= 5):
         raise SessionBridgeValidationError("week_rating must be null or an integer from 1 to 5")
-    return SessionBridgePayload(tuple(refs), priority, optional_text, week_rating)
+    status = data.get("status", "draft")
+    if status not in BRIDGE_STATUSES:
+        raise SessionBridgeValidationError("Unsupported Session Bridge status")
+    timestamps = []
+    for field in ("ready_at", "reviewed_at", "archived_at"):
+        value = data.get(field)
+        if value is not None and _timestamp(value) is None:
+            raise SessionBridgeValidationError(f"{field} must be a valid timestamp or null")
+        timestamps.append(value)
+    return SessionBridgePayload(tuple(refs), priority, optional_text, week_rating, status, *timestamps)
 
 
 def empty_session_bridge() -> dict[str, Any]:
@@ -268,7 +288,18 @@ def validate_session_bridge_state(payload: Mapping[str, Any] | SessionBridgePayl
         week_rating = data.get("week_rating")
         if week_rating is not None and (type(week_rating) is not int or not 1 <= week_rating <= 5):
             raise SessionBridgeValidationError("week_rating must be null or an integer from 1 to 5")
-        return {**empty_session_bridge(), "optional_text": optional_text, "week_rating": week_rating}
+        status = data.get("status", "draft")
+        if status not in BRIDGE_STATUSES:
+            raise SessionBridgeValidationError("Unsupported Session Bridge status")
+        if status != "draft" and not optional_text.strip():
+            raise SessionBridgeValidationError("An empty Session Bridge cannot be submitted")
+        timestamps = []
+        for field in ("ready_at", "reviewed_at", "archived_at"):
+            value = data.get(field)
+            if value is not None and _timestamp(value) is None:
+                raise SessionBridgeValidationError(f"{field} must be a valid timestamp or null")
+            timestamps.append(value)
+        return SessionBridgePayload((), None, optional_text, week_rating, status, *timestamps).to_dict()
     return validate_bridge_payload(payload).to_dict()
 
 
@@ -287,6 +318,34 @@ def save_session_bridge(wellness: dict[str, Any], payload: Mapping[str, Any] | S
     valid = validate_session_bridge_state(payload)
     wellness["session_bridge"] = valid
     return valid
+
+
+def transition_session_bridge(wellness: dict[str, Any], action: str, *, actor_role: str,
+                              now: datetime | None = None) -> dict[str, Any]:
+    """Apply the small Bridge lifecycle without changing selected clinical material."""
+    current = get_session_bridge(wellness)
+    status = current.get("status", "draft")
+    allowed = {
+        ("ready", "client", "draft"): ("ready", "ready_at"),
+        ("review", "therapist", "ready"): ("reviewed", "reviewed_at"),
+        ("archive", "therapist", "reviewed"): ("archived", "archived_at"),
+    }
+    transition = allowed.get((action, actor_role, status))
+    if transition is None:
+        # Idempotent retries from Streamlit reruns or slow networks are harmless.
+        completed = {"ready": "ready", "review": "reviewed", "archive": "archived"}.get(action)
+        if completed == status:
+            return current
+        raise SessionBridgeValidationError("Session Bridge transition is not allowed")
+    if action == "ready" and not (current["selected_refs"] or current["optional_text"].strip()):
+        raise SessionBridgeValidationError("Add at least one item before submitting the Session Bridge")
+    updated = current.copy()
+    for field in ("ready_at", "reviewed_at", "archived_at"):
+        updated.setdefault(field, None)
+    updated["status"], timestamp_field = transition
+    updated[timestamp_field] = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
+    wellness["session_bridge"] = updated
+    return updated
 
 
 def resolve_bridge_references(wellness: Mapping[str, Any] | None, refs: Sequence[str], *,
