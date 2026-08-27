@@ -226,6 +226,14 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .psy-card__detail { margin-top: var(--psy-space-2); color: var(--psy-text-muted); font-size: .85rem; }
 .psy-badge { display: inline-flex; align-items: center; min-height: 1.5rem; padding: .125rem .5rem; border: 1px solid var(--psy-border); border-radius: 999px; background: var(--psy-surface-subtle); color: var(--psy-text-muted); font-size: .75rem; font-weight: 650; }
 .psy-badge--priority { border-color: #dfc58e; background: #fff8e8; color: #805515; }
+.psy-badge--success { border-color: #b9ddcc; background: #edf8f2; color: var(--psy-success); }
+.psy-workspace { margin: var(--psy-space-3) 0 var(--psy-space-5); padding: var(--psy-space-4) 0; border-top: 1px solid var(--psy-border); border-bottom: 1px solid var(--psy-border); }
+.psy-workspace__eyebrow { color: var(--psy-text-muted); font-size: .78rem; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
+.psy-workspace__title { margin: .15rem 0 .2rem; color: var(--psy-text); font-size: 1.65rem; line-height: 1.2; font-weight: 700; letter-spacing: -.02em; }
+.psy-insight { padding: var(--psy-space-3) 0; border-bottom: 1px solid var(--psy-border); line-height: 1.5; }
+.psy-insight:last-child { border-bottom: 0; }
+.psy-readonly { padding: var(--psy-space-4); background: var(--psy-surface-subtle); border-left: 3px solid var(--psy-primary); border-radius: var(--psy-radius-md); }
+.psy-card--flat { box-shadow: none; }
 .psy-preview { padding: var(--psy-space-2) 0; border-bottom: 1px solid var(--psy-border); }
 .psy-notice { margin-bottom: var(--psy-space-5); padding: var(--psy-space-4); background: var(--psy-surface-subtle); border-left: 3px solid var(--psy-info); border-radius: var(--psy-radius-md); color: var(--psy-text); font-size: .9rem; line-height: 1.5; }
 
@@ -242,6 +250,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
   [data-testid="column"] { min-width: min(100%, 15rem) !important; flex: 1 1 15rem !important; }
   [data-testid="stButton"] button, [data-testid="stFormSubmitButton"] button { min-height: 2.75rem; }
+  .psy-workspace__title { font-size: 1.4rem; }
 }
 </style>
 """
@@ -417,7 +426,7 @@ def _timeline_type_label(event_type):
 def _timeline_card(event):
     evidence = event.get("evidence") or []
     evidence_copy = "; ".join(str(item) for item in evidence) if evidence else "Nessuna evidenza aggiuntiva registrata."
-    date_label = escape(str(event.get("date_label", "Data non disponibile")))
+    date_label = escape(format_display_date(event.get("date_label"), compact=True, fallback="Data non disponibile"))
     event_type = escape(_timeline_type_label(event.get("type")))
     importance = escape(str(event.get("importance", "low")))
     title = escape(str(event.get("title", "Evento del percorso")))
@@ -428,11 +437,11 @@ def _timeline_card(event):
     st.markdown(
         f"""
 <div class="psy-card">
-  <div class="psy-card__meta">{date_label} · {event_type} · Importanza: {importance}</div>
+  <div class="psy-card__meta">{date_label} &nbsp; <span class="psy-badge">{event_type}</span></div>
   <div class="psy-card__title">{title}</div>
   <div class="psy-card__body">{description}</div>
   <div class="psy-card__detail"><strong>Evidenze:</strong> {evidence_copy}</div>
-  <div class="psy-card__meta">Fonte: {source} · Lettura non diagnostica: {non_diagnostic}</div>
+  <div class="psy-card__meta">Importanza: {importance} · Fonte: {source} · Lettura non diagnostica: {non_diagnostic}</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -519,6 +528,39 @@ def beta_disclaimer_lines():
 
 def empty_state_message(key):
     return EMPTY_STATE_MESSAGES.get(key, "Nessun dato disponibile in questa sezione.")
+
+
+ITALIAN_MONTHS = (
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+)
+
+
+def format_display_date(value, *, include_time=False, compact=False, fallback="—"):
+    """Format stored dates for the UI without changing persisted values."""
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed) or parsed.year <= 1970:
+        return fallback if value in (None, "") else str(value)
+    month = ITALIAN_MONTHS[parsed.month - 1]
+    if compact:
+        month = month[:3]
+    label = f"{parsed.day} {month} {parsed.year}"
+    if include_time and ("T" in str(value) or ":" in str(value)):
+        label += f" · {parsed.strftime('%H:%M')}"
+    return label
+
+
+def format_therapist_table_dates(rows):
+    """Return a presentation-only copy of therapist table rows with readable dates."""
+    formatted = []
+    for row in rows:
+        display_row = dict(row)
+        for key, value in display_row.items():
+            normalized = str(key).lower()
+            if any(token in normalized for token in ("data", "scaden", "inviat", "creat", "complet")):
+                display_row[key] = format_display_date(value, include_time=True, compact=True)
+        formatted.append(display_row)
+    return formatted
 
 
 def redact_sensitive_mapping(data):
@@ -1477,8 +1519,8 @@ def show_therapist_dashboard():
     subscription_status = metadata.get("subscription_status", "inactive")
     subscription_active = has_active_subscription(username)
 
-    st.header("👩‍⚕️ Dashboard terapeuta")
-    st.caption("Flusso consigliato: 1) crea/seleziona paziente · 2) verifica trend e homework · 3) prepara recap pre-seduta.")
+    st.header("Workspace terapeuta")
+    st.caption("Seleziona un paziente e consulta rapidamente ciò che è utile approfondire.")
 
     if SETTINGS.commercial_gating_enabled:
         col1, col2, col3 = st.columns(3)
@@ -1497,7 +1539,7 @@ def show_therapist_dashboard():
 
     create_col, _ = st.columns([1, 4])
     with create_col:
-        if st.button("➕ Crea nuovo paziente", use_container_width=True):
+        if st.button("Crea nuovo paziente", use_container_width=True, type="secondary"):
             show_create_patient_dialog(username)
 
     clients = client_accounts_for(username)
@@ -1536,20 +1578,25 @@ def show_therapist_dashboard():
     selected_snapshot = clinical_report_for(selected_username, selected_wellness, selected_bundle["messages"])
 
     selected_patient_name = selected_profile.get("nome", selected_username)
-    selector_col, active_col = st.columns([1, 3], gap="large")
+    selector_col, active_col, bridge_col = st.columns([1.25, 3, 1], gap="medium")
     with selector_col:
-        if st.button("👥 Scegli profilo paziente", key="open_patient_selector_dialog", use_container_width=True):
+        if st.button("Cambia paziente", key="open_patient_selector_dialog", use_container_width=True):
             _set_patient_selector_dialog_open(True)
 
         if _patient_selector_dialog_open():
             show_patient_selector_dialog(clients, snapshots, overview_rows)
     with active_col:
-        st.info(
-            f"Profilo attivo: **{selected_patient_name}** · "
-            f"ultima attività: {selected_snapshot['last_activity']} · "
-            f"alert: {len(selected_snapshot['alerts'])} · "
-            f"homework: {selected_snapshot['homework_completed']}/{selected_snapshot['homework_total']}"
+        st.markdown(
+            f"""<div class="psy-workspace"><div class="psy-workspace__eyebrow">Paziente aperto</div>
+<div class="psy-workspace__title">{escape(selected_patient_name)}</div>
+<div class="psy-helper">Ultima attività: {escape(format_display_date(selected_snapshot['last_activity'], include_time=True, compact=True, fallback='non disponibile'))} · Homework {selected_snapshot['homework_completed']}/{selected_snapshot['homework_total']} · {len(selected_snapshot['alerts'])} punti da osservare</div></div>""",
+            unsafe_allow_html=True,
         )
+    with bridge_col:
+        if st.button("BRIDGE", key="therapist_bridge_open", type="primary", use_container_width=True):
+            session_adapter.set_ui_state(THERAPIST_BRIDGE_VIEW_KEY, True)
+            st.rerun()
+            return
 
     if session_adapter.get_ui_state(THERAPIST_BRIDGE_VIEW_KEY, False):
         if st.button("ESCI DA BRIDGE", key="therapist_bridge_exit"):
@@ -1558,14 +1605,7 @@ def show_therapist_dashboard():
             return
         show_therapist_session_bridge(selected_username, selected_patient_name, selected_wellness)
         return
-    if st.button("BRIDGE", key="therapist_bridge_open", type="primary"):
-        session_adapter.set_ui_state(THERAPIST_BRIDGE_VIEW_KEY, True)
-        st.rerun()
-        return
-
-    st.markdown(f"## {selected_patient_name}")
-    with st.container(border=True):
-        st.markdown("### Punto di partenza del percorso")
+    with st.expander("Punto di partenza del percorso", expanded=False):
         st.caption(
             "Attiva poche domande semplici per aiutare il paziente a mettere a fuoco ciò che vorrebbe affrontare, "
             "senza trasformare le risposte in diagnosi o conclusioni cliniche."
@@ -1585,7 +1625,7 @@ def show_therapist_dashboard():
             c1, c2, c3 = st.columns(3)
             c1.metric("Stato", onboarding_status_label(status))
             c2.metric("Progresso", onboarding_progress_label(selected_onboarding))
-            c3.metric("Scadenza", (selected_onboarding.get("expires_at") or "—")[:10])
+            c3.metric("Scadenza", format_display_date(selected_onboarding.get("expires_at"), compact=True))
             computed_alert = onboarding_progress_alert(selected_onboarding)
             if computed_alert:
                 st.warning(computed_alert)
@@ -1643,16 +1683,18 @@ def show_therapist_dashboard():
     kpi3.metric("Aderenza homework", f"{selected_snapshot['homework_compliance']:.0f}%")
     kpi4.metric("Alert aperti", len(selected_snapshot["alerts"]))
 
-    detail_tabs = st.tabs(["🧠 Insight", "📊 Trend", "📚 Homework", "🗓️ Timeline", "🔒 Note private", "📄 Recap seduta"])
+    detail_tabs = st.tabs(["Insight", "Trend", "Homework", "Timeline", "Note private", "Recap seduta"])
     with detail_tabs[0]:
         st.markdown("### Segnali descrittivi dai dati recenti")
         st.caption("Queste informazioni organizzano ciò che il paziente ha inserito e devono essere interpretate dal terapeuta.")
-        for insight in selected_snapshot["insights"]:
-            st.success(f"• {insight}")
+        if selected_snapshot["insights"]:
+            st.markdown("".join(f'<div class="psy-insight">{escape(str(insight))}</div>' for insight in selected_snapshot["insights"]), unsafe_allow_html=True)
+        else:
+            st.info("Non emergono ancora segnali descrittivi dai dati disponibili.")
         st.markdown("### Punti da osservare")
         if selected_snapshot["alerts"]:
             for alert in selected_snapshot["alerts"]:
-                st.warning(f"Punto da osservare: {alert}")
+                st.markdown(f'<div class="psy-card psy-card--flat"><span class="psy-badge psy-badge--priority">Da osservare</span><div class="psy-card__body">{escape(str(alert))}</div></div>', unsafe_allow_html=True)
         else:
             st.info("Nessun alert automatico con i dati attuali.")
 
@@ -1663,7 +1705,16 @@ def show_therapist_dashboard():
         else:
             chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
             fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
-            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
+            fig.update_layout(
+                xaxis_title="Data", yaxis_title="Intensità", legend_title_text="",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff",
+                font={"family": "Segoe UI, sans-serif", "color": "#172321", "size": 13},
+                margin={"l": 36, "r": 20, "t": 24, "b": 40},
+                legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
+                hovermode="x unified",
+            )
+            fig.update_xaxes(showgrid=False, linecolor="#dce5e2")
+            fig.update_yaxes(gridcolor="#e8efed", zeroline=False)
             st.plotly_chart(fig, use_container_width=True)
             col_a, col_b = st.columns(2)
             with col_a:
@@ -1697,7 +1748,7 @@ def show_therapist_dashboard():
                     help="Questa è la domanda che comparirà nel compito.",
                     placeholder="Es. Quale piccolo passo puoi provare prima della prossima seduta?",
                 )
-                if st.form_submit_button("Assegna", use_container_width=True):
+                if st.form_submit_button("Assegna attività", use_container_width=True, type="primary"):
                     if assign_homework_for(selected_username, username, selected_wellness, template_name, due_date, prompt):
                         st.success("Esercizio assegnato.")
                         st.rerun()
@@ -1714,24 +1765,27 @@ def show_therapist_dashboard():
             m3.metric("Da completare", pending)
             m4.metric("Tasso di completamento", f"{rate:.0f}%")
             if assignments:
-                st.dataframe(pd.DataFrame(homework_assignment_rows(assignments, completed_ids)), use_container_width=True, hide_index=True)
+                assignment_rows = format_therapist_table_dates(homework_assignment_rows(assignments, completed_ids))
+                st.dataframe(pd.DataFrame(assignment_rows), use_container_width=True, hide_index=True)
             else:
                 st.info(empty_state_message("homework_assigned"))
 
         if submissions:
             st.markdown("#### Risposte inviate dal cliente")
             response_rows = submitted_homework_rows(submissions)
-            st.dataframe(pd.DataFrame(response_rows), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(format_therapist_table_dates(response_rows)), use_container_width=True, hide_index=True)
             with st.expander("Dettaglio risposta", expanded=False):
                 st.caption("Punti da riprendere in seduta: osservazioni utili, elementi ricorrenti da esplorare, dati da discutere insieme.")
                 for submission in sorted(submissions, key=lambda item: item.get("submitted_at", ""), reverse=True):
-                    st.markdown(f"**{homework_template_label(submission.get('template', 'Homework'))} · {submission.get('submitted_at', '—')}**")
+                    submitted_label = format_display_date(submission.get("submitted_at"), include_time=True, compact=True)
+                    st.markdown(f"**{homework_template_label(submission.get('template', 'Homework'))}**")
+                    st.caption(f"Risposta inviata {submitted_label}")
                     render_homework_answers(submission)
         else:
             st.info(empty_state_message("homework_submissions"))
 
     with detail_tabs[3]:
-        st.markdown("### Percorso e ricadute · Timeline del percorso")
+        st.markdown("### Percorso del paziente")
         st.caption("Questi segnali sono descrittivi e non diagnostici. Vanno interpretati dal professionista.")
         st.markdown("#### Obiettivi del percorso")
         therapist_goals = normalize_journey_goals(selected_wellness)
@@ -1739,19 +1793,18 @@ def show_therapist_dashboard():
             st.info("Il paziente non ha ancora indicato obiettivi per il percorso.")
         for goal in therapist_goals:
             with st.container(border=True):
-                created = pd.to_datetime(goal.get("created_at"), errors="coerce")
-                created_label = created.strftime("%d/%m/%Y") if pd.notna(created) and created.year > 1970 else "dal punto di partenza"
+                created_label = format_display_date(goal.get("created_at"), compact=True, fallback="dal punto di partenza")
                 st.markdown(f"**{escape(goal['title'])}**")
                 st.caption(f"{source_label(goal['source'])} · {'Raggiunto' if goal['status'] == 'achieved' else 'In percorso'} · Creato {created_label}")
                 if goal.get("achieved_at"):
                     reached = pd.to_datetime(goal["achieved_at"], errors="coerce")
                     if pd.notna(reached):
-                        st.caption(f"Confermato insieme al terapeuta il {reached.strftime('%d/%m/%Y')}")
+                        st.caption(f"Confermato insieme al terapeuta il {format_display_date(reached, compact=True)}")
                 with st.form(f"therapist_goal_{goal['id']}"):
                     achieved = st.checkbox("Obiettivo raggiunto", value=goal["status"] == "achieved")
                     note = st.text_input("Nota facoltativa", value=goal.get("therapist_note", ""), max_chars=300,
                                          placeholder="Breve nota condivisa sul passo riconosciuto.")
-                    if st.form_submit_button("Salva aggiornamento"):
+                    if st.form_submit_button("Salva aggiornamento", type="primary"):
                         try:
                             save_therapist_journey_goal(selected_username, selected_wellness, goal["id"], achieved, note, username)
                         except (JourneyGoalError, PermissionError, APIClientError) as error:
@@ -1761,18 +1814,21 @@ def show_therapist_dashboard():
                             st.rerun()
         journey = build_progress_journey_summary(selected_wellness)
         journey_events = journey.get("timeline_events") or []
+        st.markdown("#### Cosa sta succedendo")
+        st.caption("Segnali descrittivi emersi dalle attività e dalle compilazioni recenti.")
         st.markdown("#### Punti da riprendere in seduta")
         for point in journey["next_session_points"]:
             st.write(f"- {point}")
         if journey.get("retention_alerts"):
             st.warning(journey["retention_alerts"][0]["therapist_copy"])
-        show_full_timeline = st.button("Apri timeline percorso", use_container_width=True)
+        st.markdown("#### Storico del percorso")
+        show_full_timeline = st.button("Apri timeline completa", use_container_width=True)
         render_progress_timeline(journey_events, max_visible=None if show_full_timeline else 10, newest_first=True)
         with st.form("manual_timeline_event"):
             st.caption("Gli eventi manuali sono visibili soltanto al terapeuta.")
             event_title = st.text_input("Che cosa vuoi aggiungere al percorso?", help="Inserisci un evento o un cambiamento utile da ricordare.", placeholder="Es. Ha affrontato una situazione che prima evitava.")
             event_detail = st.text_area("Aggiungi un breve dettaglio", help="Facoltativo: indica perché può essere utile riprenderlo.", placeholder="Es. Ne parleremo nella prossima seduta.")
-            if st.form_submit_button("Aggiungi alla timeline", use_container_width=True):
+            if st.form_submit_button("Aggiungi alla timeline", use_container_width=True, type="primary"):
                 selected_wellness.setdefault("timeline_events", []).append({
                     "data": datetime.utcnow().isoformat(timespec="seconds"),
                     "tipo": "Evento clinico",
@@ -1785,18 +1841,18 @@ def show_therapist_dashboard():
 
     with detail_tabs[4]:
         st.markdown("### Note private del terapeuta")
-        st.caption("Queste note non sono mostrate al paziente e non entrano automaticamente nel recap.")
+        st.markdown('<div class="psy-readonly"><strong>Spazio riservato al terapeuta</strong><br><span class="psy-helper">Queste note non sono mostrate al paziente e non entrano automaticamente nel recap.</span></div>', unsafe_allow_html=True)
         notes = load_therapist_notes(username)
         note_value = notes.get(selected_username, "")
         updated_note = st.text_area("Note private del terapeuta", value=note_value, height=260, help="Queste note non sono mostrate al paziente e non entrano automaticamente nel recap.", placeholder="Scrivi appunti utili per il tuo lavoro.")
-        if st.button("Salva note private", use_container_width=True):
+        if st.button("Salva note private", use_container_width=True, type="primary"):
             notes[selected_username] = updated_note
             save_therapist_notes(username, notes)
             st.success("Note private salvate.")
 
     with detail_tabs[5]:
         st.markdown("### Riepilogo pre-seduta")
-        st.caption("Una vista rapida dei dati recenti del cliente da usare come supporto prima della seduta.")
+        st.caption("Quadro operativo, in sola lettura, delle attività tra le sedute e dei punti da riprendere.")
         pre_session = build_pre_session_summary(selected_wellness)
         st.info(pre_session["non_diagnostic_notice"])
 
@@ -1814,7 +1870,8 @@ def show_therapist_dashboard():
             if hw["recent_submissions"]:
                 for submission in hw["recent_submissions"]:
                     with st.container(border=True):
-                        st.markdown(f"**{submission['title']}** · {submission['submitted_at']}")
+                        st.markdown(f"**{submission['title']}**")
+                        st.caption(format_display_date(submission["submitted_at"], include_time=True, compact=True))
                         st.write(submission["snippet"])
             else:
                 st.info("Non risultano risposte recenti.")
@@ -1835,7 +1892,9 @@ def show_therapist_dashboard():
             for entry in shared_private_entries:
                 with st.container(border=True):
                     st.markdown(f"**{entry.get('title', 'Senza titolo')}**")
-                    st.caption(f"Condivisa dal paziente · creata: {entry.get('created_at', '—')} · condivisa: {entry.get('shared_at', '—')}")
+                    created_label = format_display_date(entry.get("created_at"), include_time=True, compact=True)
+                    shared_label = format_display_date(entry.get("shared_at"), include_time=True, compact=True)
+                    st.caption(f"Condivisa dal paziente · creata {created_label} · condivisa {shared_label}")
                     st.write(entry.get("content", ""))
         else:
             st.info("Non ci sono materiali condivisi dal paziente per questa seduta.")
@@ -1848,9 +1907,10 @@ def show_therapist_dashboard():
             st.info("Assegna un esercizio o invita il cliente a compilare un check-in per vedere più informazioni qui.")
 
         st.divider()
-        st.markdown("### Riepilogo prima della seduta")
+        st.markdown("### Sintesi settimanale esportabile")
+        st.caption("Testo automatico precedente, disponibile per consultazione ed esportazione; distinto dal quadro operativo sopra.")
         recap_payload = weekly_recap_payload_for(selected_username, selected_snapshot)
-        st.container(border=True).write(recap_payload["display_text"])
+        st.markdown(f'<div class="psy-readonly">{escape(recap_payload["display_text"])}</div>', unsafe_allow_html=True)
         st.download_button(
             "Scarica recap .txt",
             data=recap_payload["download_text"],
@@ -2416,7 +2476,7 @@ BRIDGE_SOURCE_LABELS = {
 def show_therapist_session_bridge(username, patient_name, wellness):
     """Render the selected patient's submitted Bridge, never their transient draft."""
     st.markdown(f"## Bridge · {escape(patient_name)}")
-    st.caption("Ciò che il paziente ha scelto di portare nella prossima seduta.")
+    st.caption("Ciò che il paziente ha scelto di portare nella prossima seduta, raccolto in un unico spazio.")
     try:
         bridge = get_session_bridge(wellness)
     except SessionBridgeValidationError:
@@ -2434,6 +2494,9 @@ def show_therapist_session_bridge(username, patient_name, wellness):
     except SessionBridgeValidationError:
         st.info("Il Bridge non contiene materiale disponibile.")
         return
+    status_labels = {"ready": "Bridge pronto", "reviewed": "Ripreso", "archived": "Archiviato"}
+    status_class = "psy-badge--success" if status in {"ready", "reviewed"} else ""
+    st.markdown(f'<span class="psy-badge {status_class}">{status_labels.get(status, status)}</span>', unsafe_allow_html=True)
     if bridge["optional_text"].strip():
         with st.container(border=True):
             st.caption("Nota del paziente")
