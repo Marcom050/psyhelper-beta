@@ -9,6 +9,7 @@ from services.session_bridge_service import (
     build_bridge_candidates,
     build_bridge_preview,
     source_reference,
+    transition_session_bridge,
     validate_bridge_payload,
 )
 
@@ -174,3 +175,40 @@ def test_active_goals_and_next_session_items_do_not_age_out():
     types = {item["source_type"] for item in build_bridge_candidates(wellness, now=much_later)}
     assert "journey_goal" in types
     assert "next_session" in types
+
+
+def test_bridge_lifecycle_is_role_scoped_idempotent_and_keeps_material():
+    wellness = sample_wellness()
+    ref = build_bridge_candidates(wellness, now=NOW)[0]["ref"]
+    original = {"selected_refs": [ref], "priority_ref": ref, "optional_text": "Parliamone", "week_rating": 3}
+    wellness["session_bridge"] = original.copy()
+
+    ready = transition_session_bridge(wellness, "ready", actor_role="client", now=NOW)
+    assert ready["status"] == "ready"
+    assert ready["selected_refs"] == [ref]
+    assert transition_session_bridge(wellness, "ready", actor_role="client", now=NOW) == ready
+
+    reviewed = transition_session_bridge(wellness, "review", actor_role="therapist", now=NOW)
+    archived = transition_session_bridge(wellness, "archive", actor_role="therapist", now=NOW)
+    assert reviewed["status"] == "reviewed"
+    assert archived["status"] == "archived"
+    assert archived["selected_refs"] == original["selected_refs"]
+    assert archived["optional_text"] == original["optional_text"]
+
+
+def test_bridge_lifecycle_rejects_private_draft_and_wrong_role():
+    wellness = {"session_bridge": {"selected_refs": [], "priority_ref": None, "optional_text": "", "week_rating": 4}}
+    with pytest.raises(SessionBridgeValidationError):
+        transition_session_bridge(wellness, "ready", actor_role="client", now=NOW)
+
+    wellness["session_bridge"]["optional_text"] = "Da condividere"
+    with pytest.raises(SessionBridgeValidationError):
+        transition_session_bridge(wellness, "review", actor_role="therapist", now=NOW)
+
+
+def test_optional_text_only_bridge_remains_readable_after_submission():
+    wellness = {"session_bridge": {"selected_refs": [], "priority_ref": None,
+                                   "optional_text": "Un pensiero", "week_rating": None}}
+    ready = transition_session_bridge(wellness, "ready", actor_role="client", now=NOW)
+    assert ready["status"] == "ready"
+    assert validate_bridge_payload(ready).optional_text == "Un pensiero"

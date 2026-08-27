@@ -173,6 +173,14 @@ class PsyHelperAPIClient:
         )
         return response["session_bridge"]
 
+    def transition_session_bridge(self, username: str, action: str) -> dict[str, Any]:
+        safe_username = quote(username, safe="")
+        response = self._request(
+            "POST", f"/clients/{safe_username}/session-bridge/action", username=username,
+            json={"action": action}, response_model=SessionBridgeResponse,
+        )
+        return response["session_bridge"]
+
     def create_mood_entry(self, username: str, mood_entry: dict[str, Any]) -> dict[str, Any]:
         safe_username = quote(username, safe="")
         response = self._request(

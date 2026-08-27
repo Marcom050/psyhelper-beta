@@ -77,6 +77,7 @@ from services.session_bridge_service import (
     build_bridge_preview,
     get_session_bridge,
     save_session_bridge,
+    transition_session_bridge,
     validate_session_bridge_state,
 )
 from services.progress_journey_service import build_progress_journey_summary
@@ -101,6 +102,7 @@ from services.post_consultation_onboarding_service import (
 LOGGER = logging.getLogger(__name__)
 SHOW_DEBUG_UI = os.getenv("SHOW_DEBUG_UI", "").lower() == "true"
 SESSION_BRIDGE_VIEW_KEY = "patient_session_bridge_view"
+THERAPIST_BRIDGE_VIEW_KEY = "therapist_session_bridge_view"
 
 st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 
@@ -1431,6 +1433,18 @@ def show_therapist_dashboard():
             f"homework: {selected_snapshot['homework_completed']}/{selected_snapshot['homework_total']}"
         )
 
+    if session_adapter.get_ui_state(THERAPIST_BRIDGE_VIEW_KEY, False):
+        if st.button("ESCI DA BRIDGE", key="therapist_bridge_exit"):
+            session_adapter.set_ui_state(THERAPIST_BRIDGE_VIEW_KEY, False)
+            st.rerun()
+            return
+        show_therapist_session_bridge(selected_username, selected_patient_name, selected_wellness)
+        return
+    if st.button("BRIDGE", key="therapist_bridge_open", type="primary"):
+        session_adapter.set_ui_state(THERAPIST_BRIDGE_VIEW_KEY, True)
+        st.rerun()
+        return
+
     st.markdown(f"## {selected_patient_name}")
     with st.container(border=True):
         st.markdown("### Punto di partenza del percorso")
@@ -2043,6 +2057,16 @@ def save_session_bridge_for(username, wellness, payload):
     return saved
 
 
+def transition_session_bridge_for(username, wellness, action, actor_role):
+    if use_http_api():
+        saved = api_client().transition_session_bridge(username, action)
+        wellness["session_bridge"] = saved
+        return saved
+    saved = transition_session_bridge(wellness, action, actor_role=actor_role)
+    save_wellness_for(username, wellness)
+    return saved
+
+
 def update_session_bridge_selection(draft, ref, selected):
     """Update only transient widget state; persisted validation remains in the domain service."""
     refs = list(draft.get("selected_refs", []))
@@ -2132,6 +2156,15 @@ def show_session_bridge_tab():
     if not session_adapter.has_ui_state(draft_key):
         session_adapter.set_ui_state(draft_key, validate_session_bridge_state(persisted))
     draft = session_adapter.get_ui_state(draft_key)
+
+    if draft.get("status") in {"ready", "reviewed", "archived"}:
+        messages = {
+            "ready": "Bridge pronto. Il terapeuta può ora consultare ciò che hai scelto.",
+            "reviewed": "Il materiale è stato ripreso in seduta.",
+            "archived": "Questo Bridge è stato concluso e archiviato.",
+        }
+        st.success(messages[draft["status"]])
+        return
 
     rating_labels = {
         1: "Molto difficile", 2: "Difficile", 3: "Così così", 4: "Buona", 5: "Molto buona",
@@ -2240,16 +2273,82 @@ def show_session_bridge_tab():
         if draft["optional_text"].strip():
             st.caption(draft["optional_text"].strip())
 
-    if st.button("Salva per la prossima seduta", type="primary", use_container_width=True):
+    if st.button("BRIDGE PRONTO", type="primary", use_container_width=True):
         try:
             saved = save_session_bridge_for(username, wellness, draft)
+            saved = transition_session_bridge_for(username, wellness, "ready", "client")
         except SessionBridgeValidationError as error:
             st.error(str(error))
         except APIClientError as error:
             show_api_error(error)
         else:
             session_adapter.set_ui_state(draft_key, saved.copy())
-            st.success("Salvato. Puoi tornare qui e modificarlo quando vuoi.")
+            st.success("Bridge pronto. Il terapeuta può ora consultare ciò che hai scelto.")
+
+
+BRIDGE_SOURCE_LABELS = {
+    "next_session": "Per la prossima seduta",
+    "shared_private_area": "Area privata · condiviso",
+    "homework_submission": "Attività completata",
+    "diary_entry": "Diario CBT",
+    "journey_goal": "Obiettivo del percorso",
+    "timeline_summary": "Percorso",
+}
+
+
+def show_therapist_session_bridge(username, patient_name, wellness):
+    """Render the selected patient's submitted Bridge, never their transient draft."""
+    st.markdown(f"## Bridge · {escape(patient_name)}")
+    st.caption("Ciò che il paziente ha scelto di portare nella prossima seduta.")
+    try:
+        bridge = get_session_bridge(wellness)
+    except SessionBridgeValidationError:
+        st.info("Il paziente non ha ancora preparato il Bridge per la prossima seduta.")
+        return
+    status = bridge.get("status", "draft")
+    if status == "draft":
+        copy = ("Il paziente sta preparando il Bridge. Il materiale sarà visibile quando lo avrà inviato."
+                if bridge["selected_refs"] or bridge["optional_text"].strip() else
+                "Il paziente non ha ancora preparato il Bridge per la prossima seduta.")
+        st.info(copy)
+        return
+    try:
+        preview = build_bridge_preview(wellness, bridge)
+    except SessionBridgeValidationError:
+        st.info("Il Bridge non contiene materiale disponibile.")
+        return
+    if bridge["optional_text"].strip():
+        with st.container(border=True):
+            st.caption("Nota del paziente")
+            st.write(bridge["optional_text"].strip())
+    for item in sorted(preview["items"], key=lambda value: not value["is_priority"]):
+        with st.container(border=True):
+            label = BRIDGE_SOURCE_LABELS.get(item["source_type"], "Contenuto condiviso")
+            st.caption(f"{label}{' · Da cui partire' if item['is_priority'] else ''}")
+            st.markdown(f"**{escape(item['title'])}**")
+            if item["content"]:
+                st.write(item["content"])
+    if not preview["items"] and not bridge["optional_text"].strip():
+        st.info("Il Bridge non contiene più materiale disponibile.")
+    if bridge.get("week_rating") is not None:
+        labels = {1: "Molto difficile", 2: "Difficile", 3: "Così così", 4: "Buona", 5: "Molto buona"}
+        st.markdown("### Contesto recente")
+        st.caption(f"Settimana percepita dal paziente: **{labels[bridge['week_rating']]}**")
+    if preview["unavailable_refs"]:
+        st.caption("Uno o più elementi scelti non sono più condivisi o disponibili e non vengono mostrati.")
+    if status == "ready":
+        if st.button("RIPRESO IN SEDUTA", key=f"bridge_review:{username}", type="primary"):
+            transition_session_bridge_for(username, wellness, "review", "therapist")
+            st.success("Bridge segnato come ripreso in seduta.")
+            st.rerun()
+    elif status == "reviewed":
+        st.success("Materiale ripreso in seduta.")
+        if st.button("Chiudi e archivia Bridge", key=f"bridge_archive:{username}"):
+            transition_session_bridge_for(username, wellness, "archive", "therapist")
+            st.success("Bridge archiviato senza cancellarne il contenuto.")
+            st.rerun()
+    else:
+        st.success("Bridge concluso e archiviato.")
 
 
 def render_client_app_tabs():
