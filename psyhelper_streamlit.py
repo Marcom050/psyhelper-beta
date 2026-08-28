@@ -136,7 +136,14 @@ DESIGN_SYSTEM_CSS = """
   --psy-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-html, body, [class*="st-"] { font-family: var(--psy-font); }
+/* Do not target every generated st-* class: Streamlit uses dedicated icon
+   fonts on some of those nodes. Text inherits our stack from the document. */
+html, body { font-family: var(--psy-font); }
+button, input, textarea, select, label, p, li, h1, h2, h3, h4, h5, h6,
+[data-testid="stMarkdownContainer"], [data-testid="stCaptionContainer"] { font-family: var(--psy-font); }
+/* Preserve Streamlit/Material ligatures even when an icon sits inside text UI. */
+.material-symbols-rounded, .material-symbols-outlined, .material-icons,
+[class*="material-symbols"], [class*="material-icons"] { font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important; }
 body { color: var(--psy-text); }
 [data-testid="stAppViewContainer"] { background: var(--psy-bg); }
 [data-testid="stHeader"] { background: rgba(245, 247, 246, 0.94); }
@@ -175,10 +182,15 @@ hr { border-color: var(--psy-border) !important; margin: var(--psy-space-6) 0 !i
 [data-testid="stButton"] button:hover, [data-testid="stFormSubmitButton"] button:hover, [data-testid="stDownloadButton"] button:hover {
   border-color: var(--psy-primary); color: var(--psy-primary); background: var(--psy-surface-subtle);
 }
-button[kind="primary"], [data-testid="stFormSubmitButton"] button[kind="primary"] {
+[data-testid="stButton"] button[kind="primary"],
+[data-testid="stFormSubmitButton"] button[kind="primary"],
+[data-testid="stFormSubmitButton"] button[data-testid="stBaseButton-primary"],
+button[data-testid="stBaseButton-primary"] {
   color: #fff !important; background: var(--psy-primary) !important; border-color: var(--psy-primary) !important;
 }
-button[kind="primary"]:hover { background: var(--psy-primary-hover) !important; border-color: var(--psy-primary-hover) !important; }
+[data-testid="stButton"] button[kind="primary"]:hover,
+[data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+button[data-testid="stBaseButton-primary"]:hover { background: var(--psy-primary-hover) !important; border-color: var(--psy-primary-hover) !important; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
   outline: 3px solid rgba(50, 107, 97, .22) !important; outline-offset: 2px;
 }
@@ -191,7 +203,14 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   border-radius: var(--psy-radius-md) !important; box-shadow: none !important;
 }
 [data-baseweb="input"] > div:focus-within, [data-baseweb="textarea"] > div:focus-within,
-[data-baseweb="select"] > div:focus-within { border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(50,107,97,.14) !important; }
+[data-baseweb="select"] > div:focus-within, [data-baseweb="base-input"]:focus-within,
+[data-testid="stDateInput"] [data-baseweb="input"] > div:focus-within,
+[data-testid="stNumberInput"] [data-baseweb="input"] > div:focus-within {
+  border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(50,107,97,.14) !important;
+}
+[data-testid="stCheckbox"] input:checked + div, [data-testid="stRadio"] input:checked + div { background-color: var(--psy-primary) !important; border-color: var(--psy-primary) !important; }
+[data-testid="stSlider"] [role="slider"], [data-testid="stSlider"] [data-testid="stTickBarMin"],
+[data-testid="stSlider"] [data-testid="stTickBarMax"] { border-color: var(--psy-primary) !important; }
 [data-testid="stWidgetLabel"] p { color: var(--psy-text); font-size: .9rem; font-weight: 600; }
 [data-testid="stSlider"] [role="slider"] { background: var(--psy-primary); }
 [data-testid="stCheckbox"] label, [data-testid="stRadio"] label { min-height: 2rem; }
@@ -236,6 +255,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .psy-card--flat { box-shadow: none; }
 .psy-preview { padding: var(--psy-space-2) 0; border-bottom: 1px solid var(--psy-border); }
 .psy-notice { margin-bottom: var(--psy-space-5); padding: var(--psy-space-4); background: var(--psy-surface-subtle); border-left: 3px solid var(--psy-info); border-radius: var(--psy-radius-md); color: var(--psy-text); font-size: .9rem; line-height: 1.5; }
+.psy-patient-intro { margin: 0 0 var(--psy-space-5); padding: var(--psy-space-3) 0; border-bottom: 1px solid var(--psy-border); }
+.psy-patient-intro__title { color: var(--psy-text); font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; }
+.psy-patient-intro__copy { max-width: 48rem; margin-top: .25rem; color: var(--psy-text-muted); line-height: 1.5; }
+.psy-section-label { margin-top: var(--psy-space-5); color: var(--psy-primary); font-size: .76rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.psy-badge--private { border-color: #cddbd7; background: #f3f7f6; color: var(--psy-primary); }
+.psy-badge--revoked { border-color: #e1d6c2; background: #faf6ed; color: #785d2c; }
 
 [data-testid="stChatInput"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
 [data-testid="stChatInput"] > div { border: 1px solid var(--psy-border) !important; border-radius: var(--psy-radius-card) !important; background: var(--psy-surface) !important; box-shadow: var(--psy-shadow-subtle) !important; padding: .2rem .45rem !important; }
@@ -251,6 +276,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   [data-testid="column"] { min-width: min(100%, 15rem) !important; flex: 1 1 15rem !important; }
   [data-testid="stButton"] button, [data-testid="stFormSubmitButton"] button { min-height: 2.75rem; }
   .psy-workspace__title { font-size: 1.4rem; }
+  .psy-patient-intro__title { font-size: 1.25rem; }
+  .psy-card { padding: var(--psy-space-3); }
 }
 </style>
 """
@@ -540,7 +567,7 @@ def format_display_date(value, *, include_time=False, compact=False, fallback="�
     """Format stored dates for the UI without changing persisted values."""
     parsed = pd.to_datetime(value, errors="coerce")
     if pd.isna(parsed) or parsed.year <= 1970:
-        return fallback if value in (None, "") else str(value)
+        return fallback
     month = ITALIAN_MONTHS[parsed.month - 1]
     if compact:
         month = month[:3]
@@ -548,6 +575,11 @@ def format_display_date(value, *, include_time=False, compact=False, fallback="�
     if include_time and ("T" in str(value) or ":" in str(value)):
         label += f" · {parsed.strftime('%H:%M')}"
     return label
+
+
+def count_label(count, singular, plural):
+    """Return presentation-only Italian singular/plural copy."""
+    return f"{count} {singular if count == 1 else plural}"
 
 
 def format_therapist_table_dates(rows):
@@ -953,9 +985,9 @@ def render_chat_input_styles():
 
 def show_chat_tab():
     render_chat_input_styles()
-    st.subheader("💬 Chat di supporto")
-    st.caption(f"Ciao {compact_display_name(session_adapter.get_profile(), session_adapter.get_username())}.")
-    st.info(
+    st.subheader("Chat di supporto")
+    st.caption("Scrivi ciò che sta succedendo tra una seduta e l'altra.")
+    st.markdown(
         "Ogni paziente è diverso: PsyHelper aiuta il professionista a organizzare e personalizzare il lavoro, senza imporre un approccio unico. "
         "Il terapeuta mantiene sempre il controllo del percorso clinico."
     )
@@ -989,8 +1021,8 @@ def show_chat_tab():
 
 
 def show_diary_tab():
-    st.subheader("📝 Diario CBT")
-    st.caption("Prima i dati essenziali; i dettagli restano disponibili qui sotto.")
+    st.subheader("Diario CBT")
+    st.caption("Metti in ordine un episodio, con le parole che ti vengono più naturali.")
 
     record_anxiety_stress = st.checkbox(
         "Vuoi registrare anche ansia e stress?",
@@ -999,6 +1031,7 @@ def show_diary_tab():
     )
 
     with st.form("mood_entry_form"):
+        st.markdown('<div class="psy-section-label">Come sto · cosa è successo</div>', unsafe_allow_html=True)
         entry_date = st.date_input("Data", value=date.today(), help="Scegli il giorno dell'episodio.")
         mood = st.selectbox("Che emozione hai sentito di più?", MOOD_OPTIONS, help="Scegli quella più presente in quel momento.")
         mood_intensity = st.slider("Quanto era forte?", 0, 10, 5, help="0 significa per niente, 10 significa molto forte.")
@@ -1007,6 +1040,7 @@ def show_diary_tab():
             help="Descrivi brevemente il momento o la situazione.",
             placeholder="Es. Ho ricevuto un messaggio che mi ha preoccupato.",
         )
+        st.markdown('<div class="psy-section-label">Cosa ho pensato o sentito</div>', unsafe_allow_html=True)
         automatic_thought = st.text_area(
             "Che pensiero ti è venuto in quel momento?",
             help="Scrivilo come ti è comparso, anche con poche parole.",
@@ -1017,6 +1051,7 @@ def show_diary_tab():
             help="Descrivi brevemente come hai reagito.",
             placeholder="Es. Ho evitato di rispondere e ho spento il telefono.",
         )
+        st.markdown('<div class="psy-section-label">Cosa voglio ricordare</div>', unsafe_allow_html=True)
         note = st.text_area(
             "Vuoi riprendere qualcosa di questo episodio in seduta? (facoltativo)",
             help="Questo testo sarà visibile al terapeuta.",
@@ -1031,7 +1066,7 @@ def show_diary_tab():
             sensations = st.multiselect("Che cosa hai sentito nel corpo? (facoltativo)", SENSATION_OPTIONS, help="Scegli solo le sensazioni che ricordi chiaramente.")
             need = ""
 
-        if st.form_submit_button("Salva scheda", use_container_width=True):
+        if st.form_submit_button("Salva scheda", use_container_width=True, type="primary"):
             entry = {
                 "creata_il": datetime.utcnow().isoformat(timespec="seconds"),
                 "data": entry_date.isoformat(),
@@ -1069,7 +1104,7 @@ def show_monitoring_tab():
     starting_point = build_starting_point(profile, wellness)
     recap = build_patient_progress_recap(wellness, journey)
 
-    st.title("📈 Il mio percorso")
+    st.title("Il mio percorso")
     st.write("Uno spazio per ricordare da dove sei partito, vedere i passi fatti e tenere presenti gli obiettivi del percorso.")
     st.caption("Questa panoramica organizza le informazioni inserite da te e dal terapeuta. Non rappresenta una valutazione clinica automatica.")
 
@@ -1109,8 +1144,7 @@ def show_monitoring_tab():
     st.markdown("### Progressi riconosciuti")
     if recap["achieved_goals"]:
         for goal in recap["achieved_goals"]:
-            achieved_date = pd.to_datetime(goal.get("achieved_at"), errors="coerce")
-            date_label = achieved_date.strftime("%d/%m/%Y") if pd.notna(achieved_date) else "data non disponibile"
+            date_label = format_display_date(goal.get("achieved_at"), compact=True, fallback="data non disponibile")
             st.markdown(f"**{escape(goal['title'])}**  ")
             st.caption(f"Riconosciuto insieme al terapeuta il {date_label}.")
     else:
@@ -1147,7 +1181,7 @@ def show_monitoring_tab():
     for key, name, recent_key, count_key in (("anxiety", "Ansia", "recent_anxiety_avg", "recent_anxiety_count"), ("stress", "Stress", "recent_stress_avg", "recent_stress_count")):
         baseline_field, recent = baseline_by_key.get(key), snapshot.get(recent_key)
         if baseline_field and isinstance(baseline_field["value"], (int, float)) and recent is not None:
-            comparisons.append(f"{name}: {baseline_field['value']}/10 all'inizio → {recent:.1f}/10 nei check-in recenti ({snapshot[count_key]} compilazioni)")
+            comparisons.append(f"{name}: {baseline_field['value']}/10 all'inizio → {recent:.1f}/10 nei check-in recenti ({count_label(snapshot[count_key], 'compilazione', 'compilazioni')})")
     if comparisons:
         with st.container(border=True):
             for comparison in comparisons:
@@ -1162,7 +1196,7 @@ def show_monitoring_tab():
             st.write(f"• {item}")
         st.markdown("#### Segnali ricorrenti")
         for item in journey.get("recurring_triggers") or []:
-            st.write(f"• {item['trigger']} ({item['count']} compilazioni)")
+            st.write(f"• {item['trigger']} ({count_label(item['count'], 'compilazione', 'compilazioni')})")
         df = entries_dataframe()
         if not df.empty:
             for column in ("ansia", "stress", "umore_intensita"):
@@ -1170,11 +1204,13 @@ def show_monitoring_tab():
                     df[column] = pd.NA
             chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
             fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
-            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="Indicatore")
+            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff", font={"family": "Segoe UI, sans-serif", "color": "#172321"}, margin={"l": 36, "r": 20, "t": 24, "b": 40}, legend={"orientation": "h"})
+            fig.update_xaxes(showgrid=False, linecolor="#dce5e2")
+            fig.update_yaxes(gridcolor="#e8efed", zeroline=False)
             st.plotly_chart(fig, use_container_width=True)
 
 def show_homework_tab():
-    st.subheader("📚 Esercizi assegnati")
+    st.subheader("Esercizi assegnati")
     st.caption("Qui trovi gli esercizi che il terapeuta ti ha assegnato tra una seduta e l'altra. Puoi compilarli con calma: non servono risposte perfette, ma osservazioni utili da discutere insieme.")
     st.caption("Queste schede sono strumenti di supporto e monitoraggio da usare nel percorso con il professionista. Non forniscono diagnosi, valutazioni cliniche automatiche o indicazioni di emergenza.")
     ensure_wellness_schema(session_adapter.get_wellness())
@@ -1188,13 +1224,13 @@ def show_homework_tab():
         selected_assignment = st.selectbox(
             "Scegli il compito",
             open_assignments,
-            format_func=lambda item: f"{homework_template_label(item.get('template', 'Homework'))} · {assignment_status(item, completed_ids).lower()} · scadenza {item.get('due_date', 'non indicata')}",
+            format_func=lambda item: f"{homework_template_label(item.get('template', 'Homework'))} · {assignment_status(item, completed_ids).lower()} · scadenza {format_display_date(item.get('due_date'), compact=True, fallback='non indicata')}",
         )
         template_name = selected_assignment.get("template")
         template = CBT_HOMEWORK_TEMPLATES.get(template_name, {})
         prompt = homework_main_prompt(template_name, selected_assignment)
         st.info(template.get("obiettivo") or "Compito breve assegnato dal terapeuta.")
-        st.metric("Scadenza", selected_assignment.get("due_date", "—"))
+        st.metric("Scadenza", format_display_date(selected_assignment.get("due_date"), compact=True))
         with st.form("assigned_homework_submission"):
             st.markdown(f"**Domanda assegnata:** {prompt}")
             st.caption("La risposta sarà visibile al terapeuta dopo l’invio.")
@@ -1252,7 +1288,7 @@ def show_homework_tab():
             rows = submitted_homework_rows(submissions, display_defaults=False)
             for row in rows:
                 with st.container(border=True):
-                    st.markdown(f"**{homework_template_label(row.get('homework', 'Homework'))}** · {row.get('data', 'Data non disponibile')}")
+                    st.markdown(f"**{homework_template_label(row.get('homework', 'Homework'))}** · {format_display_date(row.get('data'), include_time=True, compact=True, fallback='Data non disponibile')}")
                     st.write(f"Sintesi: {row.get('sintesi', 'n/d')}")
 
 
@@ -1265,8 +1301,8 @@ def _private_area_status_label(status):
 
 
 def show_private_area_tab():
-    st.subheader("🔐 Area privata · Cose che vorrei dire")
-    st.info("Questo spazio è privato. Il terapeuta non vede ciò che scrivi qui, a meno che tu non scelga esplicitamente di condividerlo.")
+    st.subheader("Area privata · Cose che vorrei dire")
+    st.markdown('<div class="psy-notice">Questo spazio è privato. Il terapeuta non vede ciò che scrivi qui, a meno che tu non scelga esplicitamente di condividerlo.</div>', unsafe_allow_html=True)
     st.caption("Scrivi qui qualcosa che vorresti portare in seduta, ma che non ti senti ancora pronto/a a dire. Rimane privato finché non scegli di condividerlo.")
     st.warning("PsyHelper non è uno strumento di emergenza. Se ti trovi in pericolo immediato o hai bisogno di aiuto urgente, contatta i servizi di emergenza o un professionista.")
 
@@ -1279,7 +1315,7 @@ def show_private_area_tab():
             placeholder="Scrivi un pensiero, un dubbio o qualcosa che non vuoi dimenticare.",
             height=160,
         )
-        if st.form_submit_button("Salva in area privata", use_container_width=True):
+        if st.form_submit_button("Salva in area privata", use_container_width=True, type="primary"):
             if not content.strip():
                 st.error("Scrivi almeno qualche parola prima di salvare la nota.")
             else:
@@ -1298,7 +1334,10 @@ def show_private_area_tab():
         status = entry.get("share_status", "private")
         with st.container(border=True):
             st.markdown(f"**{entry.get('title', 'Senza titolo')}**")
-            st.caption(f"Stato: {_private_area_status_label(status)} · Creata: {entry.get('created_at', '—')} · Aggiornata: {entry.get('updated_at', '—')}")
+            badge_class = {"private": "psy-badge--private", "shared": "psy-badge--success", "revoked": "psy-badge--revoked"}.get(status, "psy-badge--private")
+            st.markdown(f'<span class="psy-badge {badge_class}">{escape(_private_area_status_label(status))}</span>', unsafe_allow_html=True)
+            dates = [f"Creata {format_display_date(entry.get('created_at'), compact=True)}", f"Aggiornata {format_display_date(entry.get('updated_at'), compact=True)}"]
+            st.caption(" · ".join(part for part in dates if not part.endswith("—")))
             st.write(entry.get("content", ""))
             if status == "private":
                 with st.expander("Modifica nota privata"):
@@ -1340,7 +1379,7 @@ def show_private_area_tab():
                     st.rerun()
 
 def show_report_tab():
-    st.subheader("📋 Resoconto per colloqui psicologici")
+    st.subheader("Resoconto per la seduta")
     report = clinical_report_for(session_adapter.get_username(), session_adapter.get_wellness(), session_adapter.get_messages())
     report_scope_df = report["scope_df"]
     if report_scope_df.empty:
@@ -1353,7 +1392,10 @@ def show_report_tab():
     st.download_button("Scarica resoconto .txt", data=report["export_text"], file_name="resoconto_psyhelper.txt", mime="text/plain", use_container_width=True)
 
     with st.expander("Vedi schede dettagliate"):
-        st.dataframe(report_scope_df.sort_values("data", ascending=False), use_container_width=True)
+        display_df = report_scope_df.sort_values("data", ascending=False).copy()
+        if "data" in display_df:
+            display_df["data"] = display_df["data"].map(lambda value: format_display_date(value, compact=True))
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 
 def show_subscription_required(account_label, therapist_username=None):
@@ -1719,7 +1761,16 @@ def show_therapist_dashboard():
             col_a, col_b = st.columns(2)
             with col_a:
                 st.markdown("**Situazioni ricorrenti**")
-                st.dataframe(most_common_values(df["trigger"], limit=5).rename("Frequenza"), use_container_width=True)
+                recurring = most_common_values(df["trigger"], limit=5).rename_axis("Situazione").reset_index(name="Frequenza")
+                st.dataframe(
+                    recurring,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Situazione": st.column_config.TextColumn("Situazione", width="large"),
+                        "Frequenza": st.column_config.NumberColumn("Frequenza", width="small"),
+                    },
+                )
             with col_b:
                 st.markdown("**Pensieri recenti**")
                 recent_thoughts = df["pensiero_automatico"].dropna().tail(5)
@@ -1795,7 +1846,10 @@ def show_therapist_dashboard():
             with st.container(border=True):
                 created_label = format_display_date(goal.get("created_at"), compact=True, fallback="dal punto di partenza")
                 st.markdown(f"**{escape(goal['title'])}**")
-                st.caption(f"{source_label(goal['source'])} · {'Raggiunto' if goal['status'] == 'achieved' else 'In percorso'} · Creato {created_label}")
+                goal_meta = [source_label(goal["source"]), "Raggiunto" if goal["status"] == "achieved" else "In percorso"]
+                if created_label != "dal punto di partenza":
+                    goal_meta.append(f"Creato {created_label}")
+                st.caption(" · ".join(goal_meta))
                 if goal.get("achieved_at"):
                     reached = pd.to_datetime(goal["achieved_at"], errors="coerce")
                     if pd.notna(reached):
@@ -1894,7 +1948,12 @@ def show_therapist_dashboard():
                     st.markdown(f"**{entry.get('title', 'Senza titolo')}**")
                     created_label = format_display_date(entry.get("created_at"), include_time=True, compact=True)
                     shared_label = format_display_date(entry.get("shared_at"), include_time=True, compact=True)
-                    st.caption(f"Condivisa dal paziente · creata {created_label} · condivisa {shared_label}")
+                    entry_meta = ["Condivisa dal paziente"]
+                    if created_label != "—":
+                        entry_meta.append(f"creata {created_label}")
+                    if shared_label != "—":
+                        entry_meta.append(f"condivisa {shared_label}")
+                    st.caption(" · ".join(entry_meta))
                     st.write(entry.get("content", ""))
         else:
             st.info("Non ci sono materiali condivisi dal paziente per questa seduta.")
@@ -2265,12 +2324,7 @@ def update_session_bridge_priority(draft, ref):
 
 
 def _session_bridge_date(value):
-    if not value:
-        return "Data non disponibile"
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).strftime("%d/%m/%Y")
-    except (TypeError, ValueError):
-        return str(value)
+    return format_display_date(value, compact=True, fallback="Data non disponibile")
 
 
 def _session_bridge_card(candidate, origin):
@@ -2342,6 +2396,8 @@ def show_session_bridge_tab():
         }
         st.success(messages[draft["status"]])
         return
+
+    st.markdown('<span class="psy-badge">In preparazione</span>', unsafe_allow_html=True)
 
     rating_labels = {
         1: "Molto difficile", 2: "Difficile", 3: "Così così", 4: "Buona", 5: "Molto buona",
@@ -2557,6 +2613,7 @@ def render_client_navigation():
         show_session_bridge_tab()
         return
 
+    st.markdown('<div class="psy-patient-intro"><div class="psy-patient-intro__title">PsyHelper</div><div class="psy-patient-intro__copy">Uno spazio per raccogliere ciò che succede tra una seduta e l’altra, vedere il tuo percorso e portare con te ciò che conta.</div></div>', unsafe_allow_html=True)
     if st.button(
         "Prepara la prossima seduta",
         key="session_bridge_open",
