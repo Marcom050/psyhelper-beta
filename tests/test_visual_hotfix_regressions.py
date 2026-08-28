@@ -24,6 +24,30 @@ def test_primary_form_submit_matches_current_streamlit_structure():
     assert "background: var(--psy-primary-hover) !important" in css
 
 
+def test_warm_theme_tokens_and_secondary_button_contrast_are_global():
+    css = app.DESIGN_SYSTEM_CSS
+    for token in ("#FBF8F5", "#2C2725", "#746A66", "#E6DDD7", "#6F4B5A", "#C9785F"):
+        assert token in css
+    assert "color: var(--psy-text) !important; background: var(--psy-surface) !important" in css
+    assert "rgba(111, 75, 90, .24)" in css
+
+
+def test_streamlit_native_theme_matches_product_palette():
+    config = Path(".streamlit/config.toml").read_text(encoding="utf-8")
+    assert 'fileWatcherType = "none"' in config
+    assert 'primaryColor = "#6F4B5A"' in config
+    assert 'backgroundColor = "#FBF8F5"' in config
+    assert "#FF4B4B" not in config
+
+
+def test_bridge_renderers_do_not_apply_character_ellipsis():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    card_source = source[source.index("def _session_bridge_card"):source.index("def _session_bridge_draft_preview")]
+    assert "[:177]" not in card_source
+    assert "len(summary)" not in card_source
+    assert "white-space: pre-wrap" in app.DESIGN_SYSTEM_CSS
+
+
 def test_patient_surfaces_use_shared_date_formatter():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert "format_display_date(row.get('data'), include_time=True" in source

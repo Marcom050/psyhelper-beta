@@ -194,7 +194,7 @@ def test_compact_bridge_hides_technical_headings_and_empty_preview():
     assert "Per la prossima seduta" not in headings
     markdown.assert_any_call(
         "#### C'è qualcos'altro che vuoi portare con te? "
-        '<span style="color:#6b7280;font-size:.78rem;font-weight:400">Facoltativo</span>',
+        '<span style="color:#746A66;font-size:.78rem;font-weight:400">Facoltativo</span>',
         unsafe_allow_html=True,
     )
     text_area.assert_called_once_with(
