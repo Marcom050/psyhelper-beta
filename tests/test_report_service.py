@@ -1,5 +1,6 @@
 import inspect
 import unittest
+from copy import deepcopy
 
 from services import report_service
 from services.report_service import (
@@ -189,6 +190,34 @@ class ReportServiceTest(unittest.TestCase):
         joined = " ".join(summary["discussion_points"]).lower()
         for term in forbidden:
             self.assertNotIn(term, joined)
+
+    def test_pre_session_summary_preserves_complete_long_homework_answer(self):
+        sentinel = "QUESTA RISPOSTA DEVE ESSERE VISIBILE FINO ALLA FINE"
+        long_answer = ("Una risposta clinicamente significativa e completa. " * 10) + sentinel
+        wellness = {
+            "homework_assignments": [{"id": "long-1", "template": "Riflessione"}],
+            "homework_submissions": [{
+                "assignment_id": "long-1",
+                "template": "Riflessione",
+                "submitted_at": "2026-05-20T10:00:00",
+                "answers": {"Che cosa hai osservato?": long_answer},
+                "summary": "Sintesi abbreviata...",
+            }],
+        }
+        original = deepcopy(wellness)
+
+        result = build_pre_session_summary(wellness, now=self.now)
+        rendered_answer = result["homework"]["recent_submissions"][0]["snippet"]
+
+        self.assertGreater(len(rendered_answer), 400)
+        self.assertIn(sentinel, rendered_answer)
+        self.assertFalse(rendered_answer.endswith("..."))
+        self.assertEqual(wellness, original)
+
+    def test_pre_session_summary_has_no_fixed_length_truncation(self):
+        source = inspect.getsource(report_service.build_pre_session_summary)
+        self.assertNotIn("[:157]", source)
+        self.assertNotIn("safe_snippet) > 160", source)
 
 
 if __name__ == "__main__":
