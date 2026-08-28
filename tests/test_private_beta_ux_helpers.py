@@ -101,7 +101,9 @@ def test_authenticated_shell_is_compact_and_public_legal_copy_is_login_only():
 def test_checkbox_checked_state_does_not_recolor_label():
     css = app.DESIGN_SYSTEM_CSS
     assert '[data-testid="stCheckbox"] input:checked + div' in css
-    assert '[data-testid="stCheckbox"] label p { color: var(--psy-text) !important; }' in css
+    assert '[data-testid="stCheckbox"] label:has(input:checked) p' in css
+    assert '[data-testid="stCheckbox"] label:has(input:checked) span' in css
+    assert 'color: var(--psy-text) !important;' in css
     assert '[data-testid="stCheckbox"] input:checked + div, [data-testid="stRadio"]' not in css
 
 
@@ -303,8 +305,8 @@ def test_runtime_summary_state_uses_compatible_session_methods():
 def test_progress_journey_copy_present_for_patient_and_therapist():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     assert "Il mio percorso" in source
-    assert "Percorso del paziente" in source
-    assert "Storico del percorso" in source
+    assert "Timeline del percorso" in source
+    assert "Ultimi cambiamenti" in source
     assert "Non ci sono ancora eventi sufficienti per costruire una timeline del percorso." in source
     assert "Passi avanti" in source
     assert "Momenti di difficoltà" in source
