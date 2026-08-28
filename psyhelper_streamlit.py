@@ -111,18 +111,21 @@ st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 DESIGN_SYSTEM_CSS = """
 <style>
 :root {
-  --psy-bg: #f5f7f6;
+  --psy-bg: #FBF8F5;
   --psy-surface: #ffffff;
-  --psy-surface-subtle: #eef3f1;
-  --psy-text: #172321;
-  --psy-text-muted: #5f6f6b;
-  --psy-border: #dce5e2;
-  --psy-primary: #326b61;
-  --psy-primary-hover: #28584f;
-  --psy-success: #287a58;
-  --psy-warning: #9a681d;
-  --psy-error: #b54747;
-  --psy-info: #3d6472;
+  --psy-surface-subtle: #F6F0EC;
+  --psy-text: #2C2725;
+  --psy-text-muted: #746A66;
+  --psy-border: #E6DDD7;
+  --psy-primary: #6F4B5A;
+  --psy-primary-hover: #5C3D49;
+  --psy-primary-soft: #F2E9ED;
+  --psy-accent: #C9785F;
+  --psy-accent-soft: #FAECE7;
+  --psy-success: #4F7765;
+  --psy-warning: #A67532;
+  --psy-error: #B3474E;
+  --psy-info: #65717A;
   --psy-space-1: 0.25rem;
   --psy-space-2: 0.5rem;
   --psy-space-3: 0.75rem;
@@ -132,7 +135,7 @@ DESIGN_SYSTEM_CSS = """
   --psy-radius-sm: 0.375rem;
   --psy-radius-md: 0.625rem;
   --psy-radius-card: 0.875rem;
-  --psy-shadow-subtle: 0 1px 2px rgba(23, 35, 33, 0.05);
+  --psy-shadow-subtle: 0 1px 3px rgba(44, 39, 37, 0.07);
   --psy-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -146,7 +149,7 @@ button, input, textarea, select, label, p, li, h1, h2, h3, h4, h5, h6,
 [class*="material-symbols"], [class*="material-icons"] { font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important; }
 body { color: var(--psy-text); }
 [data-testid="stAppViewContainer"] { background: var(--psy-bg); }
-[data-testid="stHeader"] { background: rgba(245, 247, 246, 0.94); }
+[data-testid="stHeader"] { background: rgba(251, 248, 245, 0.94); }
 [data-testid="stMain"] .block-container {
   width: 100%;
   max-width: 1180px;
@@ -177,10 +180,11 @@ hr { border-color: var(--psy-border) !important; margin: var(--psy-space-6) 0 !i
 /* Buttons: primary, secondary and disabled retain Streamlit semantics. */
 [data-testid="stButton"] button, [data-testid="stFormSubmitButton"] button, [data-testid="stDownloadButton"] button {
   min-height: 2.5rem; padding: 0.5rem 1rem; border-radius: var(--psy-radius-md);
-  border-color: var(--psy-border); box-shadow: none; font-weight: 600; transition: background .15s, border-color .15s, color .15s;
+  color: var(--psy-text) !important; background: var(--psy-surface) !important;
+  border-color: var(--psy-border) !important; box-shadow: none; font-weight: 600; transition: background .15s, border-color .15s, color .15s;
 }
 [data-testid="stButton"] button:hover, [data-testid="stFormSubmitButton"] button:hover, [data-testid="stDownloadButton"] button:hover {
-  border-color: var(--psy-primary); color: var(--psy-primary); background: var(--psy-surface-subtle);
+  border-color: var(--psy-primary) !important; color: var(--psy-primary) !important; background: var(--psy-primary-soft) !important;
 }
 [data-testid="stButton"] button[kind="primary"],
 [data-testid="stFormSubmitButton"] button[kind="primary"],
@@ -192,7 +196,7 @@ button[data-testid="stBaseButton-primary"] {
 [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
 button[data-testid="stBaseButton-primary"]:hover { background: var(--psy-primary-hover) !important; border-color: var(--psy-primary-hover) !important; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
-  outline: 3px solid rgba(50, 107, 97, .22) !important; outline-offset: 2px;
+  outline: 3px solid rgba(111, 75, 90, .24) !important; outline-offset: 2px;
 }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -206,7 +210,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 [data-baseweb="select"] > div:focus-within, [data-baseweb="base-input"]:focus-within,
 [data-testid="stDateInput"] [data-baseweb="input"] > div:focus-within,
 [data-testid="stNumberInput"] [data-baseweb="input"] > div:focus-within {
-  border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(50,107,97,.14) !important;
+  border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(111,75,90,.16) !important;
 }
 [data-testid="stCheckbox"] input:checked + div, [data-testid="stRadio"] input:checked + div { background-color: var(--psy-primary) !important; border-color: var(--psy-primary) !important; }
 [data-testid="stSlider"] [role="slider"], [data-testid="stSlider"] [data-testid="stTickBarMin"],
@@ -223,12 +227,12 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 [data-testid="stDialog"] > div { border-radius: var(--psy-radius-card); }
 
 /* Status messages: semantic accent plus readable text, without large color fields. */
-[data-testid="stAlert"] { border-radius: var(--psy-radius-md); border: 1px solid var(--psy-border); box-shadow: none; padding: .75rem 1rem; }
+[data-testid="stAlert"] { border-radius: var(--psy-radius-md); border: 1px solid var(--psy-border); background: var(--psy-surface-subtle); box-shadow: none; padding: .75rem 1rem; }
 [data-testid="stAlert"] p { font-size: .9rem; }
-[data-testid="stNotificationContentInfo"] { border-left: 3px solid var(--psy-info); }
-[data-testid="stNotificationContentSuccess"] { border-left: 3px solid var(--psy-success); }
-[data-testid="stNotificationContentWarning"] { border-left: 3px solid var(--psy-warning); }
-[data-testid="stNotificationContentError"] { border-left: 3px solid var(--psy-error); }
+[data-testid="stNotificationContentInfo"] { border-left: 3px solid var(--psy-info); background: #F3F1EF; }
+[data-testid="stNotificationContentSuccess"] { border-left: 3px solid var(--psy-success); background: #EEF4F1; }
+[data-testid="stNotificationContentWarning"] { border-left: 3px solid var(--psy-warning); background: #FBF3E7; }
+[data-testid="stNotificationContentError"] { border-left: 3px solid var(--psy-error); background: #FBEDEF; }
 
 /* Metrics and data containers */
 [data-testid="stMetric"] { min-height: 6.25rem; padding: var(--psy-space-4); background: var(--psy-surface); border: 1px solid var(--psy-border); border-radius: var(--psy-radius-card); box-shadow: var(--psy-shadow-subtle); }
@@ -241,11 +245,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .psy-card { margin: var(--psy-space-3) 0; padding: var(--psy-space-4); background: var(--psy-surface); border: 1px solid var(--psy-border); border-radius: var(--psy-radius-card); box-shadow: var(--psy-shadow-subtle); }
 .psy-card__meta, .psy-helper { color: var(--psy-text-muted); font-size: .82rem; line-height: 1.4; }
 .psy-card__title { margin-top: var(--psy-space-1); color: var(--psy-text); font-size: 1.05rem; font-weight: 650; }
-.psy-card__body { margin-top: var(--psy-space-2); color: var(--psy-text); line-height: 1.5; }
+.psy-card__body { margin-top: var(--psy-space-2); color: var(--psy-text); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
 .psy-card__detail { margin-top: var(--psy-space-2); color: var(--psy-text-muted); font-size: .85rem; }
 .psy-badge { display: inline-flex; align-items: center; min-height: 1.5rem; padding: .125rem .5rem; border: 1px solid var(--psy-border); border-radius: 999px; background: var(--psy-surface-subtle); color: var(--psy-text-muted); font-size: .75rem; font-weight: 650; }
-.psy-badge--priority { border-color: #dfc58e; background: #fff8e8; color: #805515; }
-.psy-badge--success { border-color: #b9ddcc; background: #edf8f2; color: var(--psy-success); }
+.psy-badge--priority { border-color: #EBCABD; background: var(--psy-accent-soft); color: #874C3A; }
+.psy-badge--success { border-color: #BCD1C7; background: #EEF4F1; color: var(--psy-success); }
 .psy-workspace { margin: var(--psy-space-3) 0 var(--psy-space-5); padding: var(--psy-space-4) 0; border-top: 1px solid var(--psy-border); border-bottom: 1px solid var(--psy-border); }
 .psy-workspace__eyebrow { color: var(--psy-text-muted); font-size: .78rem; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
 .psy-workspace__title { margin: .15rem 0 .2rem; color: var(--psy-text); font-size: 1.65rem; line-height: 1.2; font-weight: 700; letter-spacing: -.02em; }
@@ -259,8 +263,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .psy-patient-intro__title { color: var(--psy-text); font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; }
 .psy-patient-intro__copy { max-width: 48rem; margin-top: .25rem; color: var(--psy-text-muted); line-height: 1.5; }
 .psy-section-label { margin-top: var(--psy-space-5); color: var(--psy-primary); font-size: .76rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.psy-badge--private { border-color: #cddbd7; background: #f3f7f6; color: var(--psy-primary); }
-.psy-badge--revoked { border-color: #e1d6c2; background: #faf6ed; color: #785d2c; }
+.psy-badge--private { border-color: #DDCAD2; background: var(--psy-primary-soft); color: var(--psy-primary); }
+.psy-badge--revoked { border-color: #E5D0AD; background: #FBF3E7; color: #76501F; }
 
 [data-testid="stChatInput"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
 [data-testid="stChatInput"] > div { border: 1px solid var(--psy-border) !important; border-radius: var(--psy-radius-card) !important; background: var(--psy-surface) !important; box-shadow: var(--psy-shadow-subtle) !important; padding: .2rem .45rem !important; }
@@ -1204,9 +1208,9 @@ def show_monitoring_tab():
                     df[column] = pd.NA
             chart_df = df.melt(id_vars="data", value_vars=["ansia", "stress", "umore_intensita"], var_name="Indicatore", value_name="Valore")
             fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
-            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff", font={"family": "Segoe UI, sans-serif", "color": "#172321"}, margin={"l": 36, "r": 20, "t": 24, "b": 40}, legend={"orientation": "h"})
-            fig.update_xaxes(showgrid=False, linecolor="#dce5e2")
-            fig.update_yaxes(gridcolor="#e8efed", zeroline=False)
+            fig.update_layout(xaxis_title="Data", yaxis_title="Intensità", legend_title="", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#FFFFFF", font={"family": "Segoe UI, sans-serif", "color": "#2C2725"}, margin={"l": 36, "r": 20, "t": 24, "b": 40}, legend={"orientation": "h"})
+            fig.update_xaxes(showgrid=False, linecolor="#E6DDD7")
+            fig.update_yaxes(gridcolor="#F0E9E4", zeroline=False)
             st.plotly_chart(fig, use_container_width=True)
 
 def show_homework_tab():
@@ -1749,14 +1753,14 @@ def show_therapist_dashboard():
             fig = px.line(chart_df, x="data", y="Valore", color="Indicatore", markers=True, range_y=[0, 10])
             fig.update_layout(
                 xaxis_title="Data", yaxis_title="Intensità", legend_title_text="",
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#ffffff",
-                font={"family": "Segoe UI, sans-serif", "color": "#172321", "size": 13},
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#FFFFFF",
+                font={"family": "Segoe UI, sans-serif", "color": "#2C2725", "size": 13},
                 margin={"l": 36, "r": 20, "t": 24, "b": 40},
                 legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "x": 0},
                 hovermode="x unified",
             )
-            fig.update_xaxes(showgrid=False, linecolor="#dce5e2")
-            fig.update_yaxes(gridcolor="#e8efed", zeroline=False)
+            fig.update_xaxes(showgrid=False, linecolor="#E6DDD7")
+            fig.update_yaxes(gridcolor="#F0E9E4", zeroline=False)
             st.plotly_chart(fig, use_container_width=True)
             col_a, col_b = st.columns(2)
             with col_a:
@@ -2329,8 +2333,6 @@ def _session_bridge_date(value):
 
 def _session_bridge_card(candidate, origin):
     summary = escape(str(candidate.get("content") or candidate.get("title") or ""))
-    if len(summary) > 180:
-        summary = f"{summary[:177].rstrip()}…"
     st.markdown(
         '<div class="psy-card">'
         f'<div class="psy-card__meta">'
@@ -2344,8 +2346,6 @@ def _session_bridge_card(candidate, origin):
 def _session_bridge_preview_item(item, origin, is_priority):
     """Render a selected item with denser, preview-only visual styling."""
     summary = escape(str(item.get("content") or item.get("title") or ""))
-    if len(summary) > 180:
-        summary = f"{summary[:177].rstrip()}…"
     priority = (
         '<span class="psy-badge psy-badge--priority">'
         '★ Vorrei partire da questo</span>'
@@ -2454,7 +2454,7 @@ def show_session_bridge_tab():
 
     st.markdown(
         "#### C'è qualcos'altro che vuoi portare con te? "
-        '<span style="color:#6b7280;font-size:.78rem;font-weight:400">Facoltativo</span>',
+        '<span style="color:#746A66;font-size:.78rem;font-weight:400">Facoltativo</span>',
         unsafe_allow_html=True,
     )
     st.caption("Sensazioni, pensieri, situazioni o qualcosa che ti è rimasto in mente.")

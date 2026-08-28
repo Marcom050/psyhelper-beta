@@ -13,7 +13,7 @@ import json
 from typing import Any, Iterable, Mapping, Sequence
 from urllib.parse import quote
 
-from services.homework_service import homework_readable_summary
+from services.homework_service import homework_answer_items
 
 
 REFERENCE_PREFIX = "session_bridge"
@@ -155,6 +155,20 @@ def _mapping_items(value: Any) -> Iterable[tuple[int, Mapping[str, Any]]]:
     return ((index, item) for index, item in enumerate(value) if isinstance(item, Mapping))
 
 
+def _homework_bridge_content(item: Mapping[str, Any]) -> str:
+    """Resolve the fullest available submission copy without changing its source."""
+    explicit = next((item.get(field) for field in (
+        "bridge_content", "session_content", "content_for_session",
+    ) if str(item.get(field) or "").strip()), None)
+    if explicit:
+        return str(explicit).strip()
+    answers = homework_answer_items(item.get("answers", {}))
+    if answers:
+        return "\n\n".join(f"{question}: {answer}" for question, answer in answers)
+    free_note = item.get("free_note") or item.get("notes") or item.get("note")
+    return str(free_note or item.get("summary") or "").strip()
+
+
 def _build_candidates(wellness: Mapping[str, Any] | None, *, policy: RecencyPolicy,
                       now: datetime, apply_recency: bool) -> list[dict[str, Any]]:
     """Build display candidates without mutating or persisting the wellness input."""
@@ -187,8 +201,7 @@ def _build_candidates(wellness: Mapping[str, Any] | None, *, policy: RecencyPoli
 
     for index, item in _mapping_items(wellness.get("homework_submissions")):
         if not apply_recency or _recent(item, ("submitted_at", "created_at", "date"), policy.homework_days, now):
-            free_note = item.get("free_note") or item.get("notes") or item.get("note")
-            content = free_note or homework_readable_summary(item, max_chars=10_000)
+            content = _homework_bridge_content(item)
             candidate = _candidate("homework_submission", item, index, title=item.get("template") or "Homework completato",
                                    content=content, occurred_at=item.get("submitted_at") or item.get("created_at"), rank=20)
             if candidate:

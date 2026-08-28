@@ -127,6 +127,34 @@ def test_preview_resolves_current_source_content_without_copying_it_into_payload
     assert build_bridge_preview(wellness, payload, now=NOW)["items"][1]["content"] == "Testo aggiornato"
 
 
+def test_long_homework_answers_reach_bridge_intact_without_mutating_submission():
+    long_answer = (
+        "Durante la settimana ho provato a fermarmi e osservare cosa succedeva, soprattutto nei momenti "
+        "in cui sentivo salire la preoccupazione. Ho annotato il contesto, i pensieri e le reazioni del corpo, "
+        "poi ho confrontato ciò che temevo con ciò che è realmente accaduto. Questo mi ha aiutato a vedere "
+        "che spesso anticipavo il giudizio degli altri e rinunciavo a chiedere chiarimenti. La prossima volta "
+        "vorrei provare a restare nella situazione qualche minuto in più e ricordare: "
+        "QUESTA PARTE DEVE RESTARE VISIBILE"
+    )
+    submission = {
+        "assignment_id": "hw-long", "template": "Tempo per le preoccupazioni",
+        "submitted_at": "2026-08-12T09:00:00Z", "answers": {"Che cosa hai osservato?": long_answer},
+        "free_note": "Nota più breve", "summary": "Sintesi persistita e abbreviata…",
+    }
+    wellness = {"homework_submissions": [submission]}
+    original = deepcopy(wellness)
+
+    candidate = build_bridge_candidates(wellness, now=NOW)[0]
+    preview = build_bridge_preview(
+        wellness, {"selected_refs": [candidate["ref"]], "priority_ref": candidate["ref"]}, now=NOW
+    )
+
+    assert "QUESTA PARTE DEVE RESTARE VISIBILE" in candidate["content"]
+    assert "QUESTA PARTE DEVE RESTARE VISIBILE" in preview["items"][0]["content"]
+    assert not candidate["content"].endswith("…")
+    assert wellness == original
+
+
 def test_preview_marks_no_item_as_priority_when_priority_is_null():
     wellness = sample_wellness()
     selected = [item["ref"] for item in build_bridge_candidates(wellness, now=NOW)[:2]]
