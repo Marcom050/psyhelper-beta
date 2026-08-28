@@ -26,17 +26,19 @@ def test_primary_form_submit_matches_current_streamlit_structure():
 
 def test_warm_theme_tokens_and_secondary_button_contrast_are_global():
     css = app.DESIGN_SYSTEM_CSS
-    for token in ("#FBF8F5", "#2C2725", "#746A66", "#E6DDD7", "#6F4B5A", "#C9785F"):
+    for token in ("#FCFBFA", "#FFFFFF", "#F7F4F2", "#292625", "#6C6662", "#E8E2DE", "#B85C48"):
         assert token in css
     assert "color: var(--psy-text) !important; background: var(--psy-surface) !important" in css
-    assert "rgba(111, 75, 90, .24)" in css
+    assert "rgba(184, 92, 72, .22)" in css
 
 
 def test_streamlit_native_theme_matches_product_palette():
     config = Path(".streamlit/config.toml").read_text(encoding="utf-8")
     assert 'fileWatcherType = "none"' in config
-    assert 'primaryColor = "#6F4B5A"' in config
-    assert 'backgroundColor = "#FBF8F5"' in config
+    assert 'primaryColor = "#B85C48"' in config
+    assert 'backgroundColor = "#FCFBFA"' in config
+    assert 'secondaryBackgroundColor = "#F7F4F2"' in config
+    assert 'textColor = "#292625"' in config
     assert "#FF4B4B" not in config
 
 

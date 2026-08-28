@@ -294,10 +294,16 @@ def build_pre_session_summary(
     recent_submissions = []
     for submission in sorted(submissions, key=lambda item: str(item.get("submitted_at", "")), reverse=True)[:max_recent_submissions]:
         assignment = by_assignment_id.get(submission.get("assignment_id"), {})
-        snippet_source = submission.get("summary") or " ".join(str(value) for value in (submission.get("answers") or {}).values())
+        # Prefer the complete structured answers. ``summary`` is a legacy,
+        # potentially abbreviated presentation fallback and must never hide them.
+        answers = submission.get("answers") or {}
+        snippet_source = "\n\n".join(
+            f"{question}: {answer}" if question else str(answer)
+            for question, answer in answers.items()
+            if answer not in (None, "")
+        )
+        snippet_source = snippet_source or submission.get("note") or submission.get("free_text") or submission.get("summary")
         safe_snippet = " ".join(str(snippet_source).split())
-        if len(safe_snippet) > 160:
-            safe_snippet = f"{safe_snippet[:157]}..."
         recent_submissions.append({
             "title": submission.get("template") or assignment.get("template") or "Esercizio",
             "submitted_at": submission.get("submitted_at") or "—",

@@ -111,21 +111,21 @@ st.set_page_config(page_title="PsyHelper", page_icon="🧠", layout="wide")
 DESIGN_SYSTEM_CSS = """
 <style>
 :root {
-  --psy-bg: #FBF8F5;
-  --psy-surface: #ffffff;
-  --psy-surface-subtle: #F6F0EC;
-  --psy-text: #2C2725;
-  --psy-text-muted: #746A66;
-  --psy-border: #E6DDD7;
-  --psy-primary: #6F4B5A;
-  --psy-primary-hover: #5C3D49;
-  --psy-primary-soft: #F2E9ED;
-  --psy-accent: #C9785F;
-  --psy-accent-soft: #FAECE7;
-  --psy-success: #4F7765;
-  --psy-warning: #A67532;
-  --psy-error: #B3474E;
-  --psy-info: #65717A;
+  --psy-bg: #FCFBFA;
+  --psy-surface: #FFFFFF;
+  --psy-surface-subtle: #F7F4F2;
+  --psy-text: #292625;
+  --psy-text-muted: #6C6662;
+  --psy-border: #E8E2DE;
+  --psy-primary: #B85C48;
+  --psy-primary-hover: #9E4F3F;
+  --psy-primary-soft: #F9ECE8;
+  --psy-accent: #B85C48;
+  --psy-accent-soft: #F9ECE8;
+  --psy-success: #557565;
+  --psy-warning: #9B7138;
+  --psy-error: #A94E56;
+  --psy-info: #66717A;
   --psy-space-1: 0.25rem;
   --psy-space-2: 0.5rem;
   --psy-space-3: 0.75rem;
@@ -149,11 +149,11 @@ button, input, textarea, select, label, p, li, h1, h2, h3, h4, h5, h6,
 [class*="material-symbols"], [class*="material-icons"] { font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important; }
 body { color: var(--psy-text); }
 [data-testid="stAppViewContainer"] { background: var(--psy-bg); }
-[data-testid="stHeader"] { background: rgba(251, 248, 245, 0.94); }
+[data-testid="stHeader"] { background: rgba(252, 251, 250, 0.94); }
 [data-testid="stMain"] .block-container {
   width: 100%;
   max-width: 1180px;
-  padding: 2rem 2.25rem 3rem;
+  padding: 1rem 2.25rem 2.5rem;
 }
 [data-testid="stSidebar"] { background: var(--psy-surface-subtle); border-right: 1px solid var(--psy-border); }
 [data-testid="stSidebarContent"] { padding-top: var(--psy-space-4); }
@@ -196,7 +196,7 @@ button[data-testid="stBaseButton-primary"] {
 [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
 button[data-testid="stBaseButton-primary"]:hover { background: var(--psy-primary-hover) !important; border-color: var(--psy-primary-hover) !important; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
-  outline: 3px solid rgba(111, 75, 90, .24) !important; outline-offset: 2px;
+  outline: 3px solid rgba(184, 92, 72, .22) !important; outline-offset: 2px;
 }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -210,9 +210,11 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 [data-baseweb="select"] > div:focus-within, [data-baseweb="base-input"]:focus-within,
 [data-testid="stDateInput"] [data-baseweb="input"] > div:focus-within,
 [data-testid="stNumberInput"] [data-baseweb="input"] > div:focus-within {
-  border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(111,75,90,.16) !important;
+  border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(184,92,72,.14) !important;
 }
-[data-testid="stCheckbox"] input:checked + div, [data-testid="stRadio"] input:checked + div { background-color: var(--psy-primary) !important; border-color: var(--psy-primary) !important; }
+[data-testid="stCheckbox"] input:checked + div { background-color: var(--psy-primary) !important; border-color: var(--psy-primary) !important; }
+[data-testid="stCheckbox"] label, [data-testid="stCheckbox"] label p { color: var(--psy-text) !important; }
+[data-testid="stCheckbox"] label:has(input:disabled), [data-testid="stCheckbox"] label:has(input:disabled) p { color: var(--psy-text-muted) !important; }
 [data-testid="stSlider"] [role="slider"], [data-testid="stSlider"] [data-testid="stTickBarMin"],
 [data-testid="stSlider"] [data-testid="stTickBarMax"] { border-color: var(--psy-primary) !important; }
 [data-testid="stWidgetLabel"] p { color: var(--psy-text); font-size: .9rem; font-weight: 600; }
@@ -266,6 +268,20 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .psy-badge--private { border-color: #DDCAD2; background: var(--psy-primary-soft); color: var(--psy-primary); }
 .psy-badge--revoked { border-color: #E5D0AD; background: #FBF3E7; color: #76501F; }
 
+/* Stable, project-owned authenticated shell; sticky rather than overlaying content. */
+.st-key-authenticated_patient_toolbar {
+  position: sticky; top: 2.75rem; z-index: 900;
+  margin: 0 0 .25rem; padding: .4rem .15rem;
+  background: rgba(252, 251, 250, .97); border-bottom: 1px solid var(--psy-border);
+}
+.st-key-authenticated_patient_toolbar [data-testid="stMarkdownContainer"] p {
+  margin: .35rem 0; font-size: 1.1rem; font-weight: 700;
+}
+.st-key-authenticated_patient_toolbar [data-testid="stButton"] button { min-height: 2.25rem; padding: .35rem .75rem; }
+.st-key-client_main_navigation [data-baseweb="tab-list"] {
+  position: sticky; top: 6.1rem; z-index: 850; background: rgba(252, 251, 250, .97);
+}
+
 [data-testid="stChatInput"] { background: transparent !important; border: 0 !important; box-shadow: none !important; }
 [data-testid="stChatInput"] > div { border: 1px solid var(--psy-border) !important; border-radius: var(--psy-radius-card) !important; background: var(--psy-surface) !important; box-shadow: var(--psy-shadow-subtle) !important; padding: .2rem .45rem !important; }
 [data-testid="stChatInput"] textarea { background: transparent !important; border: 0 !important; box-shadow: none !important; color: var(--psy-text) !important; }
@@ -282,6 +298,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   .psy-workspace__title { font-size: 1.4rem; }
   .psy-patient-intro__title { font-size: 1.25rem; }
   .psy-card { padding: var(--psy-space-3); }
+  .st-key-authenticated_patient_toolbar { position: static; }
+  .st-key-client_main_navigation [data-baseweb="tab-list"] { position: static; }
 }
 </style>
 """
@@ -383,40 +401,37 @@ def render_analytics_banner():
     )
 
 
-# =============================================
-# TITOLO E DISCLAIMER - INIZIO PAGINA
-# =============================================
-st.title("🧠 PsyHelper")
+def render_public_access_header():
+    """Render legal/product context only in the unauthenticated access flow."""
+    st.title("🧠 PsyHelper")
+    if SETTINGS.commercial_gating_enabled and not session_adapter.is_beta_disclaimer_accepted():
+        st.warning("Prima di usare o creare un account devi accettare le condizioni della beta commerciale controllata.")
+        st.markdown("### Condizioni d'uso beta commerciale controllata")
+        st.info(BETA_DISCLAIMER_TEXT)
+        st.info(
+            "© PsyHelper. Il prodotto e il concept sono coperti da copyright e diritto d'autore. "
+            "È vietata la riproduzione totale o parziale senza autorizzazione scritta."
+        )
+        accepted = st.checkbox(
+            "Ho letto e accetto: userò PsyHelper solo come professionista autorizzato con account attivo, non lo userò per emergenze, inserirò solo dati necessari, resterò responsabile delle decisioni cliniche e degli obblighi privacy/legal e riconosco che prodotto/concept sono tutelati da copyright con divieto di riproduzione totale o parziale.",
+            key="beta_disclaimer_acceptance_checkbox",
+        )
+        if st.button("Accetta e continua", disabled=not accepted):
+            session_adapter.accept_beta_disclaimer(datetime.utcnow().isoformat(timespec="seconds"))
+            st.rerun()
+        st.stop()
 
-if SETTINGS.commercial_gating_enabled and not session_adapter.is_beta_disclaimer_accepted():
-    st.warning("Prima di usare o creare un account devi accettare le condizioni della beta commerciale controllata.")
-    st.markdown("### Condizioni d'uso beta commerciale controllata")
-    st.info(BETA_DISCLAIMER_TEXT)
-    st.info(
-        "© PsyHelper. Il prodotto e il concept sono coperti da copyright e diritto d'autore. "
-        "È vietata la riproduzione totale o parziale senza autorizzazione scritta."
-    )
-    accepted = st.checkbox(
-        "Ho letto e accetto: userò PsyHelper solo come professionista autorizzato con account attivo, non lo userò per emergenze, inserirò solo dati necessari, resterò responsabile delle decisioni cliniche e degli obblighi privacy/legal e riconosco che prodotto/concept sono tutelati da copyright con divieto di riproduzione totale o parziale.",
-        key="beta_disclaimer_acceptance_checkbox",
-    )
-    if st.button("Accetta e continua", use_container_width=True, disabled=not accepted):
-        session_adapter.accept_beta_disclaimer(datetime.utcnow().isoformat(timespec="seconds"))
-        st.rerun()
-    st.stop()
-
-st.markdown("""
-<div class="psy-notice">
-    <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
-    In caso di difficoltà gravi consulta un professionista della salute mentale o i servizi di emergenza se sei in pericolo immediato.<br><br>
-    <strong>Privacy:</strong> Tutte le tue conversazioni e schede sono private e salvate solo sul tuo account.
-</div>
-""", unsafe_allow_html=True)
-
-if SHOW_DEBUG_UI:
-    render_analytics_banner()
-if not SETTINGS.commercial_gating_enabled:
-    st.caption("🔬 Modalità demo: nessun abbonamento è richiesto durante la valutazione.")
+    st.markdown("""
+    <div class="psy-notice">
+        <strong>⚠️ Disclaimer:</strong> PsyHelper è uno strumento di supporto e <strong>non sostituisce</strong> una terapia professionale.<br>
+        In caso di difficoltà gravi consulta un professionista della salute mentale o i servizi di emergenza se sei in pericolo immediato.<br><br>
+        <strong>Privacy:</strong> Tutte le tue conversazioni e schede sono private e salvate solo sul tuo account.
+    </div>
+    """, unsafe_allow_html=True)
+    if SHOW_DEBUG_UI:
+        render_analytics_banner()
+    if not SETTINGS.commercial_gating_enabled:
+        st.caption("🔬 Modalità demo: nessun abbonamento è richiesto durante la valutazione.")
 
 GROQ_API_KEY = secret_get("GROQ_API_KEY", "")
 AI_UNAVAILABLE_MESSAGE = "Funzione AI non disponibile: chiave GROQ_API_KEY non configurata."
@@ -1022,6 +1037,8 @@ def show_chat_tab():
         clear_visible_chat_session(persist=True)
         session_adapter.set_scroll_to_top(True)
         st.rerun()
+    if st.button("Torna su", key="chat_scroll_to_top"):
+        scroll_to_top()
 
 
 def show_diary_tab():
@@ -1036,9 +1053,13 @@ def show_diary_tab():
 
     with st.form("mood_entry_form"):
         st.markdown('<div class="psy-section-label">Come sto · cosa è successo</div>', unsafe_allow_html=True)
-        entry_date = st.date_input("Data", value=date.today(), help="Scegli il giorno dell'episodio.")
-        mood = st.selectbox("Che emozione hai sentito di più?", MOOD_OPTIONS, help="Scegli quella più presente in quel momento.")
-        mood_intensity = st.slider("Quanto era forte?", 0, 10, 5, help="0 significa per niente, 10 significa molto forte.")
+        date_col, mood_col, intensity_col = st.columns([1, 1.35, 1.35])
+        with date_col:
+            entry_date = st.date_input("Data", value=date.today(), help="Scegli il giorno dell'episodio.")
+        with mood_col:
+            mood = st.selectbox("Emozione principale", MOOD_OPTIONS, help="Scegli quella più presente in quel momento.")
+        with intensity_col:
+            mood_intensity = st.slider("Intensità", 0, 10, 5, help="0 significa per niente, 10 significa molto forte.")
         trigger = st.text_input(
             "Che cosa è successo?",
             help="Descrivi brevemente il momento o la situazione.",
@@ -1070,7 +1091,7 @@ def show_diary_tab():
             sensations = st.multiselect("Che cosa hai sentito nel corpo? (facoltativo)", SENSATION_OPTIONS, help="Scegli solo le sensazioni che ricordi chiaramente.")
             need = ""
 
-        if st.form_submit_button("Salva scheda", use_container_width=True, type="primary"):
+        if st.form_submit_button("Salva scheda", type="primary"):
             entry = {
                 "creata_il": datetime.utcnow().isoformat(timespec="seconds"),
                 "data": entry_date.isoformat(),
@@ -1108,12 +1129,12 @@ def show_monitoring_tab():
     starting_point = build_starting_point(profile, wellness)
     recap = build_patient_progress_recap(wellness, journey)
 
-    st.title("Il mio percorso")
-    st.write("Uno spazio per ricordare da dove sei partito, vedere i passi fatti e tenere presenti gli obiettivi del percorso.")
+    st.subheader("Il mio percorso")
     st.caption("Questa panoramica organizza le informazioni inserite da te e dal terapeuta. Non rappresenta una valutazione clinica automatica.")
 
-    st.markdown("## Da dove sono partito")
-    with st.container(border=True):
+    overview_left, overview_right = st.columns(2)
+    with overview_left:
+        st.markdown("### Da dove sono partito")
         if starting_point["empty"]:
             st.info(starting_point["empty_message"])
         else:
@@ -1121,12 +1142,12 @@ def show_monitoring_tab():
                 st.markdown(f"**{escape(field['label'])}**")
                 st.write(escape(field["display_value"]))
 
-    st.markdown("## I miei obiettivi")
-    current_goals = active_goals(wellness)
-    if not current_goals:
-        st.info("Non ci sono ancora obiettivi in percorso.")
-    for goal in current_goals:
-        with st.container(border=True):
+    with overview_right:
+        st.markdown("### I miei obiettivi")
+        current_goals = active_goals(wellness)
+        if not current_goals:
+            st.info("Non ci sono ancora obiettivi in percorso.")
+        for goal in current_goals:
             st.markdown(f"**{escape(goal['title'])}**")
             st.caption(f"{source_label(goal['source'])} · In percorso")
     with st.form("add_patient_journey_goal", clear_on_submit=True):
@@ -1144,29 +1165,21 @@ def show_monitoring_tab():
                 st.success("Obiettivo aggiunto al percorso.")
                 st.rerun()
 
-    st.markdown("## Quello che ho fatto finora")
-    st.markdown("### Progressi riconosciuti")
-    if recap["achieved_goals"]:
-        for goal in recap["achieved_goals"]:
-            date_label = format_display_date(goal.get("achieved_at"), compact=True, fallback="data non disponibile")
-            st.markdown(f"**{escape(goal['title'])}**  ")
-            st.caption(f"Riconosciuto insieme al terapeuta il {date_label}.")
-    else:
-        st.caption("Non ci sono ancora obiettivi confermati come raggiunti dal terapeuta.")
-    st.markdown("### Attività svolte")
-    if recap["activities"]:
-        for activity in recap["activities"]:
+    with st.expander("Attività, progressi e segnali", expanded=False):
+        st.markdown("### Quello che ho fatto finora")
+        st.markdown("#### Progressi riconosciuti")
+        if recap["achieved_goals"]:
+            for goal in recap["achieved_goals"]:
+                date_label = format_display_date(goal.get("achieved_at"), compact=True, fallback="data non disponibile")
+                st.markdown(f"**{escape(goal['title'])}** — {date_label}")
+        else:
+            st.caption("Non ci sono ancora obiettivi confermati come raggiunti dal terapeuta.")
+        st.markdown("#### Attività svolte")
+        for activity in recap["activities"] or ["Non ci sono ancora esercizi completati registrati."]:
             st.write(f"• {activity}")
-        st.caption("Le attività completate aiutano a mantenere traccia del lavoro svolto tra le sedute.")
-    else:
-        st.caption("Non ci sono ancora esercizi completati registrati.")
-    st.markdown("### Segnali del percorso")
-    if recap["automatic_signals"]:
-        for signal in recap["automatic_signals"]:
+        st.markdown("#### Segnali del percorso")
+        for signal in recap["automatic_signals"] or ["Non ci sono ancora segnali descrittivi supportati dalle compilazioni registrate."]:
             st.write(f"• {signal}")
-        st.caption("Sono segnali descrittivi: non confermano automaticamente il raggiungimento di un obiettivo.")
-    else:
-        st.caption("Non ci sono ancora segnali descrittivi supportati dalle compilazioni registrate.")
 
     st.markdown("## Come sta andando recentemente")
     snapshot = journey["current_snapshot"]
@@ -1565,8 +1578,14 @@ def show_therapist_dashboard():
     subscription_status = metadata.get("subscription_status", "inactive")
     subscription_active = has_active_subscription(username)
 
-    st.header("Workspace terapeuta")
-    st.caption("Seleziona un paziente e consulta rapidamente ciò che è utile approfondire.")
+    heading_col, logout_col = st.columns([6, 1])
+    with heading_col:
+        st.header("Workspace terapeuta")
+    with logout_col:
+        if st.button("Logout", key="therapist_toolbar_logout", type="secondary"):
+            reset_session_for_logout()
+            st.rerun()
+            return
 
     if SETTINGS.commercial_gating_enabled:
         col1, col2, col3 = st.columns(3)
@@ -1924,12 +1943,10 @@ def show_therapist_dashboard():
         box_a, box_b = st.columns(2)
         with box_a:
             st.markdown("#### Risposte recenti")
-            st.caption("Da riprendere in seduta")
             if hw["recent_submissions"]:
-                for submission in hw["recent_submissions"]:
-                    with st.container(border=True):
-                        st.markdown(f"**{submission['title']}**")
-                        st.caption(format_display_date(submission["submitted_at"], include_time=True, compact=True))
+                for index, submission in enumerate(hw["recent_submissions"]):
+                    date_label = format_display_date(submission["submitted_at"], include_time=True, compact=True)
+                    with st.expander(f"{submission['title']} · {date_label}", expanded=index == 0):
                         st.write(submission["snippet"])
             else:
                 st.info("Non risultano risposte recenti.")
@@ -1969,18 +1986,16 @@ def show_therapist_dashboard():
         else:
             st.info("Assegna un esercizio o invita il cliente a compilare un check-in per vedere più informazioni qui.")
 
-        st.divider()
-        st.markdown("### Sintesi settimanale esportabile")
-        st.caption("Testo automatico precedente, disponibile per consultazione ed esportazione; distinto dal quadro operativo sopra.")
-        recap_payload = weekly_recap_payload_for(selected_username, selected_snapshot)
-        st.markdown(f'<div class="psy-readonly">{escape(recap_payload["display_text"])}</div>', unsafe_allow_html=True)
-        st.download_button(
-            "Scarica recap .txt",
-            data=recap_payload["download_text"],
-            file_name=f"recap_{selected_username}.txt",
-            mime="text/plain",
-            use_container_width=True,
-        )
+        with st.expander("Sintesi settimanale esportabile", expanded=False):
+            st.caption("Testo automatico precedente, disponibile per consultazione ed esportazione; distinto dal quadro operativo sopra.")
+            recap_payload = weekly_recap_payload_for(selected_username, selected_snapshot)
+            st.markdown(f'<div class="psy-readonly">{escape(recap_payload["display_text"])}</div>', unsafe_allow_html=True)
+            st.download_button(
+                "Scarica recap .txt",
+                data=recap_payload["download_text"],
+                file_name=f"recap_{selected_username}.txt",
+                mime="text/plain",
+            )
 
 def reset_session_for_logout():
     clear_visible_chat_session(persist=True)
@@ -2588,7 +2603,8 @@ def show_therapist_session_bridge(username, patient_name, wellness):
 
 
 def render_client_app_tabs():
-    app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
+    with st.container(key="client_main_navigation"):
+        app_tabs = st.tabs(["💬 Chat", "📝 Diario CBT", "🔐 Area privata", "📚 Homework CBT", "📈 Monitoraggio", "📋 Resoconto"])
     with app_tabs[0]:
         show_chat_tab()
     with app_tabs[1]:
@@ -2613,25 +2629,21 @@ def render_client_navigation():
         show_session_bridge_tab()
         return
 
-    st.markdown('<div class="psy-patient-intro"><div class="psy-patient-intro__title">PsyHelper</div><div class="psy-patient-intro__copy">Uno spazio per raccogliere ciò che succede tra una seduta e l’altra, vedere il tuo percorso e portare con te ciò che conta.</div></div>', unsafe_allow_html=True)
-    if st.button(
-        "Prepara la prossima seduta",
-        key="session_bridge_open",
-        type="primary",
-    ):
-        session_adapter.set_ui_state(SESSION_BRIDGE_VIEW_KEY, True)
-        st.rerun()
-        return
+    with st.container(key="authenticated_patient_toolbar"):
+        brand_col, bridge_col, logout_col = st.columns([5, 2.2, 1])
+        with brand_col:
+            st.markdown("PsyHelper")
+        with bridge_col:
+            if st.button("Prepara la prossima seduta", key="session_bridge_open", type="primary"):
+                session_adapter.set_ui_state(SESSION_BRIDGE_VIEW_KEY, True)
+                st.rerun()
+                return
+        with logout_col:
+            if st.button("Logout", key="client_toolbar_logout", type="secondary"):
+                reset_session_for_logout()
+                st.rerun()
+                return
     render_client_app_tabs()
-
-
-def render_client_footer_actions():
-    st.divider()
-    if st.button("Torna su", use_container_width=True):
-        scroll_to_top()
-    if st.button("Esci", use_container_width=True):
-        reset_session_for_logout()
-        st.rerun()
 
 
 def render_authenticated_app():
@@ -2652,20 +2664,18 @@ def render_authenticated_app():
 
     if current_role == "therapist":
         show_therapist_dashboard()
-        st.divider()
-        logout_button()
         st.stop()
 
     ensure_subscription_or_stop(current_metadata)
     render_onboarding_or_stop()
     render_post_free_consultation_onboarding_or_stop()
     render_client_navigation()
-    render_client_footer_actions()
 
 
 def main():
     # ====================== LOGIN ======================
     if not session_adapter.is_logged_in():
+        render_public_access_header()
         render_login_area()
         st.stop()
 

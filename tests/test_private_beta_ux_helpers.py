@@ -73,15 +73,36 @@ def test_clear_visible_chat_session_clears_messages_without_persistence_by_defau
 def test_clear_chat_button_label_is_italian_and_uses_shared_cleanup_path():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
     chat_source = source[source.index("def show_chat_tab():"):source.index("def show_diary_tab():")]
-    footer_source = source[source.index("def render_client_footer_actions():"):source.index("def render_authenticated_app():")]
     assert 'st.button("Pulisci chat corrente", key="clear_current_chat_in_chat_tab"' in chat_source
     assert "clear_visible_chat_session(persist=True)" in chat_source
-    assert "Pulisci chat corrente" not in footer_source
     assert source.count('st.button("Pulisci chat corrente"') == 1
-    assert 'if st.button("Torna su", use_container_width=True):' in source
-    assert 'if st.button("Esci", use_container_width=True):' in source
+    assert 'st.button("Torna su", key="chat_scroll_to_top")' in chat_source
+    assert "def render_client_footer_actions():" not in source
+    assert 'st.button("Esci"' not in source
+    assert 'st.button("Logout", key="client_toolbar_logout", type="secondary")' in source
     assert "def reset_session_for_logout():" in source
     assert "clear_visible_chat_session(persist=True)" in source
+
+
+def test_authenticated_shell_is_compact_and_public_legal_copy_is_login_only():
+    source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
+    navigation = source[source.index("def render_client_navigation():"):source.index("def render_authenticated_app():")]
+    main_source = source[source.index("def main():"):]
+    assert 'key="authenticated_patient_toolbar"' in navigation
+    assert "Prepara la prossima seduta" in navigation
+    assert 'key="client_toolbar_logout"' in navigation
+    assert "render_public_access_header()" in main_source
+    assert main_source.index("render_public_access_header()") < main_source.index("render_login_area()")
+    authenticated = source[source.index("def render_authenticated_app():"):source.index("def main():")]
+    assert "render_public_access_header" not in authenticated
+    assert "Modalità demo" not in authenticated
+
+
+def test_checkbox_checked_state_does_not_recolor_label():
+    css = app.DESIGN_SYSTEM_CSS
+    assert '[data-testid="stCheckbox"] input:checked + div' in css
+    assert '[data-testid="stCheckbox"] label p { color: var(--psy-text) !important; }' in css
+    assert '[data-testid="stCheckbox"] input:checked + div, [data-testid="stRadio"]' not in css
 
 
 def test_client_positioning_copy_mentions_personalization_and_therapist_control():
@@ -156,7 +177,9 @@ def test_patient_delete_keys_and_pending_state_are_stable():
 
 def test_normal_demo_ui_hides_commercial_copy_and_analytics():
     source = Path("psyhelper_streamlit.py").read_text(encoding="utf-8")
-    assert "if SHOW_DEBUG_UI:\n    render_analytics_banner()" in source
+    public_header = source[source.index("def render_public_access_header"):source.index("GROQ_API_KEY")]
+    assert "if SHOW_DEBUG_UI:" in public_header
+    assert "render_analytics_banner()" in public_header
     assert 'st.header("Workspace terapeuta")' in source
     assert "Dashboard terapeuta · Private Beta" not in source
     assert 'initial_status = "trialing" if SETTINGS.commercial_gating_enabled else "active"' in source
