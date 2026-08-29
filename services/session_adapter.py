@@ -86,6 +86,39 @@ class SessionAdapter:
             scroll_to_top=self.get_scroll_to_top(),
         )
 
+    def _render_ui_regression_guards(self) -> None:
+        """Keep Streamlit reruns from leaking therapist chrome or checkbox accent into labels."""
+        current_role = str(self.get_user_metadata().get("role", ""))
+        show_therapist_toolbar = self.is_logged_in() and current_role == "therapist"
+        therapist_toolbar_display = "block" if show_therapist_toolbar else "none"
+        st.markdown(
+            f"""
+<style>
+/* Streamlit can briefly retain a keyed sticky container across auth/role reruns.
+   Make the therapist toolbar explicitly role-scoped so it never appears in login
+   or in the patient workspace. */
+.st-key-therapist_global_toolbar {{
+  display: {therapist_toolbar_display} !important;
+}}
+
+/* A checked checkbox may inherit the theme primary color on its label wrapper.
+   Keep the accent on the control itself and force the human-readable label back
+   to the normal text color. */
+[data-testid="stCheckbox"] label > div:last-child,
+[data-testid="stCheckbox"] label > div:last-child p,
+[data-testid="stCheckbox"] label > div:last-child span,
+[data-testid="stCheckbox"] label > div:last-child [data-testid="stMarkdownContainer"] {{
+  color: var(--psy-text, #29282B) !important;
+}}
+[data-testid="stCheckbox"] input:checked + div {{
+  background-color: var(--psy-primary, #C84E3A) !important;
+  border-color: var(--psy-primary, #C84E3A) !important;
+}}
+</style>
+""",
+            unsafe_allow_html=True,
+        )
+
     def initialize_defaults(self) -> None:
         self._setdefault("username", None)
         self._setdefault("logged_in", False)
@@ -102,6 +135,7 @@ class SessionAdapter:
         if not isinstance(self.get_wellness(), dict):
             self.set_wellness(self._default_wellness_factory())
         self._ensure_wellness_schema(self.get_wellness())
+        self._render_ui_regression_guards()
 
     def load_user_session(self, username: str) -> None:
         bundle = self._load_account_bundle(username)
