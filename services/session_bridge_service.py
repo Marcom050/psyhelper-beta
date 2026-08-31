@@ -357,7 +357,16 @@ def transition_session_bridge(wellness: dict[str, Any], action: str, *, actor_ro
         updated.setdefault(field, None)
     updated["status"], timestamp_field = transition
     updated[timestamp_field] = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
-    wellness["session_bridge"] = updated
+    if action == "archive":
+        # The archived payload is immutable history; the current slot is released
+        # immediately so a completely independent Bridge can be prepared.
+        history = wellness.setdefault("session_bridge_history", [])
+        if not isinstance(history, list):
+            raise SessionBridgeValidationError("session_bridge_history must be a list")
+        history.append(updated.copy())
+        wellness["session_bridge"] = empty_session_bridge()
+    else:
+        wellness["session_bridge"] = updated
     return updated
 
 

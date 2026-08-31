@@ -23,6 +23,7 @@ def default_wellness_data():
             "optional_text": "",
             "week_rating": None,
         },
+        "session_bridge_history": [],
     }
 
 
@@ -39,6 +40,7 @@ def ensure_wellness_schema(wellness):
         "optional_text": "",
         "week_rating": None,
     })
+    wellness.setdefault("session_bridge_history", [])
     # Older exports may include mindfulness logs; they are no longer shown in the clinical product.
     wellness.pop("mindfulness_log", None)
     return wellness

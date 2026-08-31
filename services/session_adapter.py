@@ -60,6 +60,10 @@ class SessionAdapter:
         for key in keys:
             self._pop(key, None)
 
+    def clear_ui_state_prefix(self, prefix: str) -> None:
+        """Discard only transient widget values belonging to one UI flow."""
+        self.clear_keys([key for key in list(self._session_state) if str(key).startswith(prefix)])
+
     def has_ui_state(self, key: str) -> bool:
         """Report whether a namespaced Streamlit widget/draft value exists."""
         return key in self._session_state
