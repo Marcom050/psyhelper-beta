@@ -9,6 +9,7 @@ from services.session_bridge_service import (
     build_bridge_candidates,
     build_bridge_preview,
     source_reference,
+    save_session_bridge,
     transition_session_bridge,
     validate_bridge_payload,
 )
@@ -222,6 +223,28 @@ def test_bridge_lifecycle_is_role_scoped_idempotent_and_keeps_material():
     assert archived["status"] == "archived"
     assert archived["selected_refs"] == original["selected_refs"]
     assert archived["optional_text"] == original["optional_text"]
+    assert wellness["session_bridge_history"] == [archived]
+    assert wellness["session_bridge"].get("status", "draft") == "draft"
+    assert wellness["session_bridge"]["selected_refs"] == []
+
+
+def test_archived_bridge_releases_a_clean_current_slot_for_repeated_cycles():
+    wellness = sample_wellness()
+    first_ref, second_ref = [item["ref"] for item in build_bridge_candidates(wellness, now=NOW)[:2]]
+
+    for ref, note in ((first_ref, "Bridge A"), (second_ref, "Bridge B")):
+        save_session_bridge(wellness, {
+            "selected_refs": [ref], "priority_ref": ref, "optional_text": note, "week_rating": None,
+        })
+        transition_session_bridge(wellness, "ready", actor_role="client", now=NOW)
+        transition_session_bridge(wellness, "review", actor_role="therapist", now=NOW)
+        transition_session_bridge(wellness, "archive", actor_role="therapist", now=NOW)
+
+        assert wellness["session_bridge"]["selected_refs"] == []
+        assert wellness["session_bridge"]["optional_text"] == ""
+        assert wellness["session_bridge"].get("status", "draft") == "draft"
+
+    assert [bridge["optional_text"] for bridge in wellness["session_bridge_history"]] == ["Bridge A", "Bridge B"]
 
 
 def test_bridge_lifecycle_rejects_private_draft_and_wrong_role():

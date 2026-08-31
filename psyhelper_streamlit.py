@@ -221,10 +221,6 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 [data-testid="stCheckbox"] label [data-testid="stMarkdownContainer"],
 [data-testid="stCheckbox"] [data-baseweb="checkbox"] p,
 [data-testid="stCheckbox"] [data-baseweb="checkbox"] span { color: var(--psy-text) !important; }
-[data-testid="stCheckbox"] label:has(input:checked),
-[data-testid="stCheckbox"] label:has(input:checked) p,
-[data-testid="stCheckbox"] label:has(input:checked) span,
-[data-testid="stCheckbox"] label:has(input:checked) [data-testid="stMarkdownContainer"] { color: var(--psy-text) !important; }
 [data-testid="stCheckbox"] label:has(input:disabled), [data-testid="stCheckbox"] label:has(input:disabled) p { color: var(--psy-text-muted) !important; }
 [data-testid="stSlider"] [role="slider"], [data-testid="stSlider"] [data-testid="stTickBarMin"],
 [data-testid="stSlider"] [data-testid="stTickBarMax"] { border-color: var(--psy-primary) !important; }
@@ -2393,6 +2389,18 @@ def show_session_bridge_tab():
     if not session_adapter.has_ui_state(draft_key):
         session_adapter.set_ui_state(draft_key, validate_session_bridge_state(persisted))
     draft = session_adapter.get_ui_state(draft_key)
+
+    # An archive releases the persisted current slot. Do not let the patient's
+    # stale submitted draft in session_state keep the completed Bridge active.
+    if persisted.get("status", "draft") == "draft" and draft.get("status", "draft") != "draft":
+        session_adapter.set_ui_state(draft_key, validate_session_bridge_state(persisted))
+        for key in (
+            f"session_bridge_week_rating:{username}",
+            f"session_bridge_optional_text:{username}",
+        ):
+            session_adapter.clear_keys([key])
+        session_adapter.clear_ui_state_prefix(f"session_bridge_select:{username}:")
+        draft = session_adapter.get_ui_state(draft_key)
 
     if draft.get("status") in {"ready", "reviewed", "archived"}:
         messages = {
