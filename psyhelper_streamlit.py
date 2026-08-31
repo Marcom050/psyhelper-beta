@@ -214,13 +214,23 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 [data-testid="stNumberInput"] [data-baseweb="input"] > div:focus-within {
   border-color: var(--psy-primary) !important; box-shadow: 0 0 0 3px rgba(200,78,58,.14) !important;
 }
-[data-testid="stCheckbox"] input:checked + div { background-color: var(--psy-primary) !important; border-color: var(--psy-primary) !important; }
+/* In Streamlit 1.57/BaseWeb the hidden input comes *after* the checkmark and
+   immediately before the label.  The old adjacent-sibling rule therefore painted the
+   text label, not the box.  Select the real checkmark sibling explicitly. */
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(> input:checked) > div:first-of-type {
+  background-color: var(--psy-primary) !important; border-color: var(--psy-primary) !important;
+}
 [data-testid="stCheckbox"] label,
 [data-testid="stCheckbox"] label p,
 [data-testid="stCheckbox"] label span,
 [data-testid="stCheckbox"] label [data-testid="stMarkdownContainer"],
 [data-testid="stCheckbox"] [data-baseweb="checkbox"] p,
 [data-testid="stCheckbox"] [data-baseweb="checkbox"] span { color: var(--psy-text) !important; }
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > [data-testid="stWidgetLabel"],
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > [data-testid="stWidgetLabel"] p {
+  color: var(--psy-text) !important; background: transparent !important;
+  font-weight: inherit !important; opacity: 1 !important; -webkit-text-fill-color: var(--psy-text) !important;
+}
 [data-testid="stCheckbox"] label:has(input:disabled), [data-testid="stCheckbox"] label:has(input:disabled) p { color: var(--psy-text-muted) !important; }
 [data-testid="stSlider"] [role="slider"], [data-testid="stSlider"] [data-testid="stTickBarMin"],
 [data-testid="stSlider"] [data-testid="stTickBarMax"] { border-color: var(--psy-primary) !important; }
@@ -2289,6 +2299,22 @@ def load_session_bridge_for(username, wellness):
     return api_client().get_session_bridge(username)
 
 
+def is_empty_session_bridge_draft(bridge):
+    """Treat the persisted placeholder as an unused slot, not an active Bridge."""
+    if not isinstance(bridge, dict) or bridge.get("status", "draft") != "draft":
+        return False
+    return not any((
+        bridge.get("id"), bridge.get("selected_refs"),
+        str(bridge.get("optional_text") or "").strip(), bridge.get("week_rating"),
+        bridge.get("ready_at"), bridge.get("reviewed_at"), bridge.get("archived_at"),
+    ))
+
+
+def can_start_new_bridge(bridge):
+    """The patient may start whenever no submitted/active Bridge occupies the slot."""
+    return is_empty_session_bridge_draft(bridge)
+
+
 def save_session_bridge_for(username, wellness, payload):
     """Persist explicitly, without putting validation or domain rules in Streamlit."""
     if not use_http_api():
@@ -2392,7 +2418,7 @@ def show_session_bridge_tab():
 
     # An archive releases the persisted current slot. Do not let the patient's
     # stale submitted draft in session_state keep the completed Bridge active.
-    if persisted.get("status", "draft") == "draft" and draft.get("status", "draft") != "draft":
+    if can_start_new_bridge(persisted) and draft.get("status", "draft") != "draft":
         session_adapter.set_ui_state(draft_key, validate_session_bridge_state(persisted))
         for key in (
             f"session_bridge_week_rating:{username}",
@@ -2402,13 +2428,16 @@ def show_session_bridge_tab():
         session_adapter.clear_ui_state_prefix(f"session_bridge_select:{username}:")
         draft = session_adapter.get_ui_state(draft_key)
 
-    if draft.get("status") in {"ready", "reviewed", "archived"}:
+    # The persisted slot, not a possibly stale Streamlit draft, is authoritative
+    # for whether the creation form is blocked by a submitted Bridge.
+    persisted_status = persisted.get("status", "draft")
+    if persisted_status in {"ready", "reviewed", "archived"}:
         messages = {
             "ready": "Bridge pronto. Il terapeuta può ora consultare ciò che hai scelto.",
             "reviewed": "Il materiale è stato ripreso in seduta.",
             "archived": "Questo Bridge è stato concluso e archiviato.",
         }
-        st.success(messages[draft["status"]])
+        st.success(messages[persisted_status])
         return
 
     st.markdown('<span class="psy-badge">In preparazione</span>', unsafe_allow_html=True)

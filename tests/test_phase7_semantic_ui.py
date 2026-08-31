@@ -43,5 +43,5 @@ def test_authenticated_sticky_offsets_and_checkbox_colors_are_semantic():
     assert "top: -" not in css
     assert ".st-key-authenticated_patient_toolbar { position: static; }" in css
     assert ".st-key-therapist_global_toolbar { position: static; }" in css
-    assert 'input:checked + div { background-color: var(--psy-primary) !important' in css
-    assert 'label:has(input:checked)' not in css
+    assert 'label[data-baseweb="checkbox"]:has(> input:checked) > div:first-of-type' in css
+    assert 'input:checked + div' not in css
