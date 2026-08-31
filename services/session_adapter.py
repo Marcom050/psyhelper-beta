@@ -108,13 +108,17 @@ class SessionAdapter:
 /* A checked checkbox may inherit the theme primary color on its label wrapper.
    Keep the accent on the control itself and force the human-readable label back
    to the normal text color. */
-[data-testid="stCheckbox"] label > div:last-child,
-[data-testid="stCheckbox"] label > div:last-child p,
-[data-testid="stCheckbox"] label > div:last-child span,
-[data-testid="stCheckbox"] label > div:last-child [data-testid="stMarkdownContainer"] {{
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > [data-testid="stWidgetLabel"],
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > [data-testid="stWidgetLabel"] p,
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > [data-testid="stWidgetLabel"] span,
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > [data-testid="stWidgetLabel"] [data-testid="stMarkdownContainer"] {{
   color: var(--psy-text, #29282B) !important;
+  background: transparent !important;
+  font-weight: inherit !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: var(--psy-text, #29282B) !important;
 }}
-[data-testid="stCheckbox"] input:checked + div {{
+[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(> input:checked) > div:first-of-type {{
   background-color: var(--psy-primary, #C84E3A) !important;
   border-color: var(--psy-primary, #C84E3A) !important;
 }}

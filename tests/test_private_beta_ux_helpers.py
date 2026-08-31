@@ -100,9 +100,9 @@ def test_authenticated_shell_is_compact_and_public_legal_copy_is_login_only():
 
 def test_checkbox_checked_state_does_not_recolor_label():
     css = app.DESIGN_SYSTEM_CSS
-    assert '[data-testid="stCheckbox"] input:checked + div' in css
+    assert 'label[data-baseweb="checkbox"]:has(> input:checked) > div:first-of-type' in css
     assert 'label:has(input:checked)' not in css
-    checked_rule = css.split('[data-testid="stCheckbox"] input:checked + div', 1)[1].split("}", 1)[0]
+    checked_rule = css.split('label[data-baseweb="checkbox"]:has(> input:checked) > div:first-of-type', 1)[1].split("}", 1)[0]
     assert "background-color" in checked_rule
     assert "border-color" in checked_rule
     assert " color:" not in checked_rule

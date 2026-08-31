@@ -1,4 +1,6 @@
 from pathlib import Path
+import inspect
+import re
 
 import psyhelper_streamlit as app
 
@@ -55,3 +57,23 @@ def test_patient_surfaces_use_shared_date_formatter():
     assert "format_display_date(row.get('data'), include_time=True" in source
     assert "format_display_date(entry.get('created_at'), compact=True)" in source
     assert "return format_display_date(value, compact=True" in source
+
+
+def test_all_runtime_checked_checkbox_css_can_only_paint_the_graphic_box():
+    """Audit both CSS blocks loaded by the real entrypoint, including the later guard."""
+    combined_css = app.DESIGN_SYSTEM_CSS + inspect.getsource(app.SessionAdapter._render_ui_regression_guards)
+    checked_rules = re.findall(r"([^{}]*checked[^{}]*)\{([^{}]*)\}", combined_css, flags=re.IGNORECASE)
+    checkbox_rules = [(selector, declarations) for selector, declarations in checked_rules if "checkbox" in selector.lower()]
+
+    assert checkbox_rules
+    for selector, declarations in checkbox_rules:
+        assert '> div:first-of-type' in selector
+        assert '[data-testid="stWidgetLabel"]' not in selector
+        properties = {declaration.split(":", 1)[0].strip() for declaration in declarations.split(";") if ":" in declaration}
+        assert properties <= {"background-color", "border-color"}
+
+    # The text node is reset by the later, more specific runtime block too.
+    guard_source = inspect.getsource(app.SessionAdapter._render_ui_regression_guards)
+    assert '> [data-testid="stWidgetLabel"]' in guard_source
+    for declaration in ("color:", "background:", "font-weight:", "opacity:", "-webkit-text-fill-color:"):
+        assert declaration in guard_source

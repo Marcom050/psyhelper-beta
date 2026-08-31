@@ -2,7 +2,9 @@ from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
 import psyhelper_streamlit as app
-from services.session_bridge_service import empty_session_bridge, source_reference
+from services.session_bridge_service import (
+    empty_session_bridge, save_session_bridge, source_reference, transition_session_bridge,
+)
 
 
 NOW = datetime(2026, 8, 14, 12, tzinfo=timezone.utc)
@@ -116,6 +118,32 @@ def test_empty_and_saved_bridge_load_through_local_boundary():
     assert app.load_session_bridge_for("patient", wellness) == saved
 
 
+def test_archived_bridge_reload_enables_real_patient_start_condition_and_empty_bridge_b():
+    """Exercise the lifecycle and the same persisted-state predicate used by the patient UI."""
+    wellness = bridge_wellness()
+    bridge_a = {**empty_session_bridge(), "optional_text": "Bridge A"}
+    save_session_bridge(wellness, bridge_a)
+    transition_session_bridge(wellness, "ready", actor_role="client", now=NOW)
+    transition_session_bridge(wellness, "review", actor_role="therapist", now=NOW)
+    transition_session_bridge(wellness, "archive", actor_role="therapist", now=NOW)
+
+    # Reload exactly through the patient page boundary, rather than asserting
+    # only against the repository mutation.
+    reloaded = app.load_session_bridge_for("patient", wellness)
+    assert app.can_start_new_bridge(reloaded) is True
+    bridge_b = empty_session_bridge()
+    assert app.is_empty_session_bridge_draft(bridge_b) is True
+    assert save_session_bridge(wellness, bridge_b) == bridge_b
+    assert wellness["session_bridge_history"][0]["optional_text"] == "Bridge A"
+
+
+def test_nonempty_draft_and_submitted_bridge_still_occupy_current_slot():
+    assert app.can_start_new_bridge({**empty_session_bridge(), "optional_text": "iniziato"}) is False
+    assert app.can_start_new_bridge({**empty_session_bridge(), "week_rating": 3}) is False
+    assert app.can_start_new_bridge({**empty_session_bridge(), "id": "bridge-1"}) is False
+    assert app.can_start_new_bridge({**empty_session_bridge(), "status": "ready"}) is False
+
+
 def test_week_rating_none_and_each_value_are_preserved_by_existing_validation():
     for rating in (None, 1, 2, 3, 4, 5):
         payload = {**empty_session_bridge(), "week_rating": rating}
@@ -204,6 +232,31 @@ def test_compact_bridge_hides_technical_headings_and_empty_preview():
         label_visibility="collapsed",
         height=68,
     )
+
+
+def test_archived_reload_replaces_stale_sent_session_state_and_renders_creation_form():
+    stale = {**empty_session_bridge(), "optional_text": "Bridge A", "status": "ready", "ready_at": NOW.isoformat()}
+    draft_key = "session_bridge_draft:patient"
+    ui_state = {draft_key: stale}
+    adapter = Mock()
+    adapter.get_username.return_value = "patient"
+    adapter.get_wellness.return_value = bridge_wellness()
+    adapter.has_ui_state.side_effect = lambda key: key in ui_state
+    adapter.get_ui_state.side_effect = lambda key, default=None: ui_state.get(key, default)
+    adapter.set_ui_state.side_effect = lambda key, value: ui_state.__setitem__(key, value)
+    adapter.clear_keys.side_effect = lambda keys: [ui_state.pop(key, None) for key in keys]
+
+    with patch.object(app, "session_adapter", adapter), \
+            patch.object(app, "load_session_bridge_for", return_value=empty_session_bridge()), \
+            patch.object(app, "session_bridge_candidates_for_ui", return_value={
+                "diary_entry": [], "homework_submission": [],
+            }), patch.object(app.st, "radio", return_value=None) as radio, \
+            patch.object(app.st, "text_area", return_value=""), \
+            patch.object(app.st, "button", return_value=False):
+        app.show_session_bridge_tab()
+
+    assert app.is_empty_session_bridge_draft(ui_state[draft_key])
+    radio.assert_called_once()
 
 
 def test_compact_bridge_shows_preview_when_optional_text_has_content():
